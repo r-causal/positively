@@ -1,11 +1,44 @@
 Package: positively
-Title: What the Package Does (One Line, Title Case)
+Title: Diagnose Positivity Violations and Extrapolation in Causal Inference
 Version: 0.0.0.9000
 Authors@R: 
     person("Malcolm", "Barrett", , "malcolmbarrett@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0003-0299-5825"))
-Description: What the package does (one paragraph).
+Description: Provides diagnostics for positivity violations and
+    extrapolation in causal inference. Includes methods based on the
+    empirical distribution of propensity, positivity regression trees,
+    hat values, highest density regions, and density ratios, covering
+    binary, categorical, and continuous exposures as well as time-varying
+    treatments. Each diagnostic returns a tidy result object and an
+    optional plot. The package reports diagnostics only and does not
+    assign severity grades or recommend remediation.
+Depends:
+    R (>= 4.2.0)
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0
+Suggests: 
+    halfmoon,
+    knitr,
+    lmtp,
+    lpSolve,
+    propensity,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    vdiffr,
+    withr
+Config/testthat/edition: 3
+Imports: 
+    cli,
+    generics,
+    ggplot2,
+    purrr,
+    rlang,
+    rpart,
+    S7,
+    stats,
+    tibble,
+    tidyselect,
+    utils,
+    vctrs

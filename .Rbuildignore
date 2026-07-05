@@ -1,2 +1,8 @@
 ^positively\.Rproj$
 ^\.Rproj\.user$
+^\.claude$
+^scratch$
+^LICENSE\.md$
+^\.github$
+^air\.toml$
+^\.beads$
