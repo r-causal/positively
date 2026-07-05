@@ -1,0 +1,81 @@
+# Seeded data-generating processes with known positivity properties.
+#
+# These simulators are test infrastructure. Each documents the structure it
+# plants so tests can assert that a diagnostic recovers it. Every helper takes a
+# seed and uses withr::local_seed() so draws are deterministic and the global
+# RNG state is left untouched.
+
+# Good positivity: the true propensity score is bounded away from 0 and 1, so
+# every covariate stratum has both exposure levels represented.
+dgp_good_positivity <- function(n = 500, seed = 1) {
+  withr::local_seed(seed)
+  x1 <- stats::rnorm(n)
+  x2 <- stats::rnorm(n)
+  # Squeeze the propensity into (0.2, 0.8): plogis() lands in (0, 1) and the
+  # affine transform bounds it.
+  ps <- 0.2 + 0.6 * stats::plogis(0.5 * x1 - 0.5 * x2)
+  exposure <- stats::rbinom(n, 1L, ps)
+  tibble::tibble(exposure = exposure, x1 = x1, x2 = x2, ps = ps)
+}
+
+# Practical positivity violation (Petersen style): a steep propensity model
+# pushes the tails of the covariate distribution to near-deterministic
+# treatment, so some fitted scores fall below 0.05 and some exceed 0.95.
+dgp_practical_violation <- function(n = 500, seed = 2) {
+  withr::local_seed(seed)
+  x1 <- stats::rnorm(n)
+  x2 <- stats::rnorm(n)
+  ps <- stats::plogis(3 * x1)
+  exposure <- stats::rbinom(n, 1L, ps)
+  tibble::tibble(exposure = exposure, x1 = x1, x2 = x2, ps = ps)
+}
+
+# Structural violation: a planted subgroup rule where treatment is impossible.
+# No subject with x1 > 2 and x2 == "b" is ever treated (true propensity 0).
+dgp_structural_subgroup <- function(n = 1000, seed = 3) {
+  withr::local_seed(seed)
+  x1 <- stats::rnorm(n)
+  x2 <- factor(sample(c("a", "b"), n, replace = TRUE))
+  ps <- stats::plogis(0.5 * x1)
+  in_gap <- x1 > 2 & x2 == "b"
+  ps[in_gap] <- 0
+  exposure <- stats::rbinom(n, 1L, ps)
+  tibble::tibble(exposure = exposure, x1 = x1, x2 = x2, ps = ps)
+}
+
+# Continuous exposure with a hard support gap: the exposure is drawn on
+# [0, 2] or [4, 6], so the interval (2, 4) is never observed.
+dgp_continuous_support_gap <- function(n = 500, seed = 4) {
+  withr::local_seed(seed)
+  low <- stats::runif(n, 0, 2)
+  high <- stats::runif(n, 4, 6)
+  in_low <- stats::runif(n) < 0.5
+  exposure <- ifelse(in_low, low, high)
+  x1 <- 0.5 * exposure + stats::rnorm(n)
+  tibble::tibble(exposure = exposure, x1 = x1)
+}
+
+# Longitudinal wide-format data over three time points with a per-time
+# violation: the time-2 exposure has a hard support gap on (2, 4), while the
+# time-1 and time-3 exposures are unconstrained.
+dgp_longitudinal <- function(n = 500, seed = 5) {
+  withr::local_seed(seed)
+  l0 <- stats::rnorm(n)
+  a1 <- stats::rnorm(n, mean = l0)
+  l1 <- stats::rnorm(n, mean = a1)
+  low <- stats::runif(n, 0, 2)
+  high <- stats::runif(n, 4, 6)
+  in_low <- stats::runif(n) < 0.5
+  a2 <- ifelse(in_low, low, high)
+  l2 <- stats::rnorm(n, mean = a2)
+  a3 <- stats::rnorm(n, mean = l2)
+  tibble::tibble(
+    id = seq_len(n),
+    l0 = l0,
+    a1 = a1,
+    l1 = l1,
+    a2 = a2,
+    l2 = l2,
+    a3 = a3
+  )
+}

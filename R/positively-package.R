@@ -2,7 +2,9 @@
 "_PACKAGE"
 
 ## usethis namespace: start
+#' @import S7
 #' @importFrom cli cli_abort
+#' @importFrom generics glance
 #' @importFrom generics tidy
 #' @importFrom ggplot2 autoplot
 #' @importFrom purrr map
