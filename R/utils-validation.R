@@ -204,6 +204,41 @@ validate_count <- function(
   invisible(x)
 }
 
+#' Validate a history-window lag
+#'
+#' A lag is a single non-negative whole number of time points, or `Inf` for the
+#' full history.
+#'
+#' @param x A candidate lag value.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `x`, invisibly, when it is a valid lag.
+#' @keywords internal
+#' @noRd
+validate_lag <- function(
+  x,
+  arg_name = "lag",
+  call = rlang::caller_env()
+) {
+  is_valid <- is.numeric(x) &&
+    length(x) == 1 &&
+    !is.na(x) &&
+    x >= 0 &&
+    (is.infinite(x) || x == round(x))
+  if (!is_valid) {
+    abort(
+      c(
+        "{.arg {arg_name}} must be a single non-negative whole number or {.code Inf}.",
+        x = "Found {.val {x}}."
+      ),
+      error_class = "positively_range_error",
+      call = call
+    )
+  }
+  invisible(x)
+}
+
 #' Validate that selected columns are numeric and complete
 #'
 #' @param .data The data frame.

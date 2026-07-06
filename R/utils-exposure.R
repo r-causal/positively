@@ -47,11 +47,14 @@ is_categorical <- function(.exposure) {
 #' `options(positively.quiet)` is `TRUE`.
 #'
 #' @param .exposure The exposure vector.
+#' @param announce Whether to announce the detected type through `alert_info()`.
+#'   Defaults to `TRUE`; callers that detect several exposures at once pass
+#'   `FALSE` to stay silent.
 #'
 #' @return A single string: `"binary"`, `"categorical"`, or `"continuous"`.
 #' @keywords internal
 #' @noRd
-detect_exposure_type <- function(.exposure) {
+detect_exposure_type <- function(.exposure, announce = TRUE) {
   exposure_type <- if (has_two_levels(.exposure)) {
     "binary"
   } else if (is.factor(.exposure) || is.character(.exposure)) {
@@ -66,7 +69,9 @@ detect_exposure_type <- function(.exposure) {
     "continuous"
   }
 
-  alert_info("Treating {.arg .exposure} as {exposure_type}")
+  if (announce) {
+    alert_info("Treating {.arg .exposure} as {exposure_type}")
+  }
 
   exposure_type
 }
