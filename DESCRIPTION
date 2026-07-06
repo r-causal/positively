@@ -12,6 +12,9 @@ Description: Provides diagnostics for positivity violations and
     treatments. Each diagnostic returns a tidy result object and an
     optional plot. The package reports diagnostics only and does not
     assign severity grades or recommend remediation.
+URL: https://r-causal.github.io/positively/,
+    https://github.com/r-causal/positively
+BugReports: https://github.com/r-causal/positively/issues
 Depends:
     R (>= 4.2.0)
 License: MIT + file LICENSE

@@ -1,0 +1,65 @@
+url: https://r-causal.github.io/positively/
+template:
+  bootstrap: 5
+  math-rendering: mathjax
+
+articles:
+- title: Articles
+  navbar: ~
+  contents:
+  - continuous-exposures
+  - port-and-sport
+  - estimator-focused
+  - density-ratios
+
+reference:
+- title: Check positivity
+  desc: >
+    Diagnose positivity across every applicable method and work with the
+    resulting container object.
+  contents:
+  - check_positivity
+  - positivity_check
+- title: Diagnostics
+  desc: >
+    Individual positivity and extrapolation diagnostics, including their
+    time-varying sequence variants.
+  contents:
+  - check_edp
+  - check_port
+  - check_port_seq
+  - check_hat_values
+  - check_extrapolation
+  - check_eta_bias
+  - check_hdr
+  - check_hdr_seq
+  - check_density_ratios
+- title: Plots
+  desc: >
+    Autoplot methods that visualize each diagnostic result.
+  contents:
+  - autoplot.edp_result
+  - autoplot.port_result
+  - autoplot.hat_values_result
+  - autoplot.extrapolation_result
+  - autoplot.eta_bias_result
+  - autoplot.hdr_result
+  - autoplot.density_ratios_result
+- title: Density estimators
+  desc: >
+    Conditional-density estimators used by the highest density region
+    diagnostic.
+  contents:
+  - hdr_density_normal
+  - new_hdr_density
+- title: Datasets
+  desc: >
+    Example data with planted positivity violations.
+  contents:
+  - pos_violations
+  - pos_violations_long
+- title: Extending positively
+  desc: >
+    Developer-facing classes for building new diagnostics.
+  contents:
+  - positivity_diagnostic
