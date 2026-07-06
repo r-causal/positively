@@ -115,7 +115,7 @@ King G, Zeng L (2006). The Dangers of Extreme Counterfactuals.
 \emph{Political Analysis}, 14(2):131-159. \doi{10.1093/pan/mpj004}
 
 Petersen ML, Porter KE, Gruber S, Wang Y, van der Laan MJ (2012). Diagnosing
-and Responding to Violations in the Positivity Assumption.
+and responding to violations in the positivity assumption.
 \emph{Statistical Methods in Medical Research}, 21(1):31-54.
 \doi{10.1177/0962280210386207}
 

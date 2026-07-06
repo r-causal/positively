@@ -29,6 +29,7 @@ Suggests:
     lpSolve,
     propensity,
     rmarkdown,
+    spelling,
     testthat (>= 3.0.0),
     vdiffr,
     withr
@@ -48,3 +49,4 @@ Imports:
     vctrs
 LazyData: true
 VignetteBuilder: knitr
+Language: en-US

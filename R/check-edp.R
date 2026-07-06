@@ -44,7 +44,7 @@ edp_result <- new_class(
 #' dimension. Each factor lies in \eqn{[0, 1]}, so \eqn{0 \le \mathrm{EDP} \le
 #' n}. A continuous dimension with half-distance \eqn{h} contributes
 #' \eqn{0.5^{(\delta / h)^2}}, which equals `1` at \eqn{\delta = 0} and exactly
-#' `0.5` at \eqn{|\delta| = h}; this is a reparameterised Gaussian kernel. A
+#' `0.5` at \eqn{|\delta| = h}; this is a reparameterized Gaussian kernel. A
 #' categorical dimension contributes `1` on a match and `categorical_similarity`
 #' otherwise. Numeric covariates and continuous exposures are continuous
 #' dimensions; factor and character covariates, together with binary and
@@ -594,7 +594,7 @@ exposure_kernel <- function(
   }
 }
 
-#' The reparameterised Gaussian kernel over a difference vector
+#' The reparameterized Gaussian kernel over a difference vector
 #'
 #' Returns `0.5 ^ ((delta / bw) ^ 2)`, which equals `1` at `delta == 0` and
 #' `0.5` at `abs(delta) == bw`. A half-distance of `0` counts exact matches.
@@ -672,7 +672,7 @@ resolve_covariate_bandwidths <- function(.data, columns, bw_covariates) {
 #' The pairwise covariate similarity matrix
 #'
 #' Multiplies one per-dimension kernel matrix per covariate: numeric covariates
-#' use the reparameterised Gaussian kernel, factor and character covariates use
+#' use the reparameterized Gaussian kernel, factor and character covariates use
 #' the match kernel. Entry `[i, j]` is the product-kernel similarity between the
 #' covariates of observations `i` and `j`.
 #'

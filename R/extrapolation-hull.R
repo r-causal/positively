@@ -7,7 +7,7 @@
 #' \eqn{r_1, \ldots, r_m} exactly when there exist weights
 #' \eqn{\lambda_k \ge 0} with \eqn{\sum_k \lambda_k = 1} and
 #' \eqn{\sum_k \lambda_k r_k = x}. This is a linear-programming feasibility
-#' problem: the objective is irrelevant, so a zero objective is minimised subject
+#' problem: the objective is irrelevant, so a zero objective is minimized subject
 #' to the weight constraints and the solver status reports feasibility.
 #'
 #' @param query A numeric vector of length `p`, the point to test.

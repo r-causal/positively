@@ -83,7 +83,7 @@ a sum over the whole sample of a product kernel that multiplies one factor per
 dimension. Each factor lies in \eqn{[0, 1]}, so \eqn{0 \le \mathrm{EDP} \le
 n}. A continuous dimension with half-distance \eqn{h} contributes
 \eqn{0.5^{(\delta / h)^2}}, which equals \code{1} at \eqn{\delta = 0} and exactly
-\code{0.5} at \eqn{|\delta| = h}; this is a reparameterised Gaussian kernel. A
+\code{0.5} at \eqn{|\delta| = h}; this is a reparameterized Gaussian kernel. A
 categorical dimension contributes \code{1} on a match and \code{categorical_similarity}
 otherwise. Numeric covariates and continuous exposures are continuous
 dimensions; factor and character covariates, together with binary and
