@@ -79,3 +79,43 @@ dgp_longitudinal <- function(n = 500, seed = 5) {
     a3 = a3
   )
 }
+
+# Longitudinal wide-format data over three time points with monotone binary
+# exposures, built so the sPoRT follower and risk-set mechanics are visible.
+# Once treated, a subject stays treated, so the risk set of subjects still
+# following the regime shrinks across time. Two deterministic regions are
+# planted at t = 2 among the followers: treatment never initiates where the
+# current covariate l1 is above 1, and never initiates where the lagged
+# covariate l0 is above 1. Each region is defined by a single covariate, so the
+# reading rule surfaces both. The l0 region enters the t = 2 conditioning set
+# only when the lag window reaches back one time point, so it is flagged under
+# the full history and absent under a lag of zero.
+dgp_longitudinal_binary <- function(n = 2000, seed = 6) {
+  withr::local_seed(seed)
+  l0 <- stats::rnorm(n)
+  a1 <- stats::rbinom(n, 1L, 0.3)
+  l1 <- stats::rnorm(n, mean = 0.3 * a1)
+
+  a2 <- a1
+  followers2 <- a1 == 0
+  p2 <- rep(0.5, n)
+  p2[l0 > 1] <- 0
+  p2[l1 > 1] <- 0
+  a2[followers2] <- stats::rbinom(sum(followers2), 1L, p2[followers2])
+
+  l2 <- stats::rnorm(n, mean = 0.3 * a2)
+
+  a3 <- a2
+  followers3 <- a2 == 0
+  a3[followers3] <- stats::rbinom(sum(followers3), 1L, 0.4)
+
+  tibble::tibble(
+    id = seq_len(n),
+    l0 = l0,
+    a1 = a1,
+    l1 = l1,
+    a2 = a2,
+    l2 = l2,
+    a3 = a3
+  )
+}

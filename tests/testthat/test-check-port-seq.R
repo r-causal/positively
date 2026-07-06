@@ -326,12 +326,76 @@ test_that("the untreated level is resolved globally, not per wave", {
   expect_true(any(global@results$time == 2))
 })
 
+# ---- Binary longitudinal fixture ------------------------------------------
+
+test_that("the stratified risk set shrinks over time in the tidy output", {
+  local_quiet()
+  data <- dgp_longitudinal_binary()
+  # Grow shallow trees so each quiet wave reports its risk set as one node,
+  # rather than fragmenting into noise leaves under the default cp of zero.
+  res <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2), cp = 0.01)
+
+  # Under the monotone rule the follower set is everyone at t = 1, the untreated
+  # after t = 1 at t = 2, and the untreated after t = 2 at t = 3.
+  risk_sets <- c(nrow(data), sum(data$a1 == 0), sum(data$a2 == 0))
+  expect_true(all(diff(risk_sets) < 0))
+
+  # The largest reported subgroup at each time is the whole risk set, so the
+  # per-time size in the tidy output tracks the shrinking follower set.
+  per_time_n <- as.integer(tapply(res@results$n, res@results$time, max))
+  expect_identical(per_time_n, as.integer(risk_sets))
+  expect_true(all(diff(per_time_n) < 0))
+})
+
+test_that("the planted time-2 subgroup is flagged", {
+  local_quiet()
+  data <- dgp_longitudinal_binary()
+  res <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2))
+
+  flagged <- flagged_rows(res)
+  # Among the t = 2 followers, treatment is deterministic in the l1 region, so
+  # the reading rule surfaces it.
+  expect_true(any(flagged$time == 2 & grepl("l1", flagged$description)))
+  # The quiet first and last waves carry no flag.
+  expect_false(any(flagged$time %in% c(1, 3)))
+})
+
+test_that("the lag argument changes the conditioning set", {
+  local_quiet()
+  data <- dgp_longitudinal_binary()
+
+  # With the full history the t = 2 conditioning set holds the lagged covariate
+  # l0, and its deterministic region is flagged.
+  full <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2))
+  full_t2 <- full@results$description[full@results$time == 2]
+  expect_true(any(grepl("l0", full_t2)))
+  expect_true(any(grepl("l0", flagged_rows(full)$description)))
+
+  # With lag zero the t = 2 conditioning set drops l0, so it appears in no
+  # subgroup, and only the l1 region remains flagged.
+  lagged <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2), lag = 0)
+  lagged_t2 <- lagged@results$description[lagged@results$time == 2]
+  expect_false(any(grepl("l0", lagged_t2)))
+  lagged_flagged <- flagged_rows(lagged)
+  expect_false(any(grepl("l0", lagged_flagged$description)))
+  expect_true(any(
+    lagged_flagged$time == 2 & grepl("l1", lagged_flagged$description)
+  ))
+})
+
 # ---- Snapshots ------------------------------------------------------------
 
 test_that("the sequential print method is stable", {
   local_quiet()
   data <- sim_port_seq(n = 1000, seed = 1)
   res <- check_port_seq(data, c(a1, a2, a3), list(c1), beta = "gruber")
+  expect_snapshot(print(res))
+})
+
+test_that("the sequential print is stable on the binary longitudinal fixture", {
+  local_quiet()
+  data <- dgp_longitudinal_binary()
+  res <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2), cp = 0.01)
   expect_snapshot(print(res))
 })
 

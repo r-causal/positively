@@ -12,6 +12,20 @@
       Prevalence threshold beta: 3 per-time values (0.0229 to 0.0389)
       Subgroups: 262 reported, 1 flagged
 
+# the sequential print is stable on the binary longitudinal fixture
+
+    Code
+      print(res)
+    Output
+      
+      -- port_result -----------------------------------------------------------------
+      Exposure: "a1", "a2", and "a3" (binary)
+      Observations: 2000
+      Time points: 3
+      Reading rule: alpha = 0.05, gamma = 2
+      Prevalence threshold beta: 0.05
+      Subgroups: 45 reported, 2 flagged
+
 # check_port_seq() argument validation messages are stable
 
     Code
