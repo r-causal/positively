@@ -60,7 +60,7 @@ autoplot_extrapolation_distribution <- function(object) {
       bins = 30,
       boundary = 0,
       fill = "grey70",
-      colour = "white"
+      color = "white"
     ) +
     ggplot2::facet_wrap(
       ggplot2::vars(.data$exposure),

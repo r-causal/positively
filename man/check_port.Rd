@@ -38,7 +38,7 @@ limit is 0.5 because the rule flags a prevalence below \code{beta} or above
 subgroup, a whole number of at least one. Defaults to \code{2}.}
 
 \item{n_bins}{For a continuous exposure, the number of quantile bins into
-which the exposure is categorised. A whole number of at least one, \code{3} by
+which the exposure is categorized. A whole number of at least one, \code{3} by
 default. Ignored for binary and categorical exposures.}
 
 \item{breaks}{For a continuous exposure, explicit numeric cut points that
@@ -71,11 +71,11 @@ PoRT searches for subgroups, defined by covariate splits, in which positivity
 is threatened because an exposure level is (near) unobserved. For a binary
 exposure the response is the indicator of the higher exposure level; for a
 categorical exposure the algorithm runs once per level with a one-versus-rest
-indicator; for a continuous exposure the exposure is first categorised into
+indicator; for a continuous exposure the exposure is first categorized into
 \code{n_bins} quantile bins (or the bins implied by \code{breaks}) and each bin is
 treated as a level. Covariates enter the trees unchanged: \code{rpart} splits
 numeric covariates at data-driven thresholds and groups factor levels, so no
-covariate categorisation is performed here.
+covariate categorization is performed here.
 
 The regression trees follow the control values quoted by Danelian et al.
 (section 2.5): a minimum of 20 observations to attempt a split, at least six

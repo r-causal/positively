@@ -43,11 +43,11 @@ port_result <- new_class(
 #' is threatened because an exposure level is (near) unobserved. For a binary
 #' exposure the response is the indicator of the higher exposure level; for a
 #' categorical exposure the algorithm runs once per level with a one-versus-rest
-#' indicator; for a continuous exposure the exposure is first categorised into
+#' indicator; for a continuous exposure the exposure is first categorized into
 #' `n_bins` quantile bins (or the bins implied by `breaks`) and each bin is
 #' treated as a level. Covariates enter the trees unchanged: `rpart` splits
 #' numeric covariates at data-driven thresholds and groups factor levels, so no
-#' covariate categorisation is performed here.
+#' covariate categorization is performed here.
 #'
 #' The regression trees follow the control values quoted by Danelian et al.
 #' (section 2.5): a minimum of 20 observations to attempt a split, at least six
@@ -92,7 +92,7 @@ port_result <- new_class(
 #' @param gamma The maximum number of covariates that may jointly define a
 #'   subgroup, a whole number of at least one. Defaults to `2`.
 #' @param n_bins For a continuous exposure, the number of quantile bins into
-#'   which the exposure is categorised. A whole number of at least one, `3` by
+#'   which the exposure is categorized. A whole number of at least one, `3` by
 #'   default. Ignored for binary and categorical exposures.
 #' @param breaks For a continuous exposure, explicit numeric cut points that
 #'   override `n_bins`. `NULL` (the default) uses quantile bins.
@@ -342,7 +342,7 @@ port_control <- function(...) {
 #'
 #' A binary exposure yields a single response, the indicator of its higher
 #' level. A categorical exposure yields one response per level. A continuous
-#' exposure is first categorised into bins, then handled like a categorical
+#' exposure is first categorized into bins, then handled like a categorical
 #' exposure with one response per bin.
 #'
 #' @param exposure The exposure vector.
@@ -394,7 +394,7 @@ level_labels <- function(membership) {
   as.character(sort(unique(membership[!is.na(membership)])))
 }
 
-#' Categorise a continuous exposure into bins
+#' Categorize a continuous exposure into bins
 #'
 #' @param exposure A numeric exposure vector.
 #' @param n_bins The number of quantile bins.

@@ -17,9 +17,9 @@ A \link[ggplot2:ggplot]{ggplot2::ggplot} object.
 \description{
 Draws one view of a \code{\link[=check_edp]{check_edp()}} result. \code{type = "histogram"} shows the
 distribution of EDP faceted by intervention value, and \code{type = "ecdf"} shows
-its empirical cumulative distribution coloured by intervention value. For the
+its empirical cumulative distribution colored by intervention value. For the
 estimator variant, \code{type = "scatter"} plots \code{edp_outcome} against
-\code{edp_treatment} coloured by \code{ideal_weight}; it aborts for the data variant.
+\code{edp_treatment} colored by \code{ideal_weight}; it aborts for the data variant.
 }
 \examples{
 set.seed(1)

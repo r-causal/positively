@@ -61,8 +61,7 @@ hdr_result <- new_class(
 #' The non-overlap ratio is a population-level, common-target quantity. It is not
 #' small merely because the density model fits well: when the exposure is
 #' strongly covariate-driven, even the best central target has a nonzero floor,
-#' because setting the whole population to one common dose is genuinely
-#' infeasible. The default normal estimator detects mean-shift support gaps,
+#' because setting the whole population to one common dose is infeasible. The default normal estimator detects mean-shift support gaps,
 #' where a stratum's supported dose moves away from a target. It does not detect
 #' multimodal gaps: a hole between two modes of the true conditional density is
 #' filled by the fitted normal and reported as supported. Supply a flexible

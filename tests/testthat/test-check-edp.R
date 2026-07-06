@@ -545,7 +545,7 @@ test_that("a steeper kernel sharpens a far-off violation toward zero", {
   expect_lt(edp_medians[length(edp_medians)], 0.5)
 })
 
-# ---- Behavioural separation -----------------------------------------------
+# ---- Behavioral separation -----------------------------------------------
 
 test_that("good binary overlap keeps every subject away from zero support", {
   local_quiet()

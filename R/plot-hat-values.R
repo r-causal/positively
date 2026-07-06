@@ -54,14 +54,14 @@ autoplot_hat_values_null <- function(object) {
   null_data <- tibble::tibble(phi = object@null_dist)
   conf_level <- object@params$conf_level
   ggplot2::ggplot(null_data, ggplot2::aes(x = .data$phi)) +
-    ggplot2::geom_histogram(bins = 30, fill = "grey70", colour = "white") +
+    ggplot2::geom_histogram(bins = 30, fill = "grey70", color = "white") +
     ggplot2::geom_vline(
       xintercept = object@null_quantile,
       linetype = "dashed"
     ) +
     ggplot2::geom_vline(
       xintercept = object@phi_hat,
-      colour = "firebrick",
+      color = "firebrick",
       linewidth = 1
     ) +
     ggplot2::labs(

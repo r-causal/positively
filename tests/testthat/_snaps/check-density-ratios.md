@@ -158,5 +158,5 @@
     Condition
       Error in `autoplot.positively::density_ratios_result`:
       ! `type = "cumulative"` requires a time-varying (matrix) input.
-      i This result summarises a point treatment with a single time point.
+      i This result summarizes a point treatment with a single time point.
 

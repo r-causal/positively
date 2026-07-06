@@ -63,7 +63,7 @@ set depends on the exposure type:
 \item \strong{binary}: \code{\link[=check_edp]{check_edp()}}, \code{\link[=check_port]{check_port()}}, \code{\link[=check_extrapolation]{check_extrapolation()}}
 \item \strong{categorical}: \code{\link[=check_edp]{check_edp()}}, \code{\link[=check_port]{check_port()}}
 \item \strong{continuous}: \code{\link[=check_edp]{check_edp()}}, \code{\link[=check_port]{check_port()}} (with the exposure
-categorised), \code{\link[=check_hat_values]{check_hat_values()}}, \code{\link[=check_hdr]{check_hdr()}}
+categorized), \code{\link[=check_hat_values]{check_hat_values()}}, \code{\link[=check_hdr]{check_hdr()}}
 }
 
 Pass \code{diagnostics} to run an explicit subset instead; the requested order is

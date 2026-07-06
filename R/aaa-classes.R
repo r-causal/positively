@@ -9,7 +9,7 @@
 #' the shared property set (a tidy results tibble, the exposure column names and
 #' type, the sample size, the resolved method parameters, and the originating
 #' call) and supplies the [generics::tidy()], [generics::glance()], and
-#' [print()] behaviour that every diagnostic reuses. Package developers extend
+#' [print()] behavior that every diagnostic reuses. Package developers extend
 #' it when adding a new diagnostic.
 #'
 #' @usage NULL

@@ -62,7 +62,7 @@ default_diagnostics <- function(exposure_type) {
 #' - **binary**: [check_edp()], [check_port()], [check_extrapolation()]
 #' - **categorical**: [check_edp()], [check_port()]
 #' - **continuous**: [check_edp()], [check_port()] (with the exposure
-#'   categorised), [check_hat_values()], [check_hdr()]
+#'   categorized), [check_hat_values()], [check_hdr()]
 #'
 #' Pass `diagnostics` to run an explicit subset instead; the requested order is
 #' honoured. Every name must be a diagnostic that `check_positivity()` composes

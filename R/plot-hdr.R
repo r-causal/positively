@@ -4,7 +4,7 @@
 #'
 #' Draws the non-overlap ratio \eqn{\hat{\tau}(a)} against the target exposure
 #' value `a`, with a reference line at zero. For a sequential result the curves
-#' are coloured by time point.
+#' are colored by time point.
 #'
 #' @param object An `hdr_result` from [check_hdr()] or [check_hdr_seq()].
 #' @param ... Not used.
@@ -70,7 +70,7 @@ autoplot_hdr_sequential <- function(results) {
     ggplot2::aes(
       x = .data$value,
       y = .data$nonoverlap,
-      colour = .data$time
+      color = .data$time
     )
   ) +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
@@ -78,7 +78,7 @@ autoplot_hdr_sequential <- function(results) {
     ggplot2::labs(
       x = "Target exposure value",
       y = "Non-overlap ratio",
-      colour = "Time",
+      color = "Time",
       title = "HDR non-overlap across target exposure values by time"
     )
 }

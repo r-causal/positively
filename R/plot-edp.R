@@ -4,9 +4,9 @@
 #'
 #' Draws one view of a [check_edp()] result. `type = "histogram"` shows the
 #' distribution of EDP faceted by intervention value, and `type = "ecdf"` shows
-#' its empirical cumulative distribution coloured by intervention value. For the
+#' its empirical cumulative distribution colored by intervention value. For the
 #' estimator variant, `type = "scatter"` plots `edp_outcome` against
-#' `edp_treatment` coloured by `ideal_weight`; it aborts for the data variant.
+#' `edp_treatment` colored by `ideal_weight`; it aborts for the data variant.
 #'
 #' @param object An `edp_result` from [check_edp()].
 #' @param type One of `"histogram"`, `"ecdf"`, or `"scatter"`.
@@ -67,7 +67,7 @@ autoplot_edp_histogram <- function(object) {
   plot_data <- object@results
   plot_data$value <- factor(plot_data$value)
   ggplot2::ggplot(plot_data, ggplot2::aes(x = .data[[measure]])) +
-    ggplot2::geom_histogram(bins = 30, fill = "grey70", colour = "white") +
+    ggplot2::geom_histogram(bins = 30, fill = "grey70", color = "white") +
     ggplot2::facet_wrap(
       ggplot2::vars(.data$value),
       labeller = ggplot2::label_both
@@ -92,13 +92,13 @@ autoplot_edp_ecdf <- function(object) {
   plot_data$value <- factor(plot_data$value)
   ggplot2::ggplot(
     plot_data,
-    ggplot2::aes(x = .data[[measure]], colour = .data$value)
+    ggplot2::aes(x = .data[[measure]], color = .data$value)
   ) +
     ggplot2::stat_ecdf() +
     ggplot2::labs(
       x = "Effective data points",
       y = "Cumulative proportion",
-      colour = "Intervention value",
+      color = "Intervention value",
       title = "Effective data points by intervention value"
     )
 }
@@ -125,14 +125,14 @@ autoplot_edp_scatter <- function(object) {
     ggplot2::aes(
       x = .data$edp_treatment,
       y = .data$edp_outcome,
-      colour = .data$ideal_weight
+      color = .data$ideal_weight
     )
   ) +
     ggplot2::geom_point(alpha = 0.6) +
     ggplot2::labs(
       x = "Treatment-model effective data points",
       y = "Outcome-model effective data points",
-      colour = "Ideal weight",
+      color = "Ideal weight",
       title = "Outcome against treatment support"
     )
 }

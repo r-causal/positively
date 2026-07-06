@@ -46,7 +46,7 @@ sim_extrap_mixed <- function(
   tibble::tibble(exposure = exposure, x1 = x1, x2 = x2, g = g)
 }
 
-# Fraction of units with an opposite-group neighbour inside the geometric
+# Fraction of units with an opposite-group neighbor inside the geometric
 # variability radius, the recommended binary support indicator.
 prop_supported <- function(res) {
   mean(res@results$gower_min <= res@geometric_variability)

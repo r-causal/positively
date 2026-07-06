@@ -1,6 +1,6 @@
 # check_density_ratios() is bring-your-own-numbers: a numeric vector is one
 # point-treatment time point, an n-by-T matrix is T time points whose cumulative
-# products are summarised alongside the per-time ratios, and an lmtp fit is read
+# products are summarized alongside the per-time ratios, and an lmtp fit is read
 # for its density-ratio component. The tidy results tibble is long, with the
 # fixed columns time / statistic / value. The statistic vocabulary these specs
 # rely on:
@@ -218,7 +218,7 @@ test_that("Kish ESS matches hand-computed values and is scale invariant", {
   expect_equal(stat_value(outlier, "ess"), 1.081168, tolerance = 1e-5)
 })
 
-# ---- Lognormal generator behaviour ----------------------------------------
+# ---- Lognormal generator behavior ----------------------------------------
 
 test_that("the mean ratio stays at 1 for every severity", {
   for (k in c(0.25, 0.5, 1.0)) {

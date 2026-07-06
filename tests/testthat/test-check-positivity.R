@@ -451,7 +451,7 @@ test_that("args naming a diagnostic that is not run aborts", {
   )
 })
 
-# ---- Quiet-mode behaviour --------------------------------------------------
+# ---- Quiet-mode behavior --------------------------------------------------
 
 test_that("auto detection announces the resolved exposure type", {
   data <- dgp_good_positivity(n = 200)

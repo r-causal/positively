@@ -27,6 +27,6 @@ diagnostic result inherits from. It cannot be instantiated directly. It fixes
 the shared property set (a tidy results tibble, the exposure column names and
 type, the sample size, the resolved method parameters, and the originating
 call) and supplies the \code{\link[generics:tidy]{generics::tidy()}}, \code{\link[generics:glance]{generics::glance()}}, and
-\code{\link[=print]{print()}} behaviour that every diagnostic reuses. Package developers extend
+\code{\link[=print]{print()}} behavior that every diagnostic reuses. Package developers extend
 it when adding a new diagnostic.
 }

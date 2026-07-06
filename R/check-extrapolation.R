@@ -327,7 +327,7 @@ resolve_hull <- function(hull, n_numeric, call = rlang::caller_env()) {
 #'
 #' Aggregates the per-unit results to one row per exposure level, reporting the
 #' group size, the mean support statistics, the fraction of units with an
-#' opposite-group neighbour within one geometric variability, and the fraction
+#' opposite-group neighbor within one geometric variability, and the fraction
 #' inside the opposite group's convex hull.
 #'
 #' @param self An `extrapolation_result`.

@@ -22,14 +22,14 @@ density_ratios_result <- new_class(
   }
 )
 
-#' Summarise density ratios for positivity diagnosis
+#' Summarize density ratios for positivity diagnosis
 #'
-#' `check_density_ratios()` summarises user-supplied density ratios, the
+#' `check_density_ratios()` summarizes user-supplied density ratios, the
 #' Radon-Nikodym derivatives that arise as weights in modified treatment policy
 #' and longitudinal causal analyses. It is a bring-your-own-numbers diagnostic:
 #' a numeric vector is treated as a point treatment, an n-by-T matrix as a
 #' time-varying treatment whose cumulative products across time points are
-#' summarised alongside the per-time ratios, and an \pkg{lmtp} fit is read for
+#' summarized alongside the per-time ratios, and an \pkg{lmtp} fit is read for
 #' its density-ratio component. It reports a diagnostic only and assigns no
 #' severity grade.
 #'
@@ -105,7 +105,7 @@ density_ratios_result <- new_class(
 #' check_density_ratios(ratios)
 #'
 #' # Time-varying treatment: one column per time point. The cumulative products
-#' # across columns are summarised alongside the per-time ratios.
+#' # across columns are summarized alongside the per-time ratios.
 #' m <- matrix(c(1, 1, 2, 1, 3, 1), nrow = 2)
 #' check_density_ratios(m)
 #'

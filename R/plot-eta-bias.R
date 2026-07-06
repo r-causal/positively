@@ -73,7 +73,7 @@ autoplot_eta_bias_bootstrap <- function(object) {
   )
   boot_data$facet <- paste0("lower = ", boot_data$truncation_lower)
   ggplot2::ggplot(boot_data, ggplot2::aes(x = .data$estimate)) +
-    ggplot2::geom_histogram(bins = 30, fill = "grey70", colour = "white") +
+    ggplot2::geom_histogram(bins = 30, fill = "grey70", color = "white") +
     ggplot2::geom_vline(xintercept = object@truth, linetype = "dashed") +
     ggplot2::facet_wrap(ggplot2::vars(.data$facet)) +
     ggplot2::labs(

@@ -4,7 +4,7 @@
 \alias{check_density_ratios}
 \alias{check_density_ratios.numeric}
 \alias{check_density_ratios.matrix}
-\title{Summarise density ratios for positivity diagnosis}
+\title{Summarize density ratios for positivity diagnosis}
 \usage{
 check_density_ratios(ratios, ...)
 
@@ -47,12 +47,12 @@ name), and \code{value}. It also carries the raw per-time ratios as the list
 property \verb{@ratios}, with one element per time point.
 }
 \description{
-\code{check_density_ratios()} summarises user-supplied density ratios, the
+\code{check_density_ratios()} summarizes user-supplied density ratios, the
 Radon-Nikodym derivatives that arise as weights in modified treatment policy
 and longitudinal causal analyses. It is a bring-your-own-numbers diagnostic:
 a numeric vector is treated as a point treatment, an n-by-T matrix as a
 time-varying treatment whose cumulative products across time points are
-summarised alongside the per-time ratios, and an \pkg{lmtp} fit is read for
+summarized alongside the per-time ratios, and an \pkg{lmtp} fit is read for
 its density-ratio component. It reports a diagnostic only and assigns no
 severity grade.
 }
@@ -100,7 +100,7 @@ ratios <- c(0.5, 1, 1, 2, 8)
 check_density_ratios(ratios)
 
 # Time-varying treatment: one column per time point. The cumulative products
-# across columns are summarised alongside the per-time ratios.
+# across columns are summarized alongside the per-time ratios.
 m <- matrix(c(1, 1, 2, 1, 3, 1), nrow = 2)
 check_density_ratios(m)
 

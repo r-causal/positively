@@ -51,7 +51,7 @@ method(autoplot, density_ratios_result) <- function(
 autoplot_density_ratios_histogram <- function(object) {
   plot_data <- tibble::tibble(ratio = object@ratios[[1]])
   ggplot2::ggplot(plot_data, ggplot2::aes(x = .data$ratio)) +
-    ggplot2::geom_histogram(bins = 30, fill = "grey70", colour = "white") +
+    ggplot2::geom_histogram(bins = 30, fill = "grey70", color = "white") +
     ggplot2::labs(
       x = "Density ratio",
       y = "Observations",
@@ -103,7 +103,7 @@ autoplot_density_ratios_cumulative <- function(
     abort(
       c(
         "{.code type = \"cumulative\"} requires a time-varying (matrix) input.",
-        i = "This result summarises a point treatment with a single time point."
+        i = "This result summarizes a point treatment with a single time point."
       ),
       error_class = "positively_type_error",
       call = call
@@ -114,14 +114,14 @@ autoplot_density_ratios_cumulative <- function(
   plot_data <- cumulative[is_quantile | is_max, ]
   ggplot2::ggplot(
     plot_data,
-    ggplot2::aes(x = .data$time, y = .data$value, colour = .data$statistic)
+    ggplot2::aes(x = .data$time, y = .data$value, color = .data$statistic)
   ) +
     ggplot2::geom_line() +
     ggplot2::geom_point() +
     ggplot2::labs(
       x = "Time point",
       y = "Cumulative density ratio",
-      colour = "Statistic",
+      color = "Statistic",
       title = "Cumulative-product quantiles across time points"
     )
 }

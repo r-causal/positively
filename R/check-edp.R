@@ -108,7 +108,7 @@ edp_result <- new_class(
 #'
 #' @references
 #' Ring C, Schomaker M (2026). A Diagnostic to Find and Help Combat Stochastic
-#' Positivity Issues.
+#' Positivity Issues, with a Focus on Continuous Treatments.
 #'
 #' @examples
 #' set.seed(1)
