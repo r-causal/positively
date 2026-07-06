@@ -14,10 +14,6 @@
 # for a fixed covariate set, never against a universal threshold, so magnitude
 # claims are anchored to hand computations or to stratum-versus-stratum ratios.
 
-local_quiet <- function(.env = parent.frame()) {
-  withr::local_options(positively.quiet = TRUE, .local_envir = .env)
-}
-
 # ---- Scenario generators --------------------------------------------------
 
 # Fixed-density Gaussian exposure with an independent Gaussian covariate. a* = 0

@@ -56,10 +56,6 @@ prop_in_hull <- function(res) {
   mean(res@results$in_hull)
 }
 
-local_quiet <- function(.env = parent.frame()) {
-  withr::local_options(positively.quiet = TRUE, .local_envir = .env)
-}
-
 # ---- Signature and argument validation ------------------------------------
 
 test_that("check_extrapolation() aborts on a continuous exposure", {

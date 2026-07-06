@@ -6,10 +6,6 @@
 # the already-initiated would otherwise mask, so these tests contrast the
 # stratified fit against a naive point fit on the full sample.
 
-local_quiet <- function(.env = parent.frame()) {
-  withr::local_options(positively.quiet = TRUE, .local_envir = .env)
-}
-
 flagged_rows <- function(res) {
   res@results[res@results$flagged, , drop = FALSE]
 }

@@ -8,10 +8,6 @@
 # plumbing (selection, passthrough, container shape, errors), so they lean on the
 # cheapest diagnostics and shrink the expensive null resampling through `args`.
 
-local_quiet <- function(.env = parent.frame()) {
-  withr::local_options(positively.quiet = TRUE, .local_envir = .env)
-}
-
 # The child produced by a named diagnostic, located through the aligned
 # @diagnostics vector rather than list names.
 child_named <- function(res, name) {

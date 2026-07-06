@@ -9,10 +9,6 @@
 # propensity, so truncation changes only the estimator; the truncation sweep
 # tests read that as increasing bias and shrinking bootstrap spread.
 
-local_quiet <- function(.env = parent.frame()) {
-  withr::local_options(positively.quiet = TRUE, .local_envir = .env)
-}
-
 # ---- Local scenario generators --------------------------------------------
 # The shared helpers in helper-dgp.R carry no outcome, and ETA.Bias needs a
 # binary exposure, an outcome, and a tunable degree of positivity violation.

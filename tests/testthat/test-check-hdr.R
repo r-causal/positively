@@ -15,10 +15,6 @@
 # support gaps, not multimodal gaps, and the non-overlap floor is not
 # universally zero under strong covariate dependence.
 
-local_quiet <- function(.env = parent.frame()) {
-  withr::local_options(positively.quiet = TRUE, .local_envir = .env)
-}
-
 # ---- Scenario generators --------------------------------------------------
 
 # Linear-Gaussian design: L ~ N(0, 1), A | L ~ N(beta * L, sigma^2). The default

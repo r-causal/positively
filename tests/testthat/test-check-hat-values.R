@@ -38,10 +38,6 @@ pr_gt_null <- function(x) {
   mean(x@null_dist < x@phi_hat)
 }
 
-local_quiet <- function(.env = parent.frame()) {
-  withr::local_options(positively.quiet = TRUE, .local_envir = .env)
-}
-
 # ---- Signature and argument validation ------------------------------------
 
 test_that("check_hat_values() aborts on a binary exposure", {
