@@ -1,3 +1,12 @@
+# check_eta_bias() rejects an unsupported covariate type
+
+    Code
+      check_eta_bias(data, a, y, c(x1, bad), n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `.covariates` must select numeric, logical, factor, or character columns.
+      x "bad" is of an unsupported type.
+
 # the sweep view aborts on a single-run result
 
     Code

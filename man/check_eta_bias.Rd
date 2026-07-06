@@ -27,7 +27,11 @@ check_eta_bias(
 
 \item{.outcome}{The outcome column, selected with data-masking.}
 
-\item{.covariates}{The covariate columns, selected with tidyselect.}
+\item{.covariates}{The covariate columns, selected with tidyselect. Numeric,
+logical, factor, and character covariates are all supported. The fitted
+treatment and outcome models expand factor and character covariates into
+indicator terms, and the bootstrap resamples covariate rows, so factor
+levels are preserved throughout.}
 
 \item{estimator}{The causal estimator to diagnose, one of \code{"ipw"} (inverse
 probability weighting, matching \code{\link[propensity:ipw]{propensity::ipw()}}), \code{"gcomp"}
@@ -84,7 +88,9 @@ it. The algorithm has three steps.
 First, it fits the treatment mechanism \eqn{g_n(1 \mid W)}, a main-effects
 logistic model of the exposure on the covariates, and the outcome regression
 \eqn{\bar{Q}_n(A, W)}, a main-effects linear or logistic model of the outcome
-on the exposure and covariates. The target of inference is a single scalar,
+on the exposure and covariates. Factor and character covariates enter these
+models as indicator terms, exactly as \code{\link[stats:glm]{stats::glm()}} expands them. The target
+of inference is a single scalar,
 the G-computation estimate on the observed data,
 \eqn{\psi = \frac{1}{n}\sum_i [\bar{Q}_n(1, W_i) - \bar{Q}_n(0, W_i)]}. This
 \code{truth} depends on the outcome model alone. It is identical across estimators

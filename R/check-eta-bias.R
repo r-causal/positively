@@ -46,7 +46,9 @@ eta_bias_result <- new_class(
 #' First, it fits the treatment mechanism \eqn{g_n(1 \mid W)}, a main-effects
 #' logistic model of the exposure on the covariates, and the outcome regression
 #' \eqn{\bar{Q}_n(A, W)}, a main-effects linear or logistic model of the outcome
-#' on the exposure and covariates. The target of inference is a single scalar,
+#' on the exposure and covariates. Factor and character covariates enter these
+#' models as indicator terms, exactly as [stats::glm()] expands them. The target
+#' of inference is a single scalar,
 #' the G-computation estimate on the observed data,
 #' \eqn{\psi = \frac{1}{n}\sum_i [\bar{Q}_n(1, W_i) - \bar{Q}_n(0, W_i)]}. This
 #' `truth` depends on the outcome model alone. It is identical across estimators
@@ -88,7 +90,11 @@ eta_bias_result <- new_class(
 #' @param .exposure The binary exposure column, selected with data-masking.
 #'   `check_eta_bias()` aborts for continuous or categorical exposures.
 #' @param .outcome The outcome column, selected with data-masking.
-#' @param .covariates The covariate columns, selected with tidyselect.
+#' @param .covariates The covariate columns, selected with tidyselect. Numeric,
+#'   logical, factor, and character covariates are all supported. The fitted
+#'   treatment and outcome models expand factor and character covariates into
+#'   indicator terms, and the bootstrap resamples covariate rows, so factor
+#'   levels are preserved throughout.
 #' @param estimator The causal estimator to diagnose, one of `"ipw"` (inverse
 #'   probability weighting, matching [propensity::ipw()]), `"gcomp"`
 #'   (G-computation), or `"aipw"` (augmented, doubly robust).
@@ -177,7 +183,7 @@ check_eta_bias <- function(
   outcome_name <- names(outcome_pos)
   covariate_names <- names(covariate_pos)
 
-  validate_numeric_columns(.data, covariate_names, ".covariates")
+  validate_eta_covariates(.data, covariate_names)
   validate_numeric_columns(.data, outcome_name, ".outcome")
 
   # The exposure is not required to be numeric: a two-level factor, character,
@@ -339,6 +345,63 @@ resolve_truncation_levels <- function(
   }
 }
 
+#' Validate the covariate columns for the ETA.Bias bootstrap
+#'
+#' The treatment and outcome models accept any covariate type that
+#' [stats::glm()] can expand into model terms: numeric, logical, factor, and
+#' character. Other column types, such as list or date columns, are rejected.
+#' Missing values are rejected regardless of type, since the bootstrap resamples
+#' complete covariate rows.
+#'
+#' @param .data The data frame.
+#' @param columns A character vector of covariate column names.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `.data`, invisibly, when every covariate is a supported type and free
+#'   of missing values.
+#' @keywords internal
+#' @noRd
+validate_eta_covariates <- function(
+  .data,
+  columns,
+  call = rlang::caller_env()
+) {
+  is_supported <- function(column) {
+    value <- .data[[column]]
+    is.numeric(value) ||
+      is.logical(value) ||
+      is.factor(value) ||
+      is.character(value)
+  }
+  unsupported <- columns[!vapply(columns, is_supported, logical(1))]
+  if (length(unsupported) > 0) {
+    abort(
+      c(
+        "{.arg .covariates} must select numeric, logical, factor, or character columns.",
+        x = "{.val {unsupported}} {?is/are} of an unsupported type."
+      ),
+      error_class = "positively_type_error",
+      call = call
+    )
+  }
+  missing_columns <- columns[vapply(
+    columns,
+    function(column) anyNA(.data[[column]]),
+    logical(1)
+  )]
+  if (length(missing_columns) > 0) {
+    abort(
+      c(
+        "{.arg .covariates} must not contain missing values.",
+        x = "Missing values in {.val {missing_columns}}."
+      ),
+      error_class = "positively_missing_error",
+      call = call
+    )
+  }
+  invisible(.data)
+}
+
 #' Map a binary exposure to a 0/1 double
 #'
 #' The lower of the two distinct levels becomes `0` and the higher becomes `1`,
@@ -426,7 +489,7 @@ resolve_eta_formulas <- function(
 #'
 #' @param a The 0/1 exposure vector.
 #' @param y The outcome vector.
-#' @param covariates A data frame of numeric covariates.
+#' @param covariates A data frame of covariates.
 #' @param exposure_name,outcome_name The exposure and outcome column names.
 #' @param estimator One of `"ipw"`, `"gcomp"`, or `"aipw"`.
 #' @param outcome_type `"continuous"` or `"binary"`.
@@ -549,9 +612,11 @@ draw_bootstrap_outcome <- function(
 #' Build the observed-fit and bootstrap-refit closures
 #'
 #' Selects the fast matrix path when both formulas are the main-effects defaults
-#' and the general formula path otherwise. Both closures return the fitted
-#' propensity and the outcome predictions at the two exposure values, the only
-#' quantities the estimators consume.
+#' and every covariate is numeric, and the general formula path otherwise. A
+#' factor, character, or logical covariate, or a user-supplied formula, takes the
+#' formula path, where [stats::glm()] expands non-numeric covariates into model
+#' terms. Both closures return the fitted propensity and the outcome predictions
+#' at the two exposure values, the only quantities the estimators consume.
 #'
 #' @inheritParams eta_bias_bootstrap
 #'
@@ -566,7 +631,8 @@ eta_fitters <- function(
   q_family,
   formulas
 ) {
-  if (formulas$default) {
+  numeric_covariates <- all(vapply(covariates, is.numeric, logical(1)))
+  if (formulas$default && numeric_covariates) {
     eta_fitters_matrix(as.matrix(covariates), q_family)
   } else {
     eta_fitters_formula(
@@ -583,7 +649,8 @@ eta_fitters <- function(
 #'
 #' Fits the logistic treatment model and the outcome model by [stats::glm.fit()]
 #' on prebuilt design matrices, avoiding the per-draw cost of building a data
-#' frame and parsing a formula. This is the path every default run takes.
+#' frame and parsing a formula. This is the path a default run with numeric
+#' covariates takes.
 #'
 #' @param x_cov The observed covariate matrix, `n` by `q`.
 #' @param q_family The outcome-model family.

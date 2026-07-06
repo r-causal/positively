@@ -59,6 +59,22 @@ sim_eta_binary_outcome <- function(n = 1000, seed = 1) {
   tibble::tibble(a = a, y = y, x1 = x1, x2 = x2)
 }
 
+# pos_violations carries the factor covariate region, which defines that
+# dataset's structural violation, but no outcome. A seeded linear outcome with a
+# region effect gives check_eta_bias() a factor covariate to condition on while
+# keeping truth near the treatment effect.
+sim_eta_factor <- function(seed = 1) {
+  withr::local_seed(seed)
+  data <- pos_violations
+  region_effect <- ifelse(data$region == "b", 0.5, -0.5)
+  data$y <- data$exposure +
+    data$x1 +
+    data$x2 +
+    region_effect +
+    stats::rnorm(nrow(data))
+  data
+}
+
 # ---- Local accessors ------------------------------------------------------
 # Each check_eta_bias() call is a single estimator, so a single-run result is a
 # one-row tibble. A fixed seed makes the bootstrap draw reproducible.
@@ -326,6 +342,20 @@ test_that("check_eta_bias() accepts a two-level factor exposure", {
   expect_equal(bias_of(factor_result), bias_of(numeric_result))
 })
 
+test_that("check_eta_bias() rejects an unsupported covariate type", {
+  local_quiet()
+  data <- sim_eta_good(n = 60, seed = 1)
+  data$bad <- as.list(seq_len(nrow(data)))
+  expect_error(
+    check_eta_bias(data, a, y, c(x1, bad), n_boot = 10),
+    class = "positively_error"
+  )
+  expect_snapshot(
+    check_eta_bias(data, a, y, c(x1, bad), n_boot = 10),
+    error = TRUE
+  )
+})
+
 test_that("check_eta_bias() aborts on a non-0/1 binary outcome", {
   local_quiet()
   data <- sim_eta_good(n = 100, seed = 1)
@@ -370,6 +400,66 @@ test_that("check_eta_bias() runs with a constant covariate", {
   # path and the explicit formula path agree. The tolerance absorbs the tiny
   # numerical differences between glm.fit and glm accumulated over the refits.
   expect_equal(bias_of(matrix_path), bias_of(formula_path), tolerance = 1e-2)
+})
+
+test_that("check_eta_bias() accepts a factor covariate and returns finite estimates", {
+  local_quiet()
+  data <- sim_eta_factor(seed = 1)
+  for (estimator in c("ipw", "gcomp", "aipw")) {
+    res <- withr::with_seed(
+      2024,
+      check_eta_bias(
+        data,
+        exposure,
+        y,
+        c(x1, x2, region),
+        estimator = estimator,
+        n_boot = 50
+      )
+    )
+    expect_identical(S7::S7_class(res)@name, "eta_bias_result")
+    expect_true(is.finite(res@results$bias[[1]]))
+    expect_true(is.finite(res@results$mc_se[[1]]))
+    expect_true(is.finite(res@truth))
+  }
+})
+
+test_that("the truncation sweep runs with a factor covariate present", {
+  local_quiet()
+  data <- sim_eta_factor(seed = 1)
+  grid <- c(0, 0.05, 0.1)
+  res <- withr::with_seed(
+    2024,
+    check_eta_bias(
+      data,
+      exposure,
+      y,
+      c(x1, x2, region),
+      estimator = "ipw",
+      truncation_grid = grid,
+      n_boot = 50
+    )
+  )
+  expect_identical(nrow(res@results), length(grid))
+  expect_setequal(res@results$truncation_lower, grid)
+  expect_true(all(is.finite(res@results$bias)))
+  expect_length(res@boot_estimates, length(grid))
+})
+
+test_that("the numeric matrix path is unchanged under a fixed seed (regression)", {
+  local_quiet()
+  data <- sim_eta_violation(n = 400, seed = 1)
+  res <- withr::with_seed(
+    2024,
+    check_eta_bias(data, a, y, c(x1, x2), estimator = "ipw", n_boot = 100)
+  )
+  # Baseline captured from the implementation before factor covariates were
+  # supported. Numeric covariates still take the matrix path untouched, so it
+  # reproduces these values exactly.
+  expect_equal(bias_of(res), 0.17472955288621894)
+  expect_equal(mc_se_of(res), 0.05203235693919487)
+  expect_equal(res@truth, 1.0636370442788932)
+  expect_equal(res@results$boot_mean[[1]], 1.2383665971651121)
 })
 
 # ---- Result class and properties ------------------------------------------
