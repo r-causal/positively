@@ -552,7 +552,6 @@ test_that("autoplot() returns a ggplot for each type", {
   data <- sim_hat_linear(150, beta = 1, seed = 1)
   res <- check_hat_values(data, dose, x1, null_reps = 50)
 
-  # Pixel-level vdiffr coverage of each type is tracked separately.
   expect_s3_class(ggplot2::autoplot(res, type = "null"), "ggplot")
   expect_s3_class(ggplot2::autoplot(res, type = "profile"), "ggplot")
 })
