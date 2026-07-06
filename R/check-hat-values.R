@@ -15,7 +15,8 @@ hat_values_result <- new_class(
     phi_hat = class_double,
     null_dist = class_double,
     null_quantile = class_double,
-    exceeds_null = class_logical
+    exceeds_null = class_logical,
+    p = class_integer
   ),
   validator = function(self) {
     if (length(self@phi_hat) != 1) {
@@ -24,6 +25,8 @@ hat_values_result <- new_class(
       "@null_quantile must be a single value"
     } else if (length(self@exceeds_null) != 1) {
       "@exceeds_null must be a single value"
+    } else if (length(self@p) != 1 || is.na(self@p)) {
+      "@p must be a single integer"
     }
   }
 )
@@ -98,8 +101,9 @@ hat_values_result <- new_class(
 #'   point with columns `.id` (the covariate row index), `prob` (the exposure
 #'   percentile), `value` (the candidate exposure value \eqn{d_q}), `hat_value`
 #'   (the leverage), and `high_leverage` (the logical flag). It also carries the
-#'   scalar properties `@phi_hat`, `@null_dist`, `@null_quantile`, and
-#'   `@exceeds_null`.
+#'   scalar properties `@phi_hat`, `@null_dist`, `@null_quantile`,
+#'   `@exceeds_null`, and `@p`, the number of model parameters
+#'   \eqn{p = q + 2} that sets the \eqn{2p/n} leverage cutoff.
 #'
 #' @references
 #' Moodie EEM, Schulz J (2025). A Simple Diagnostic for the Positivity
@@ -232,7 +236,8 @@ check_hat_values <- function(
     phi_hat = phi_hat,
     null_dist = null_dist,
     null_quantile = null_quantile,
-    exceeds_null = phi_hat > null_quantile
+    exceeds_null = phi_hat > null_quantile,
+    p = as.integer(p)
   )
 }
 

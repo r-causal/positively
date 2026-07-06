@@ -46,8 +46,9 @@ A \code{hat_values_result} object, an S7 subclass of
 point with columns \code{.id} (the covariate row index), \code{prob} (the exposure
 percentile), \code{value} (the candidate exposure value \eqn{d_q}), \code{hat_value}
 (the leverage), and \code{high_leverage} (the logical flag). It also carries the
-scalar properties \verb{@phi_hat}, \verb{@null_dist}, \verb{@null_quantile}, and
-\verb{@exceeds_null}.
+scalar properties \verb{@phi_hat}, \verb{@null_dist}, \verb{@null_quantile},
+\verb{@exceeds_null}, and \verb{@p}, the number of model parameters
+\eqn{p = q + 2} that sets the \eqn{2p/n} leverage cutoff.
 }
 \description{
 \code{check_hat_values()} is the hat-value (leverage) positivity diagnostic of

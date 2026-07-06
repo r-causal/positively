@@ -223,6 +223,37 @@ test_that("hat_values_result carries the scalar null-comparison properties", {
   expect_length(res@exceeds_null, 1)
 })
 
+test_that("hat_values_result exposes the number of model parameters p", {
+  local_quiet()
+  data <- sim_hat_linear(150, beta = 1, q = 1, seed = 1)
+  res <- check_hat_values(data, dose, x1, null_reps = 20)
+
+  expect_type(res@p, "integer")
+  expect_length(res@p, 1)
+  # p = intercept + dose + 1 covariate, the ncol of the design matrix.
+  expect_identical(res@p, 3L)
+})
+
+test_that("p equals the design matrix column count for several covariates", {
+  local_quiet()
+  data <- sim_hat_linear(160, beta = 1, q = 3, seed = 4)
+  res <- check_hat_values(data, dose, c(x1, x2, x3), null_reps = 20)
+
+  # p = intercept + dose + 3 covariates.
+  expect_identical(res@p, 5L)
+})
+
+test_that("the leverage cutoff equals 2 * p / n through the p property", {
+  local_quiet()
+  data <- sim_hat_linear(120, beta = 1, q = 1, seed = 2)
+  res <- check_hat_values(data, dose, x1, null_reps = 2)
+
+  expect_identical(
+    res@results$high_leverage,
+    res@results$hat_value > 2 * res@p / res@n
+  )
+})
+
 test_that("hat_values_result has the fixed results columns", {
   local_quiet()
   data <- sim_hat_linear(150, beta = 1, seed = 1)
@@ -291,13 +322,11 @@ test_that("p is q + 2 with several covariates (expectations 6 and 10)", {
   data <- sim_hat_linear(160, beta = 1, q = 3, seed = 4)
   res <- check_hat_values(data, dose, c(x1, x2, x3), null_reps = 2)
 
-  # p = intercept + dose + 3 covariates. Verifying the flag arithmetic verifies
-  # that the design matrix used p = q + 2, which is what "reported p" means; the
-  # fixed property set does not expose p directly.
-  p <- 5L
+  # p = intercept + dose + 3 covariates, exposed directly on the result.
+  expect_identical(res@p, 5L)
   expect_identical(
     res@results$high_leverage,
-    res@results$hat_value > 2 * p / res@n
+    res@results$hat_value > 2 * res@p / res@n
   )
   expect_identical(nrow(res@results), 19L * 160L)
 })
