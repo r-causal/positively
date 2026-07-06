@@ -7,10 +7,6 @@
 # whether @results reports only flagged subgroups or every terminal leaf with its
 # status.
 
-local_quiet <- function(.env = parent.frame()) {
-  withr::local_options(positively.quiet = TRUE, .local_envir = .env)
-}
-
 # Rows of @results that met the PoRT reading rule.
 flagged_rows <- function(res) {
   res@results[res@results$flagged, , drop = FALSE]
@@ -249,6 +245,12 @@ test_that("check_port() rejects a bad n_bins for continuous exposures", {
   data <- dgp_continuous_support_gap(n = 300, seed = 4)
   expect_error(
     check_port(data, exposure, x1, n_bins = 0),
+    class = "positively_error"
+  )
+  # A single bin makes every observation share one level, flagging every
+  # subgroup, so n_bins must be at least two.
+  expect_error(
+    check_port(data, exposure, x1, n_bins = 1),
     class = "positively_error"
   )
   expect_error(
@@ -690,6 +692,16 @@ test_that("autoplot() returns a ggplot", {
   expect_s3_class(ggplot2::autoplot(res), "ggplot")
 })
 
+test_that("PoRT autoplot renders as expected", {
+  local_quiet()
+  data <- sim_port_structural(n = 500, seed = 1)
+  res <- check_port(data, exposure, c(x3, x1))
+  expect_doppelganger(
+    "PoRT subgroup prevalence bars",
+    ggplot2::autoplot(res)
+  )
+})
+
 test_that("duplicate subgroups draw a bar of their own prevalence, not a sum", {
   local_quiet()
   res <- check_port(port_anchor_data(), exposure, g)
@@ -727,12 +739,10 @@ test_that("port_plot_data returns the display columns for an empty result", {
 
 test_that("plot() draws the PoRT view and returns the result invisibly", {
   local_quiet()
+  local_null_device()
   data <- sim_port_structural(n = 500, seed = 1)
   res <- check_port(data, exposure, c(x3, x1))
 
-  path <- withr::local_tempfile(fileext = ".pdf")
-  grDevices::pdf(path)
-  withr::defer(grDevices::dev.off())
   expect_identical(plot(res), res)
 })
 

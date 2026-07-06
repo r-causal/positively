@@ -2,10 +2,11 @@
 #'
 #' A simulated point-treatment dataset that carries two known positivity
 #' problems, so examples and tests can compare a diagnostic against ground
-#' truth. It holds one structural violation, a subgroup that is never exposed,
-#' and one practical near-violation, a region of covariate space where the
+#' truth. It holds one structural violation (a subgroup that is never exposed)
+#' and one practical near-violation (a region of covariate space where the
 #' fitted propensity approaches zero or one while both exposure levels are still
-#' observed overall.
+#' observed overall). It serves [check_positivity()] and the binary-exposure
+#' diagnostics [check_port()], [check_edp()], and [check_extrapolation()].
 #'
 #' @format A tibble with 1000 rows and 4 columns:
 #' \describe{
@@ -31,7 +32,8 @@
 #' signature of a practical violation: treatment is near-deterministic in the
 #' tails without being structurally impossible.
 #'
-#' @source Simulated by `data-raw/make-datasets.R`.
+#' @source Simulated by `data-raw/make-datasets.R` in the package source
+#'   repository, <https://github.com/r-causal/positively>.
 "pos_violations"
 
 #' Longitudinal continuous-exposure data with a time-2 support gap
@@ -63,5 +65,6 @@
 #' a simple time-ordered process in which each variable depends on the one
 #' before it.
 #'
-#' @source Simulated by `data-raw/make-datasets.R`.
+#' @source Simulated by `data-raw/make-datasets.R` in the package source
+#'   repository, <https://github.com/r-causal/positively>.
 "pos_violations_long"

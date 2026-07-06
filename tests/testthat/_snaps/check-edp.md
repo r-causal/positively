@@ -205,4 +205,6 @@
       Variant: estimator
       Intervention values: 1
       edp_outcome range: 4.23 to 38.179
+      edp_treatment range: 8.995 to 98.272
+      ideal_weight range: 2.127 to 2.795
 

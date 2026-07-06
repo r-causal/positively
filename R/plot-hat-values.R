@@ -53,8 +53,11 @@ method(autoplot, hat_values_result) <- function(
 autoplot_hat_values_null <- function(object) {
   null_data <- tibble::tibble(phi = object@null_dist)
   conf_level <- object@params$conf_level
+  # Fewer bins for small null_reps keeps the histogram from reading as ragged;
+  # capped at 30 so large null distributions are not oversmoothed.
+  bins <- min(30L, max(1L, ceiling(sqrt(length(object@null_dist)))))
   ggplot2::ggplot(null_data, ggplot2::aes(x = .data$phi)) +
-    ggplot2::geom_histogram(bins = 30, fill = "grey70", color = "white") +
+    ggplot2::geom_histogram(bins = bins, fill = "grey70", color = "white") +
     ggplot2::geom_vline(
       xintercept = object@null_quantile,
       linetype = "dashed"
@@ -95,7 +98,7 @@ autoplot_hat_values_profile <- function(object) {
     ggplot2::geom_point() +
     ggplot2::labs(
       x = "Exposure percentile",
-      y = "Proportion high leverage",
+      y = "Proportion of high-leverage candidates",
       title = "Leverage profile across the exposure range"
     )
 }

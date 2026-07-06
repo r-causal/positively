@@ -88,7 +88,8 @@ The heavy-tailed ratios have the same mean and the same sample size, but the
 distribution is different.
 
 ```{r heavy-tail}
-check_density_ratios(heavy_tail)
+heavy_ratios <- check_density_ratios(heavy_tail)
+heavy_ratios
 ```
 
 The upper quantiles climb steeply, a small fraction of ratios exceed ten, and
@@ -101,8 +102,7 @@ The `autoplot()` method draws the distribution of the raw ratios. The long
 right tail is the visual counterpart of the collapsed effective sample size.
 
 ```{r heavy-tail-plot, fig.alt = "Histogram of hand-built density ratios with a long right tail extending well above the bulk of the distribution near one."}
-result <- check_density_ratios(heavy_tail)
-ggplot2::autoplot(result, type = "distribution")
+ggplot2::autoplot(heavy_ratios, type = "distribution")
 ```
 
 ## A mean below one signals leaked support
@@ -127,8 +127,8 @@ as the `prop_zero` statistic, which the long summary from `tidy()` exposes
 directly.
 
 ```{r degenerate-tidy}
-summary <- tidy(check_density_ratios(degenerate))
-summary[summary$statistic == "prop_zero", ]
+ratio_stats <- tidy(check_density_ratios(degenerate))
+ratio_stats[ratio_stats$statistic == "prop_zero", ]
 ```
 
 ## Time-varying treatments and cumulative products
@@ -247,7 +247,7 @@ interface as every other diagnostic in the package.
 ## References
 
 Petersen ML, Porter KE, Gruber S, Wang Y, van der Laan MJ (2012). Diagnosing and
-Responding to Violations in the Positivity Assumption. *Statistical Methods in
+responding to violations in the positivity assumption. *Statistical Methods in
 Medical Research*, 21(1):31-54.
 [doi:10.1177/0962280210386207](https://doi.org/10.1177/0962280210386207)
 

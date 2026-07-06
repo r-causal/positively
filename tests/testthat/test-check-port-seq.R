@@ -241,6 +241,16 @@ test_that("autoplot() returns a ggplot faceted over time", {
   expect_s3_class(ggplot2::autoplot(res), "ggplot")
 })
 
+test_that("sPoRT autoplot renders faceted over time", {
+  local_quiet()
+  data <- sim_port_seq(n = 1000, seed = 1)
+  res <- check_port_seq(data, c(a1, a2, a3), list(c1))
+  expect_doppelganger(
+    "sPoRT subgroups faceted by time",
+    ggplot2::autoplot(res)
+  )
+})
+
 test_that("each facet shows its own resolved beta reference lines", {
   local_quiet()
   data <- sim_port_seq(n = 3000, seed = 1)

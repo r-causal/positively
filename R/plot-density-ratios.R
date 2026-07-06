@@ -112,18 +112,45 @@ autoplot_density_ratios_cumulative <- function(
   is_quantile <- grepl("^cumulative_quantile_", cumulative$statistic)
   is_max <- cumulative$statistic == "cumulative_max"
   plot_data <- cumulative[is_quantile | is_max, ]
+  plot_data$series <- cumulative_series(plot_data$statistic)
   ggplot2::ggplot(
     plot_data,
-    ggplot2::aes(x = .data$time, y = .data$value, color = .data$statistic)
+    ggplot2::aes(x = .data$time, y = .data$value, color = .data$series)
   ) +
     ggplot2::geom_line() +
     ggplot2::geom_point() +
     ggplot2::labs(
       x = "Time point",
       y = "Cumulative density ratio",
-      color = "Statistic",
+      color = "Summary",
       title = "Cumulative-product quantiles across time points"
     )
+}
+
+#' Readable, ordered series labels for the cumulative statistics
+#'
+#' Maps each cumulative statistic name to a human-readable label, ordered by the
+#' underlying quantile probability with the maximum last, so the plot legend
+#' reads as text rather than raw statistic keys.
+#'
+#' @param statistic A character vector of `cumulative_quantile_*` and
+#'   `cumulative_max` names.
+#'
+#' @return An ordered factor of readable labels.
+#' @keywords internal
+#' @noRd
+cumulative_series <- function(statistic) {
+  is_max <- statistic == "cumulative_max"
+  pct <- rep(100, length(statistic))
+  pct[!is_max] <- as.numeric(
+    sub("^cumulative_quantile_", "", statistic[!is_max])
+  )
+  label <- ifelse(
+    is_max,
+    "Maximum",
+    paste0(vapply(pct, percentile_label, character(1)), " percentile")
+  )
+  factor(label, levels = unique(label[order(pct)]))
 }
 
 method(plot, density_ratios_result) <- function(x, y, ...) {

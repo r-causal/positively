@@ -272,7 +272,7 @@ select_single_exposure <- function(
 #' @noRd
 resolve_targets <- function(values, exposure, call = rlang::caller_env()) {
   if (is.null(values)) {
-    return(seq(min(exposure), max(exposure), length.out = 100))
+    return(unique(seq(min(exposure), max(exposure), length.out = 100)))
   }
   if (!is.numeric(values)) {
     values_class <- class(values)[1]
@@ -374,7 +374,8 @@ hdr_nonoverlap <- function(
 #'   point.
 #' @param .covariates A list of tidyselect expressions, one per time point, of
 #'   the time-varying covariates. A length-one list is recycled across time
-#'   points.
+#'   points. Write it as a literal `list()` call, for example
+#'   `list(l0, l1, l2)`, rather than a pre-built list held in a variable.
 #' @param .baseline A tidyselect of baseline covariates always included in every
 #'   conditioning set. Defaults to `NULL`.
 #' @param mass The HDR probability mass, a single value strictly between 0 and 1.
@@ -452,9 +453,12 @@ check_hdr_seq <- function(
   validate_numeric_columns(.data, exposure_names, ".exposures")
   validate_numeric_columns(
     .data,
-    unique(c(unlist(covariate_sets), baseline_names)),
+    unique(unlist(covariate_sets)),
     ".covariates"
   )
+  if (length(baseline_names) > 0) {
+    validate_numeric_columns(.data, baseline_names, ".baseline")
+  }
 
   n <- nrow(.data)
   if (n < 2) {

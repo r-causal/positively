@@ -636,6 +636,26 @@ test_that("autoplot() returns a ggplot for each type", {
   expect_s3_class(ggplot2::autoplot(res, type = "hull"), "ggplot")
 })
 
+test_that("extrapolation autoplot views render as expected", {
+  local_quiet()
+  data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
+  res <- check_extrapolation(
+    data,
+    exposure,
+    tidyselect::starts_with("x"),
+    hull = TRUE
+  )
+
+  expect_doppelganger(
+    "Extrapolation frac nearby distribution",
+    ggplot2::autoplot(res, type = "distribution")
+  )
+  expect_doppelganger(
+    "Extrapolation convex hull membership",
+    ggplot2::autoplot(res, type = "hull")
+  )
+})
+
 # ---- Message and print snapshots ------------------------------------------
 
 test_that("the binary-only abort messages are stable", {

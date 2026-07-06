@@ -524,6 +524,28 @@ test_that("every null method stays quiet on a skewed independent dose", {
   }
 })
 
+test_that("every null method flags a strong violation", {
+  local_quiet()
+  methods <- c("permutation", "bootstrap", "gaussian")
+  for (method in methods) {
+    flagged <- vapply(
+      1:3,
+      function(s) {
+        res <- check_hat_values(
+          sim_hat_linear(200, beta = 2, seed = s),
+          dose,
+          x1,
+          null_method = method,
+          null_reps = 50
+        )
+        res@exceeds_null
+      },
+      logical(1)
+    )
+    expect_true(all(flagged))
+  }
+})
+
 test_that("results have identical shape across null methods", {
   local_quiet()
   data <- sim_hat_linear(150, beta = 1, seed = 1)
@@ -554,6 +576,21 @@ test_that("autoplot() returns a ggplot for each type", {
 
   expect_s3_class(ggplot2::autoplot(res, type = "null"), "ggplot")
   expect_s3_class(ggplot2::autoplot(res, type = "profile"), "ggplot")
+})
+
+test_that("hat-value autoplot views render as expected", {
+  local_quiet()
+  data <- sim_hat_linear(150, beta = 1, seed = 1)
+  res <- check_hat_values(data, dose, x1, null_reps = 50)
+
+  expect_doppelganger(
+    "Hat values null distribution",
+    ggplot2::autoplot(res, type = "null")
+  )
+  expect_doppelganger(
+    "Hat values leverage profile",
+    ggplot2::autoplot(res, type = "profile")
+  )
 })
 
 # ---- Message and print snapshots ------------------------------------------

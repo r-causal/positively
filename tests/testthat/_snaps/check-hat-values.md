@@ -137,6 +137,7 @@
       -- hat_values_result -----------------------------------------------------------
       Exposure: "dose" (continuous)
       Observations: 150
+      Null: permutation (50 reps), cutoff 2p/n
       phi-hat: 0.188
       Null 0.95 quantile: 0.059
       Exceeds null: TRUE

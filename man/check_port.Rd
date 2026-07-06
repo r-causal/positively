@@ -38,8 +38,9 @@ limit is 0.5 because the rule flags a prevalence below \code{beta} or above
 subgroup, a whole number of at least one. Defaults to \code{2}.}
 
 \item{n_bins}{For a continuous exposure, the number of quantile bins into
-which the exposure is categorized. A whole number of at least one, \code{3} by
-default. Ignored for binary and categorical exposures.}
+which the exposure is categorized. A whole number of at least two, \code{3} by
+default; a single bin would place every observation at one exposure level
+and flag every subgroup. Ignored for binary and categorical exposures.}
 
 \item{breaks}{For a continuous exposure, explicit numeric cut points that
 override \code{n_bins}. \code{NULL} (the default) uses quantile bins.}
@@ -123,5 +124,9 @@ result
 \references{
 Danelian G, Foucher Y, Léger M, Le Borgne F, Chatton A (2023). Identification
 of in-sample positivity violations using regression trees: the PoRT
-algorithm.
+algorithm. \doi{10.1515/jci-2022-0032}
+
+Chatton A, Schomaker M, Luque-Fernandez MA, Platt RW, Schnitzer ME (2025).
+Is checking for sequential positivity violations getting you down? Try
+sPoRT!
 }

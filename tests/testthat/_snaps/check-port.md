@@ -144,7 +144,7 @@
       check_port(data, exposure, c(x1, x2), n_bins = 0)
     Condition
       Error in `check_port()`:
-      ! `n_bins` must be a single whole number of at least 1.
+      ! `n_bins` must be a single whole number of at least 2.
       x Found 0.
 
 ---

@@ -574,6 +574,7 @@ test_that("a stratified continuous violation collapses the unsupported stratum",
 })
 
 test_that("a continuous structural boundary starves the deep region", {
+  local_quiet()
   data <- sim_edp_structural(1000, seed = 1)
   res <- check_edp(data, exposure, x1, values = 1)
 
@@ -587,6 +588,7 @@ test_that("a continuous structural boundary starves the deep region", {
 })
 
 test_that("a never-treated categorical subgroup reads as zero at c = 0", {
+  local_quiet()
   data <- sim_edp_masking(600, seed = 1)
   res <- check_edp(data, exposure, s, values = 1, categorical_similarity = 0)
 
@@ -595,6 +597,7 @@ test_that("a never-treated categorical subgroup reads as zero at c = 0", {
 })
 
 test_that("a positive similarity masks the categorical violation", {
+  local_quiet()
   data <- sim_edp_masking(600, seed = 1)
   res <- check_edp(data, exposure, s, values = 1, categorical_similarity = 0.5)
 
@@ -709,6 +712,26 @@ test_that("a g-model-only violation drives edp_treatment below edp_outcome", {
   )
 })
 
+test_that("ideal_weight is infinite where outcome support is zero", {
+  local_quiet()
+  # The s1 subgroup is never treated, so at the treated target no observation in
+  # its stratum supports the outcome model: edp_outcome is exactly zero and
+  # ideal_weight is one over zero.
+  data <- sim_edp_masking(200, seed = 1)
+  res <- check_edp(
+    data,
+    exposure,
+    s,
+    variant = "estimator",
+    values = 1,
+    categorical_similarity = 0
+  )
+
+  subgroup <- data$s[res@results$.id] == "s1"
+  expect_true(all(res@results$edp_outcome[subgroup] == 0))
+  expect_true(all(is.infinite(res@results$ideal_weight[subgroup])))
+})
+
 # ---- Autoplot contract ----------------------------------------------------
 
 test_that("autoplot() returns a ggplot for each data-variant type", {
@@ -747,6 +770,38 @@ test_that("the estimator scatter view is a ggplot and aborts for the data varian
   expect_error(
     ggplot2::autoplot(plain, type = "scatter"),
     class = "positively_error"
+  )
+})
+
+test_that("EDP autoplot views render as expected", {
+  data <- sim_edp_gaussian(150)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+  expect_doppelganger(
+    "EDP histogram by intervention value",
+    ggplot2::autoplot(res, type = "histogram")
+  )
+  expect_doppelganger(
+    "EDP ECDF by intervention value",
+    ggplot2::autoplot(res, type = "ecdf")
+  )
+
+  estimator <- check_edp(
+    data,
+    exposure,
+    x1,
+    variant = "estimator",
+    values = 0,
+    exposure_type = "continuous"
+  )
+  expect_doppelganger(
+    "EDP estimator scatter",
+    ggplot2::autoplot(estimator, type = "scatter")
   )
 })
 

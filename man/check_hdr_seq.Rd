@@ -23,7 +23,8 @@ point.}
 
 \item{.covariates}{A list of tidyselect expressions, one per time point, of
 the time-varying covariates. A length-one list is recycled across time
-points.}
+points. Write it as a literal \code{list()} call, for example
+\code{list(l0, l1, l2)}, rather than a pre-built list held in a variable.}
 
 \item{.baseline}{A tidyselect of baseline covariates always included in every
 conditioning set. Defaults to \code{NULL}.}

@@ -69,7 +69,7 @@
 #' @references
 #' Danelian G, Foucher Y, Léger M, Le Borgne F, Chatton A (2023). Identification
 #' of in-sample positivity violations using regression trees: the PoRT
-#' algorithm.
+#' algorithm. \doi{10.1515/jci-2022-0032}
 #'
 #' Chatton A, Schomaker M, Luque-Fernandez MA, Platt RW, Schnitzer ME (2025).
 #' Is checking for sequential positivity violations getting you down? Try
@@ -110,7 +110,7 @@ check_port_seq <- function(
   validate_probability(alpha, "alpha")
   beta_spec <- validate_beta(beta)
   validate_count(gamma, "gamma")
-  validate_count(n_bins, "n_bins")
+  validate_count(n_bins, "n_bins", min = 2)
   validate_breaks(breaks)
   validate_lag(lag)
   strategy <- rlang::arg_match(strategy)

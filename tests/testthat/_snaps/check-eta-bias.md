@@ -1,3 +1,12 @@
+# the sweep view aborts on a single-run result
+
+    Code
+      ggplot2::autoplot(single, type = "sweep")
+    Condition
+      Error in `autoplot_eta_bias_sweep()`:
+      ! The sweep view needs a truncation sweep of more than one level.
+      i Rerun `check_eta_bias()` with a `truncation_grid` of multiple lower bounds.
+
 # the single-run print method is stable
 
     Code

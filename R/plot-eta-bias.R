@@ -71,11 +71,20 @@ autoplot_eta_bias_bootstrap <- function(object) {
       )
     })
   )
-  boot_data$facet <- paste0("lower = ", boot_data$truncation_lower)
+  # Facet on a factor ordered by the sweep so numeric lower bounds, including
+  # ones that print in scientific notation, order by value rather than
+  # lexicographically.
+  boot_data$facet <- factor(
+    boot_data$truncation_lower,
+    levels = unique(results$truncation_lower)
+  )
   ggplot2::ggplot(boot_data, ggplot2::aes(x = .data$estimate)) +
     ggplot2::geom_histogram(bins = 30, fill = "grey70", color = "white") +
     ggplot2::geom_vline(xintercept = object@truth, linetype = "dashed") +
-    ggplot2::facet_wrap(ggplot2::vars(.data$facet)) +
+    ggplot2::facet_wrap(
+      ggplot2::vars(.data$facet),
+      labeller = ggplot2::as_labeller(function(value) paste0("lower = ", value))
+    ) +
     ggplot2::labs(
       x = "Bootstrap estimate",
       y = "Bootstrap draws",
@@ -97,6 +106,15 @@ autoplot_eta_bias_bootstrap <- function(object) {
 #' @noRd
 autoplot_eta_bias_sweep <- function(object) {
   results <- object@results
+  if (nrow(results) == 1) {
+    abort(
+      c(
+        "The sweep view needs a truncation sweep of more than one level.",
+        i = "Rerun {.fn check_eta_bias} with a {.arg truncation_grid} of multiple lower bounds."
+      ),
+      error_class = "positively_sweep_absent_error"
+    )
+  }
   sweep_data <- tibble::tibble(
     truncation_lower = results$truncation_lower,
     bias = results$bias,

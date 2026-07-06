@@ -10,29 +10,6 @@
 # developer constructor; hdr_threshold is optional (NULL requests the numeric
 # grid fallback), so the user contract is two functions minimum.
 
-# A structurally faithful normal-equivalent estimator built through the public
-# constructor. It mirrors the default estimator's geometry so the pluggable path
-# can be checked against the closed-form path. With `with_threshold = FALSE` the
-# cutoff is left NULL to request the numeric grid fallback.
-make_normal_like <- function(with_threshold = FALSE) {
-  fit <- function(formula, data) {
-    model <- stats::lm(formula, data = data)
-    list(model = model, sigma = summary(model)$sigma)
-  }
-  density <- function(state, a, newdata) {
-    mu <- stats::predict(state$model, newdata = newdata)
-    stats::dnorm(a, mean = mu, sd = state$sigma)
-  }
-  if (!with_threshold) {
-    return(new_hdr_density(fit = fit, density = density))
-  }
-  hdr_threshold <- function(state, newdata, mass) {
-    z <- stats::qnorm((1 + mass) / 2)
-    rep(stats::dnorm(z) / state$sigma, nrow(newdata))
-  }
-  new_hdr_density(fit = fit, density = density, hdr_threshold = hdr_threshold)
-}
-
 # ---- new_hdr_density() construction and validation ------------------------
 
 test_that("new_hdr_density() returns an hdr_density object with the three slots", {
@@ -138,14 +115,13 @@ test_that("hdr_density_normal() returns an hdr_density estimator", {
 
 test_that("the normal threshold equals dnorm(z) / sigma and is constant", {
   withr::local_seed(1)
+  # A linear-Gaussian design matching the default estimator so the residual SD
+  # is available independently.
+  l <- stats::rnorm(400)
   data <- tibble::tibble(
-    exposure = stats::rnorm(400, mean = 0.5 * stats::rnorm(400)),
-    l = stats::rnorm(400)
+    l = l,
+    exposure = stats::rnorm(400, mean = 1.2 * l, sd = 0.8)
   )
-  # Refit the same linear-Gaussian model the default estimator uses so the
-  # residual SD is available independently.
-  data$l <- stats::rnorm(400)
-  data$exposure <- stats::rnorm(400, mean = 1.2 * data$l, sd = 0.8)
   model <- stats::lm(exposure ~ l, data = data)
   sigma <- summary(model)$sigma
 

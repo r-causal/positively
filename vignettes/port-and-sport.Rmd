@@ -151,7 +151,7 @@ binary exposure, and the reported subgroups describe regions of `l0` in which a
 given bin of `a1` is rare. This locates conditional shortages of exposure across
 the covariate. It does not target a gap in the marginal distribution of the
 exposure itself; for continuous support gaps and their per-value diagnostics,
-see the continuous-exposures vignette.
+see *Positivity for continuous exposures*.
 
 ## Sequential violations with sPoRT
 
@@ -190,8 +190,8 @@ sport_flagged <- sport_rows[sport_rows$flagged, ]
 head(sport_flagged[, c("time", "description", "exposure_level", "n", "prevalence")])
 ```
 
-For a binary monotone regime the follower restriction does real work: the risk
-set at each time point holds the subjects not yet treated, and it shrinks over
+For a binary monotone regime the follower restriction changes the risk set at
+each time point: it holds the subjects not yet treated, and it shrinks over
 time. When `beta = "gruber"` the prevalence threshold is resolved separately at
 each time point from the size of that risk set, so smaller follower sets are held
 to a looser bound. The exposures in this dataset are continuous, so every subject

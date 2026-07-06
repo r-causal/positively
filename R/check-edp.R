@@ -72,7 +72,9 @@ edp_result <- new_class(
 #' exposure dimension, `edp_outcome <= edp_treatment` whenever the two covariate
 #' sets are equal. The reported `ideal_weight` is `edp_treatment / edp_outcome`,
 #' proportional to the inverse of the estimated treatment density at the
-#' intervention, so it grows where treatment support is thin.
+#' intervention, so it grows where treatment support is thin. Where a target has
+#' no outcome-model support, `edp_outcome` is zero and `ideal_weight` is
+#' infinite, the honest value of one over an estimated density of zero.
 #'
 #' @param .data A data frame.
 #' @param .exposure The exposure column, selected with data-masking.
@@ -81,9 +83,10 @@ edp_result <- new_class(
 #'   estimator variant, selected with tidyselect. Defaults to `.covariates`.
 #' @param .treatment_covariates The treatment-model covariate columns for the
 #'   estimator variant, selected with tidyselect. Defaults to `.covariates`.
-#' @param values The intervention values \eqn{a^*}. `NULL` (the default) uses all
-#'   observed levels for binary and categorical exposures and the deciles of the
-#'   observed exposure for continuous exposures.
+#' @param values The intervention values \eqn{a^*}. `NULL` (the default) uses
+#'   every level of a factor exposure and every observed value of a binary or
+#'   character exposure, and the deciles of the observed exposure for continuous
+#'   exposures.
 #' @param variant One of `"data"` (report a single `edp` per point, the default)
 #'   or `"estimator"` (report `edp_outcome`, `edp_treatment`, and
 #'   `ideal_weight`).
@@ -173,12 +176,12 @@ check_edp <- function(
     ".treatment_covariates"
   )
 
-  used_names <- unique(c(
-    covariate_names,
-    if (variant == "estimator") c(outcome_names, treatment_names)
-  ))
   validate_complete_columns(.data, exposure_name, ".exposure")
-  validate_complete_columns(.data, used_names, ".covariates")
+  validate_complete_columns(.data, covariate_names, ".covariates")
+  if (variant == "estimator") {
+    validate_complete_columns(.data, outcome_names, ".outcome_covariates")
+    validate_complete_columns(.data, treatment_names, ".treatment_covariates")
+  }
 
   n <- nrow(.data)
   if (n < 2) {
@@ -609,6 +612,22 @@ continuous_kernel <- function(delta, bw) {
   0.5^((delta / bw)^2)
 }
 
+#' Blend match indicators with the non-matching kernel value
+#'
+#' Maps a logical match indicator to `1` on a match and `categorical_similarity`
+#' otherwise. This is the single source of the categorical kernel formula, shared
+#' by the one-value match kernel and the pairwise similarity matrix.
+#'
+#' @param matches A logical vector or matrix of match indicators.
+#' @param categorical_similarity The kernel value for non-matching categories.
+#'
+#' @return A numeric object of the same shape as `matches`.
+#' @keywords internal
+#' @noRd
+blend_match <- function(matches, categorical_similarity) {
+  categorical_similarity + (1 - categorical_similarity) * matches
+}
+
 #' The match kernel comparing a vector against one value
 #'
 #' @param x A vector of observed categories.
@@ -619,8 +638,7 @@ continuous_kernel <- function(delta, bw) {
 #' @keywords internal
 #' @noRd
 match_kernel <- function(x, value, categorical_similarity) {
-  matches <- as.character(x) == as.character(value)
-  categorical_similarity + (1 - categorical_similarity) * matches
+  blend_match(as.character(x) == as.character(value), categorical_similarity)
 }
 
 #' Resolve per-covariate half-distances for the numeric covariates
@@ -683,8 +701,10 @@ covariate_similarity <- function(
       )
     } else {
       characters <- as.character(values)
-      dimension <- categorical_similarity +
-        (1 - categorical_similarity) * outer(characters, characters, "==")
+      dimension <- blend_match(
+        outer(characters, characters, "=="),
+        categorical_similarity
+      )
     }
     similarity <- similarity * dimension
   }
@@ -694,32 +714,38 @@ covariate_similarity <- function(
 # ---- Methods --------------------------------------------------------------
 
 method(print, edp_result) <- function(x, ...) {
-  measures <- edp_measures(x@results)
+  results <- x@results
+  columns <- if (x@variant == "estimator") {
+    c("edp_outcome", "edp_treatment", "ideal_weight")
+  } else {
+    "edp"
+  }
   cat_cli({
     cli::cli_h1("{S7::S7_class(x)@name}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")
     cli::cli_text("Observations: {x@n}")
     cli::cli_text("Variant: {x@variant}")
     cli::cli_text("Intervention values: {length(x@params$values)}")
-    cli::cli_text(
-      "{measures$label} range: {round(measures$min, 3)} to {round(measures$max, 3)}"
-    )
+    for (column in columns) {
+      values <- results[[column]]
+      cli::cli_text(
+        "{column} range: {round(min(values), 3)} to {round(max(values), 3)}"
+      )
+    }
   })
   invisible(x)
 }
 
-#' The primary EDP measure of a results tibble
+#' The primary EDP measure column of a results tibble
+#'
+#' The data variant reports `edp`; the estimator variant reports `edp_outcome`.
+#' This is the single source of that rule, shared by the print and plot methods.
 #'
 #' @param results An `edp_result` results tibble.
 #'
-#' @return A list with the measure `label` and its `min` and `max`.
+#' @return The name of the primary EDP column.
 #' @keywords internal
 #' @noRd
-edp_measures <- function(results) {
-  column <- if ("edp" %in% names(results)) "edp" else "edp_outcome"
-  list(
-    label = column,
-    min = min(results[[column]]),
-    max = max(results[[column]])
-  )
+edp_primary_column <- function(results) {
+  if ("edp" %in% names(results)) "edp" else "edp_outcome"
 }

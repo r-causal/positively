@@ -233,29 +233,6 @@ tau_curve <- function(res) {
   res@results$nonoverlap[order(res@results$value)]
 }
 
-# A structurally faithful normal-equivalent estimator built through the public
-# constructor. Test files do not share helper scope, so this mirrors the one in
-# test-hdr-density.R. with_threshold = FALSE leaves the cutoff NULL to exercise
-# the numeric-grid fallback through check_hdr().
-make_normal_like <- function(with_threshold = FALSE) {
-  fit <- function(formula, data) {
-    model <- stats::lm(formula, data = data)
-    list(model = model, sigma = summary(model)$sigma)
-  }
-  density <- function(state, a, newdata) {
-    mu <- stats::predict(state$model, newdata = newdata)
-    stats::dnorm(a, mean = mu, sd = state$sigma)
-  }
-  if (!with_threshold) {
-    return(new_hdr_density(fit = fit, density = density))
-  }
-  hdr_threshold <- function(state, newdata, mass) {
-    z <- stats::qnorm((1 + mass) / 2)
-    rep(stats::dnorm(z) / state$sigma, nrow(newdata))
-  }
-  new_hdr_density(fit = fit, density = density, hdr_threshold = hdr_threshold)
-}
-
 # ---- Result class and structure -------------------------------------------
 
 test_that("check_hdr() returns an hdr_result diagnostic", {
@@ -671,13 +648,33 @@ test_that("autoplot() returns a ggplot for the sequential diagnostic", {
 
 test_that("plot() draws the HDR view and returns the result invisibly", {
   local_quiet()
+  local_null_device()
   data <- sim_hdr_linear(300, beta = 1, seed = 1)
   res <- check_hdr(data, exposure, l)
 
-  path <- withr::local_tempfile(fileext = ".pdf")
-  grDevices::pdf(path)
-  withr::defer(grDevices::dev.off())
   expect_identical(plot(res), res)
+})
+
+test_that("HDR autoplot views render as expected", {
+  local_quiet()
+  data <- sim_hdr_linear(300, beta = 1, seed = 1)
+  res_point <- check_hdr(data, exposure, l)
+  expect_doppelganger(
+    "HDR non-overlap point curve",
+    ggplot2::autoplot(res_point)
+  )
+
+  long <- dgp_longitudinal(n = 300, seed = 5)
+  res_seq <- check_hdr_seq(
+    long,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    values = seq(-2, 2, length.out = 25)
+  )
+  expect_doppelganger(
+    "HDR non-overlap sequential curves",
+    ggplot2::autoplot(res_seq)
+  )
 })
 
 # ---- Snapshots ------------------------------------------------------------

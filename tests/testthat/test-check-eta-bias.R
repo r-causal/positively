@@ -632,6 +632,41 @@ test_that("autoplot() returns a ggplot for each type", {
   expect_s3_class(ggplot2::autoplot(swept, type = "sweep"), "ggplot")
 })
 
+test_that("ETA bias autoplot views render as expected", {
+  local_quiet()
+  data <- sim_eta_violation(n = 500, seed = 1)
+  single <- fit_eta(data, "ipw", n_boot = 100)
+  swept <- fit_eta(
+    data,
+    "ipw",
+    truncation_grid = c(0, 0.025, 0.05, 0.1),
+    n_boot = 100
+  )
+
+  expect_doppelganger(
+    "ETA bias bootstrap distribution",
+    ggplot2::autoplot(single, type = "bootstrap")
+  )
+  expect_doppelganger(
+    "ETA bias truncation sweep",
+    ggplot2::autoplot(swept, type = "sweep")
+  )
+})
+
+test_that("the sweep view aborts on a single-run result", {
+  local_quiet()
+  data <- sim_eta_violation(n = 500, seed = 1)
+  single <- fit_eta(data, "ipw", n_boot = 50)
+  expect_error(
+    ggplot2::autoplot(single, type = "sweep"),
+    class = "positively_sweep_absent_error"
+  )
+  expect_snapshot(
+    ggplot2::autoplot(single, type = "sweep"),
+    error = TRUE
+  )
+})
+
 # ---- Print method ---------------------------------------------------------
 
 test_that("the single-run print method is stable", {

@@ -16,7 +16,8 @@ subgroup together with \code{region}.}
 }
 }
 \source{
-Simulated by \code{data-raw/make-datasets.R}.
+Simulated by \code{data-raw/make-datasets.R} in the package source
+repository, \url{https://github.com/r-causal/positively}.
 }
 \usage{
 pos_violations
@@ -24,10 +25,11 @@ pos_violations
 \description{
 A simulated point-treatment dataset that carries two known positivity
 problems, so examples and tests can compare a diagnostic against ground
-truth. It holds one structural violation, a subgroup that is never exposed,
-and one practical near-violation, a region of covariate space where the
+truth. It holds one structural violation (a subgroup that is never exposed)
+and one practical near-violation (a region of covariate space where the
 fitted propensity approaches zero or one while both exposure levels are still
-observed overall.
+observed overall). It serves \code{\link[=check_positivity]{check_positivity()}} and the binary-exposure
+diagnostics \code{\link[=check_port]{check_port()}}, \code{\link[=check_edp]{check_edp()}}, and \code{\link[=check_extrapolation]{check_extrapolation()}}.
 }
 \details{
 The structural violation is exact: no subject with \code{region == "b"} and

@@ -7,10 +7,6 @@
 # one row per subject over three time points, whose time-2 exposure a2 has a
 # hard support gap on the interval (2, 4) that a1 and a3 populate.
 
-local_quiet <- function(.env = parent.frame()) {
-  withr::local_options(positively.quiet = TRUE, .local_envir = .env)
-}
-
 # The propensity model documented for the practical near-violation. Fitting it
 # recovers scores that cross the planted extremes.
 pos_violations_ps <- function(data) {
@@ -78,6 +74,17 @@ test_that("the documented propensity model crosses the planted extremes", {
 
   expect_lt(min(fitted), 0.01)
   expect_gt(max(fitted), 0.99)
+})
+
+test_that("the practical crossings hold among non-structural rows alone", {
+  # Restricting to rows outside the structural subgroup separates the two
+  # planted features: the 0.01 and 0.99 crossings must come from the practical
+  # near-violation, not from the structurally never-exposed subgroup.
+  fitted <- pos_violations_ps(pos_violations)
+  structural <- pos_violations_structural(pos_violations)
+
+  expect_lt(min(fitted[!structural]), 0.01)
+  expect_gt(max(fitted[!structural]), 0.99)
 })
 
 test_that("both exposure levels remain observed despite the near-violation", {

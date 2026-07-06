@@ -32,9 +32,10 @@ estimator variant, selected with tidyselect. Defaults to \code{.covariates}.}
 \item{.treatment_covariates}{The treatment-model covariate columns for the
 estimator variant, selected with tidyselect. Defaults to \code{.covariates}.}
 
-\item{values}{The intervention values \eqn{a^*}. \code{NULL} (the default) uses all
-observed levels for binary and categorical exposures and the deciles of the
-observed exposure for continuous exposures.}
+\item{values}{The intervention values \eqn{a^*}. \code{NULL} (the default) uses
+every level of a factor exposure and every observed value of a binary or
+character exposure, and the deciles of the observed exposure for continuous
+exposures.}
 
 \item{variant}{One of \code{"data"} (report a single \code{edp} per point, the default)
 or \code{"estimator"} (report \code{edp_outcome}, \code{edp_treatment}, and
@@ -110,7 +111,9 @@ covariates \eqn{(L)} alone. Because the outcome measure carries the extra
 exposure dimension, \code{edp_outcome <= edp_treatment} whenever the two covariate
 sets are equal. The reported \code{ideal_weight} is \code{edp_treatment / edp_outcome},
 proportional to the inverse of the estimated treatment density at the
-intervention, so it grows where treatment support is thin.
+intervention, so it grows where treatment support is thin. Where a target has
+no outcome-model support, \code{edp_outcome} is zero and \code{ideal_weight} is
+infinite, the honest value of one over an estimated density of zero.
 }
 \examples{
 set.seed(1)

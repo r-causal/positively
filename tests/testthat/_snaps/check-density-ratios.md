@@ -181,6 +181,7 @@
       Error in `check_density_ratios()`:
       ! The lmtp fit has no density-ratio component.
       i Expected a density_ratios element in the fitted object.
+      i Pass the density ratios directly as a numeric vector or matrix.
 
 ---
 

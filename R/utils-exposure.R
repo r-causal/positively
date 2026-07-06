@@ -80,7 +80,7 @@ detect_exposure_type <- function(.exposure, announce = TRUE) {
 #'
 #' Matches `exposure_type` against the permitted values with
 #' [rlang::arg_match()]. When it is `"auto"`, the type is inferred from the data
-#' through `detect_exposure_type()`; otherwise the supplied type is honoured
+#' through `detect_exposure_type()`; otherwise the supplied type is honored
 #' without detection.
 #'
 #' @param exposure_type One of `"auto"`, `"binary"`, `"categorical"`, or

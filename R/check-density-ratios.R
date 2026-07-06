@@ -16,8 +16,10 @@ density_ratios_result <- new_class(
     ratios = class_list
   ),
   validator = function(self) {
-    if (!is.list(self@ratios)) {
-      "@ratios must be a list"
+    if (!all(vapply(self@ratios, is.numeric, logical(1)))) {
+      "@ratios must contain only numeric vectors"
+    } else if (length(self@ratios) != length(unique(self@results$time))) {
+      "@ratios must have one element per time point in @results"
     }
   }
 )
@@ -67,8 +69,10 @@ density_ratios_result <- new_class(
 #' product of the ratios across time points, under the `cumulative_` prefix.
 #' This is the sequential positivity signature: mild per-step non-overlap
 #' compounds multiplicatively, so the cumulative effective sample size can
-#' collapse even while each per-time fraction stays healthy. The default
-#' thresholds of 10 and 50 are conventional weight-magnitude heuristics rather
+#' collapse even while each per-time fraction stays healthy. For a single-column
+#' matrix the cumulative summaries coincide with the per-time summaries. The
+#' default thresholds of 10 and 50 are conventional weight-magnitude heuristics
+#' rather
 #' than values sanctioned by either source paper.
 #'
 #' @param ratios The density ratios. A numeric vector for a point treatment (a
@@ -195,7 +199,8 @@ check_density_ratios.lmtp <- function(ratios, ...) {
     abort(
       c(
         "The {.pkg lmtp} fit has no density-ratio component.",
-        i = "Expected a {.field density_ratios} element in the fitted object."
+        i = "Expected a {.field density_ratios} element in the fitted object.",
+        i = "Pass the density ratios directly as a numeric vector or matrix."
       ),
       error_class = "positively_lmtp_error"
     )
@@ -550,6 +555,7 @@ method(glance, density_ratios_result) <- function(x, ...) {
   final <- final_ratios(x@ratios)
   ess <- kish_ess(final)
   tibble::tibble(
+    exposure = x@exposure,
     exposure_type = x@exposure_type,
     n = x@n,
     n_times = n_times,

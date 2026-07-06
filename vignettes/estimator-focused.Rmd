@@ -246,7 +246,9 @@ treatment policies, with hand-built ratios and with a fitted longitudinal model.
 
 King G, Zeng L (2006). The Dangers of Extreme Counterfactuals. *Political
 Analysis*, 14(2):131-159.
+[doi:10.1093/pan/mpj004](https://doi.org/10.1093/pan/mpj004)
 
 Petersen ML, Porter KE, Gruber S, Wang Y, van der Laan MJ (2012). Diagnosing and
 responding to violations in the positivity assumption. *Statistical Methods in
 Medical Research*, 21(1):31-54.
+[doi:10.1177/0962280210386207](https://doi.org/10.1177/0962280210386207)

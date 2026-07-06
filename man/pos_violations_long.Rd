@@ -17,7 +17,8 @@ A tibble with 500 rows and 7 columns:
 }
 }
 \source{
-Simulated by \code{data-raw/make-datasets.R}.
+Simulated by \code{data-raw/make-datasets.R} in the package source
+repository, \url{https://github.com/r-causal/positively}.
 }
 \usage{
 pos_violations_long

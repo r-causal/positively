@@ -90,8 +90,10 @@ test uses the numeric covariates only, since categorical covariates carry no
 ordering to interpolate over. In-hull membership collapses toward zero as the
 covariate dimension grows even under perfect overlap, so the test is
 degenerate in high dimensions (D'Amour and colleagues, 2021). It therefore
-runs automatically only when there are at most ten numeric covariates and
-\pkg{lpSolve} is installed; above that it is skipped and \code{in_hull} is \code{NA}.
+runs automatically only when there is at least one and at most ten numeric
+covariates and \pkg{lpSolve} is installed. With no numeric covariates, more
+than ten of them, or \pkg{lpSolve} absent, it is skipped and \code{in_hull} is
+\code{NA}.
 Setting \code{hull = TRUE} forces the test to run and warns when the dimension is
 high; \code{hull = FALSE} skips it.
 }

@@ -65,7 +65,7 @@ default_diagnostics <- function(exposure_type) {
 #'   categorized), [check_hat_values()], [check_hdr()]
 #'
 #' Pass `diagnostics` to run an explicit subset instead; the requested order is
-#' honoured. Every name must be a diagnostic that `check_positivity()` composes
+#' honored. Every name must be a diagnostic that `check_positivity()` composes
 #' and that applies to the resolved exposure type, otherwise the call aborts with
 #' the valid options listed.
 #'
@@ -87,7 +87,7 @@ default_diagnostics <- function(exposure_type) {
 #'   given.
 #' @param exposure_type One of `"auto"` (detect from the data, the default),
 #'   `"binary"`, `"categorical"`, or `"continuous"`. An explicit value is passed
-#'   to [check_edp()] and [check_port()], which honour it directly. The three
+#'   to [check_edp()] and [check_port()], which honor it directly. The three
 #'   diagnostics that re-detect the type ([check_extrapolation()],
 #'   [check_hat_values()], and [check_hdr()]) are instead checked up front
 #'   against the detected type; if a requested one of them cannot run on the
@@ -226,7 +226,7 @@ resolve_composed_exposure_type <- function(exposure_type, exposure_vec) {
 
 # The re-detecting children and the detected exposure type each one requires.
 # check_edp() and check_port() are absent: they receive `exposure_type` and
-# honour it, so a forced type is never sent off a cliff inside them.
+# honor it, so a forced type is never sent off a cliff inside them.
 redetecting_requirements <- function() {
   list(
     extrapolation = "binary",
@@ -530,6 +530,13 @@ method(tidy, positivity_check) <- function(x, diagnostic = NULL, ...) {
 #' @keywords internal
 #' @noRd
 combined_container_summary <- function(x) {
+  if (length(x@checks) == 0) {
+    return(tibble::tibble(
+      diagnostic = character(0),
+      statistic = character(0),
+      value = character(0)
+    ))
+  }
   rows <- purrr::map2(x@diagnostics, x@checks, function(name, check) {
     glanced <- generics::glance(check)
     tibble::tibble(
@@ -549,6 +556,9 @@ combined_container_summary <- function(x) {
 #' @usage NULL
 #' @order 3
 method(glance, positivity_check) <- function(x, ...) {
+  if (length(x@checks) == 0) {
+    return(tibble::tibble(diagnostic = character(0)))
+  }
   rows <- purrr::map2(x@diagnostics, x@checks, function(name, check) {
     tibble::tibble(diagnostic = name, generics::glance(check))
   })

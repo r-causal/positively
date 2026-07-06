@@ -176,14 +176,16 @@ validate_positive_number <- function(
 #'
 #' @param x A candidate value.
 #' @param arg_name The argument name used in error messages.
+#' @param min The smallest whole number accepted. Defaults to `1`.
 #' @param call The calling environment, used to build the error's call.
 #'
-#' @return `x`, invisibly, when it is a single whole number of at least one.
+#' @return `x`, invisibly, when it is a single whole number of at least `min`.
 #' @keywords internal
 #' @noRd
 validate_count <- function(
   x,
   arg_name,
+  min = 1,
   call = rlang::caller_env()
 ) {
   is_whole <- is.numeric(x) &&
@@ -191,10 +193,10 @@ validate_count <- function(
     !is.na(x) &&
     is.finite(x) &&
     x == round(x)
-  if (!is_whole || x < 1) {
+  if (!is_whole || x < min) {
     abort(
       c(
-        "{.arg {arg_name}} must be a single whole number of at least {.val {1}}.",
+        "{.arg {arg_name}} must be a single whole number of at least {.val {min}}.",
         x = "Found {.val {x}}."
       ),
       error_class = "positively_range_error",

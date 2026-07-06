@@ -44,17 +44,6 @@ method(autoplot, edp_result) <- function(
   }
 }
 
-#' The primary EDP measure name of a results tibble
-#'
-#' @param object An `edp_result`.
-#'
-#' @return The name of the plotted EDP column.
-#' @keywords internal
-#' @noRd
-edp_measure_column <- function(object) {
-  if ("edp" %in% names(object@results)) "edp" else "edp_outcome"
-}
-
 #' The histogram view of an EDP diagnostic
 #'
 #' @param object An `edp_result`.
@@ -63,7 +52,7 @@ edp_measure_column <- function(object) {
 #' @keywords internal
 #' @noRd
 autoplot_edp_histogram <- function(object) {
-  measure <- edp_measure_column(object)
+  measure <- edp_primary_column(object@results)
   plot_data <- object@results
   plot_data$value <- factor(plot_data$value)
   ggplot2::ggplot(plot_data, ggplot2::aes(x = .data[[measure]])) +
@@ -87,7 +76,7 @@ autoplot_edp_histogram <- function(object) {
 #' @keywords internal
 #' @noRd
 autoplot_edp_ecdf <- function(object) {
-  measure <- edp_measure_column(object)
+  measure <- edp_primary_column(object@results)
   plot_data <- object@results
   plot_data$value <- factor(plot_data$value)
   ggplot2::ggplot(

@@ -6,7 +6,16 @@
 \alias{positively-package}
 \title{positively: Diagnose Positivity Violations and Extrapolation in Causal Inference}
 \description{
-Provides diagnostics for positivity violations and extrapolation in causal inference. Includes methods based on the empirical distribution of propensity, positivity regression trees, hat values, highest density regions, and density ratios, covering binary, categorical, and continuous exposures as well as time-varying treatments. Each diagnostic returns a tidy result object and an optional plot. The package reports diagnostics only and does not assign severity grades or recommend remediation.
+Provides diagnostics for positivity violations and extrapolation in causal inference. Includes methods based on effective data points, positivity regression trees, hat values, highest density regions, density ratios, and parametric bootstrap bias estimates, covering binary, categorical, and continuous exposures as well as time-varying treatments. Each diagnostic returns a tidy result object and an optional plot. The package reports diagnostics only and does not assign severity grades or recommend remediation.
+}
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://r-causal.github.io/positively/}
+  \item \url{https://github.com/r-causal/positively}
+  \item Report bugs at \url{https://github.com/r-causal/positively/issues}
+}
+
 }
 \author{
 \strong{Maintainer}: Malcolm Barrett \email{malcolmbarrett@gmail.com} (\href{https://orcid.org/0000-0003-0299-5825}{ORCID})

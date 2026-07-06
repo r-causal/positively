@@ -7,7 +7,6 @@
 #' comparison. It is created internally and is not constructed directly by
 #' users.
 #'
-#' @keywords internal
 #' @noRd
 hat_values_result <- new_class(
   "hat_values_result",
@@ -251,7 +250,6 @@ check_hat_values <- function(
 #'
 #' @return A numeric vector of length `length(candidate_values) * n`, ordered so
 #'   that all `n` covariate rows for the first candidate value come first.
-#' @keywords internal
 #' @noRd
 candidate_hat_values <- function(gram_inverse, candidate_values, covariates) {
   n <- nrow(covariates)
@@ -279,7 +277,6 @@ candidate_hat_values <- function(gram_inverse, candidate_values, covariates) {
 #'
 #' @return A numeric vector of length `null_reps` of null \eqn{\hat{\phi}}
 #'   values.
-#' @keywords internal
 #' @noRd
 null_phi_distribution <- function(
   dose,
@@ -323,6 +320,9 @@ method(print, hat_values_result) <- function(x, ...) {
     cli::cli_h1("{S7::S7_class(x)@name}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")
     cli::cli_text("Observations: {x@n}")
+    cli::cli_text(
+      "Null: {x@params$null_method} ({x@params$null_reps} reps), cutoff {x@params$threshold}p/n"
+    )
     cli::cli_text("phi-hat: {round(x@phi_hat, 3)}")
     cli::cli_text(
       "Null {x@params$conf_level} quantile: {round(x@null_quantile, 3)}"

@@ -90,8 +90,10 @@ For a matrix input the same summaries are also applied to the cumulative
 product of the ratios across time points, under the \code{cumulative_} prefix.
 This is the sequential positivity signature: mild per-step non-overlap
 compounds multiplicatively, so the cumulative effective sample size can
-collapse even while each per-time fraction stays healthy. The default
-thresholds of 10 and 50 are conventional weight-magnitude heuristics rather
+collapse even while each per-time fraction stays healthy. For a single-column
+matrix the cumulative summaries coincide with the per-time summaries. The
+default thresholds of 10 and 50 are conventional weight-magnitude heuristics
+rather
 than values sanctioned by either source paper.
 }
 \examples{

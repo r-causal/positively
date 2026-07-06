@@ -28,7 +28,7 @@ given.}
 
 \item{exposure_type}{One of \code{"auto"} (detect from the data, the default),
 \code{"binary"}, \code{"categorical"}, or \code{"continuous"}. An explicit value is passed
-to \code{\link[=check_edp]{check_edp()}} and \code{\link[=check_port]{check_port()}}, which honour it directly. The three
+to \code{\link[=check_edp]{check_edp()}} and \code{\link[=check_port]{check_port()}}, which honor it directly. The three
 diagnostics that re-detect the type (\code{\link[=check_extrapolation]{check_extrapolation()}},
 \code{\link[=check_hat_values]{check_hat_values()}}, and \code{\link[=check_hdr]{check_hdr()}}) are instead checked up front
 against the detected type; if a requested one of them cannot run on the
@@ -67,7 +67,7 @@ categorized), \code{\link[=check_hat_values]{check_hat_values()}}, \code{\link[=
 }
 
 Pass \code{diagnostics} to run an explicit subset instead; the requested order is
-honoured. Every name must be a diagnostic that \code{check_positivity()} composes
+honored. Every name must be a diagnostic that \code{check_positivity()} composes
 and that applies to the resolved exposure type, otherwise the call aborts with
 the valid options listed.
 

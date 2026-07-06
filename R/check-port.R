@@ -92,8 +92,9 @@ port_result <- new_class(
 #' @param gamma The maximum number of covariates that may jointly define a
 #'   subgroup, a whole number of at least one. Defaults to `2`.
 #' @param n_bins For a continuous exposure, the number of quantile bins into
-#'   which the exposure is categorized. A whole number of at least one, `3` by
-#'   default. Ignored for binary and categorical exposures.
+#'   which the exposure is categorized. A whole number of at least two, `3` by
+#'   default; a single bin would place every observation at one exposure level
+#'   and flag every subgroup. Ignored for binary and categorical exposures.
 #' @param breaks For a continuous exposure, explicit numeric cut points that
 #'   override `n_bins`. `NULL` (the default) uses quantile bins.
 #' @param exposure_type One of `"auto"` (detect from the data, the default),
@@ -112,7 +113,11 @@ port_result <- new_class(
 #' @references
 #' Danelian G, Foucher Y, Léger M, Le Borgne F, Chatton A (2023). Identification
 #' of in-sample positivity violations using regression trees: the PoRT
-#' algorithm.
+#' algorithm. \doi{10.1515/jci-2022-0032}
+#'
+#' Chatton A, Schomaker M, Luque-Fernandez MA, Platt RW, Schnitzer ME (2025).
+#' Is checking for sequential positivity violations getting you down? Try
+#' sPoRT!
 #'
 #' @examples
 #' set.seed(1)
@@ -144,7 +149,7 @@ check_port <- function(
   validate_probability(alpha, "alpha")
   beta_spec <- validate_beta(beta)
   validate_count(gamma, "gamma")
-  validate_count(n_bins, "n_bins")
+  validate_count(n_bins, "n_bins", min = 2)
   validate_breaks(breaks)
 
   exposure_name <- select_single_exposure(rlang::enquo(.exposure), .data)
