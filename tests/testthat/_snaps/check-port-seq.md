@@ -26,6 +26,50 @@
       Prevalence threshold beta: 0.05
       Subgroups: 45 reported, 2 flagged
 
+# the sequential print reports censoring subgroups distinctly
+
+    Code
+      print(res)
+    Output
+      
+      -- port_result -----------------------------------------------------------------
+      Exposure: "a1", "a2", and "a3" (binary)
+      Observations: 2000
+      Time points: 3
+      Reading rule: alpha = 0.05, gamma = 2
+      Prevalence threshold beta: 0.05
+      Exposure subgroups: 21 reported, 1 flagged
+      Censoring subgroups: 32 reported, 1 flagged
+
+# check_port_seq() censoring validation messages are stable
+
+    Code
+      check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2), .censoring = c(c1, c2))
+    Condition
+      Error in `check_port_seq()`:
+      ! `.censoring` must select one indicator per time point.
+      i Found 2 indicators for 3 exposures.
+
+---
+
+    Code
+      check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2), .censoring = c(l0, l1, l2))
+    Condition
+      Error in `check_port_seq()`:
+      ! `.censoring` must select binary 0/1 indicators.
+      x "l0", "l1", and "l2" are not coded 0/1.
+      i Code each censoring indicator as 1 when censored and 0 otherwise.
+
+---
+
+    Code
+      check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2), .censoring = c(c1, c2, c3),
+      strategy = "pooled")
+    Condition
+      Error in `check_port_seq()`:
+      ! `strategy` "pooled" is not yet implemented.
+      i Use "stratified", the default.
+
 # check_port_seq() argument validation messages are stable
 
     Code
@@ -123,13 +167,4 @@
       Error in `check_port_seq()`:
       ! `strategy` "pooled" is not yet implemented.
       i Use "stratified", the default.
-
----
-
-    Code
-      check_port_seq(data, c(a1, a2, a3), list(c1), .censoring = c1)
-    Condition
-      Error in `check_port_seq()`:
-      ! `.censoring` is not yet implemented.
-      i Censoring-indicator trees are planned for a later release.
 

@@ -227,14 +227,66 @@ lag_flagged[, c("time", "description", "exposure_level", "n", "prevalence")]
 
 ### Censoring
 
-In a longitudinal study, subjects who are censored leave the risk set, and the
-positivity of remaining uncensored is itself a condition of the regime. The
-`.censoring` argument reserves an ordered selection of censoring indicators for
-this purpose. It is not yet implemented and currently signals an error if
-supplied; support for censoring-indicator trees is planned for a later release.
-Until then, restrict the data to the uncensored records for the time points you
-examine, and read the reported subgroups as conditional on remaining
-uncensored.
+In a longitudinal study, subjects who are censored leave the risk set, and
+remaining uncensored is itself a condition of the counterfactual question. The
+`.censoring` argument takes an ordered selection of censoring indicators, one per
+time point, each coded `1` when the subject is censored and `0` otherwise. When
+supplied, `check_port_seq()` analyzes each indicator as its own binary-exposure
+tree in addition to the exposure trees, so a subgroup nearly certain to be
+censored is flagged just as a subgroup nearly certain to be treated is. Following
+Chatton et al. (2025), the censoring tree at each time point runs on the subjects
+uncensored through the previous time point, the never-censored risk set, and adds
+the current treatment to its conditioning set. The treatment rule plays no role
+in the censoring process, so this risk set is the full uncensored cohort rather
+than the treatment followers.
+
+The longitudinal dataset carries continuous exposures and no censoring columns,
+so the following small seeded example constructs a monotone binary regime with
+censoring planted to be near-certain at time 2 for subjects with a baseline
+covariate `l0` above 1.
+
+```{r censoring-data}
+set.seed(2025)
+n <- 2000
+l0 <- rnorm(n)
+a1 <- rbinom(n, 1, 0.3)
+c1 <- rbinom(n, 1, 0.08)
+
+# Monotone treatment: once treated, stays treated.
+a2 <- a1
+followers <- a1 == 0
+a2[followers] <- rbinom(sum(followers), 1, 0.4)
+
+# Time-2 censoring among the uncensored, near-certain where l0 > 1.
+c2 <- integer(n)
+uncensored <- c1 == 0
+prob_censor <- ifelse(l0 > 1, 0.98, 0.1)
+c2[uncensored] <- rbinom(sum(uncensored), 1, prob_censor[uncensored])
+
+regime <- data.frame(l0 = l0, a1 = a1, c1 = c1, a2 = a2, c2 = c2)
+```
+
+Passing `.censoring` runs both families of trees. The results carry a `type`
+column that separates censoring rows from exposure rows.
+
+```{r censoring-run}
+cens <- check_port_seq(
+  regime,
+  c(a1, a2),
+  list(c(l0)),
+  .censoring = c(c1, c2)
+)
+cens
+```
+
+Filtering to the flagged censoring rows surfaces the planted subgroup: at time 2,
+censoring is near-certain where `l0` is above 1.
+
+```{r censoring-flagged}
+cens_rows <- tidy(cens)
+cens_flagged <- cens_rows[cens_rows$type == "censoring" & cens_rows$flagged, ]
+cens_flagged[, c("time", "description", "exposure_level", "n", "prevalence")]
+```
 
 ## Where to go next
 

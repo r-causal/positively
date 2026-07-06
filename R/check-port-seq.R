@@ -42,6 +42,21 @@
 #' grows: smaller follower sets are held to a looser bound. The resolved
 #' thresholds are stored in `@beta`, ordered by time point.
 #'
+#' Supplying `.censoring` adds a second family of per-time trees for the
+#' censoring process (Chatton et al. 2025, section 4). Each censoring indicator
+#' is analyzed as a binary exposure with the reading rule, so a subgroup nearly
+#' certain to be censored is flagged just as a subgroup nearly certain to be
+#' treated is. The censoring tree at time \eqn{t} runs on the subjects uncensored
+#' through the previous time point, the never-censored risk set, which is the
+#' full uncensored cohort rather than the treatment-regime followers, since the
+#' treatment rule plays no role in the censoring process. Its conditioning set is
+#' the same baseline and `lag`-window history the exposure trees use, with the
+#' current treatment added as a covariate. Its prevalence threshold is resolved
+#' from the size of the censoring risk set, which shrinks as earlier censoring
+#' accrues. Censoring rows are marked in the results by a `type` column with the
+#' value `"censoring"`, against `"exposure"` for the exposure trees, and this
+#' column appears only when `.censoring` is supplied.
+#'
 #' @param .data A data frame in wide form, one row per subject.
 #' @param .exposures An ordered tidyselect of exposure columns, one per time
 #'   point.
@@ -50,8 +65,14 @@
 #'   points.
 #' @param .baseline A tidyselect of baseline covariates always included in every
 #'   conditioning set. Defaults to `NULL`.
-#' @param .censoring An ordered tidyselect of censoring indicators. Reserved for
-#'   a later release and currently unused. Defaults to `NULL`.
+#' @param .censoring An ordered tidyselect of censoring indicators, one per time
+#'   point, each coded `1` when the subject is censored and `0` otherwise. When
+#'   supplied, each indicator is analyzed as its own binary-exposure tree, in
+#'   addition to the exposure trees. The selection must match `.exposures` in
+#'   length and every indicator must be binary; monotonicity is not required of
+#'   the data, since a subject censored at a time point is dropped from later
+#'   censoring risk sets. Only the default `strategy = "stratified"` supports
+#'   censoring. Defaults to `NULL`, which runs the exposure trees alone.
 #' @param strategy The sequential strategy. Only `"stratified"` (per-time trees
 #'   among the regime followers, the default) is implemented; `"pooled"` is
 #'   reserved for a later release.
@@ -64,7 +85,9 @@
 #'
 #' @return A `port_result` object, an S7 subclass of [positivity_diagnostic].
 #'   Its `@results` tibble carries the point columns plus a leading `time`
-#'   column. `@beta` holds the per-time thresholds ordered by time point.
+#'   column, and a `type` column distinguishing exposure from censoring rows when
+#'   `.censoring` is supplied. `@beta` holds the per-time exposure thresholds
+#'   ordered by time point.
 #'
 #' @references
 #' Danelian G, Foucher Y, Léger M, Le Borgne F, Chatton A (2023). Identification
@@ -89,6 +112,15 @@
 #'
 #' result <- check_port_seq(df, c(a1, a2), list(c1))
 #' result
+#'
+#' # Add censoring indicators, coded 1 when censored. Censoring is near-certain
+#' # at time 2 where c1 > 1, which the censoring trees flag.
+#' cens1 <- rbinom(n, 1, 0.1)
+#' cens2 <- rbinom(n, 1, ifelse(c1 > 1, 0.95, 0.1))
+#' df$cens1 <- cens1
+#' df$cens2 <- cens2
+#'
+#' check_port_seq(df, c(a1, a2), list(c1), .censoring = c(cens1, cens2))
 #'
 #' @export
 check_port_seq <- function(
@@ -127,16 +159,6 @@ check_port_seq <- function(
   )
   baseline_names <- eval_optional_selection(rlang::enquo(.baseline), .data)
 
-  if (!rlang::quo_is_null(rlang::enquo(.censoring))) {
-    abort(
-      c(
-        "{.arg .censoring} is not yet implemented.",
-        i = "Censoring-indicator trees are planned for a later release."
-      ),
-      error_class = "positively_censoring_error"
-    )
-  }
-
   if (strategy == "pooled") {
     abort(
       c(
@@ -145,6 +167,15 @@ check_port_seq <- function(
       ),
       error_class = "positively_strategy_error"
     )
+  }
+
+  censoring_quo <- rlang::enquo(.censoring)
+  has_censoring <- !rlang::quo_is_null(censoring_quo)
+  censoring_names <- character(0)
+  if (has_censoring) {
+    censoring_pos <- tidyselect::eval_select(censoring_quo, .data)
+    censoring_names <- names(censoring_pos)
+    validate_censoring_indicators(.data, censoring_names, n_times)
   }
 
   pooled_exposure <- unlist(.data[exposure_names], use.names = FALSE)
@@ -171,11 +202,34 @@ check_port_seq <- function(
     )
   })
 
-  rows <- do.call(c, purrr::map(per_time, "rows"))
+  exposure_rows <- do.call(c, purrr::map(per_time, "rows"))
   trees <- do.call(c, purrr::map(per_time, "trees"))
   beta_by_time <- vapply(per_time, function(x) x$beta, numeric(1))
 
-  results <- assemble_port_results(rows, sequential = TRUE)
+  if (has_censoring) {
+    per_time_censoring <- purrr::map(seq_len(n_times), function(t) {
+      port_seq_censoring_time(
+        .data = .data,
+        time = t,
+        exposure_names = exposure_names,
+        censoring_names = censoring_names,
+        covariate_sets = covariate_sets,
+        baseline_names = baseline_names,
+        lag = lag,
+        alpha = alpha,
+        beta_spec = beta_spec,
+        gamma = gamma,
+        n_bins = n_bins,
+        breaks = breaks,
+        control = control
+      )
+    })
+    censoring_rows <- do.call(c, purrr::map(per_time_censoring, "rows"))
+    trees <- c(trees, do.call(c, purrr::map(per_time_censoring, "trees")))
+    results <- assemble_port_seq_results(exposure_rows, censoring_rows)
+  } else {
+    results <- assemble_port_results(exposure_rows, sequential = TRUE)
+  }
 
   port_result(
     results = results,
@@ -300,6 +354,184 @@ port_seq_time <- function(
   list(rows = rows, trees = search$trees, beta = beta_value)
 }
 
+#' Run the censoring sPoRT pass for one time point
+#'
+#' Subsets to the subjects uncensored through the previous time point, builds the
+#' conditioning set with the current treatment added, resolves the per-time
+#' prevalence threshold from the censoring risk-set size, and runs the PoRT
+#' search with the time-point censoring indicator as a binary response.
+#'
+#' @param .data The full wide data frame.
+#' @param time The current time point index.
+#' @param exposure_names The exposure column names, time-ordered.
+#' @param censoring_names The censoring indicator column names, time-ordered.
+#' @param covariate_sets The per-time covariate name list.
+#' @param baseline_names The baseline covariate names.
+#' @param lag The history window.
+#' @param alpha,gamma,n_bins,breaks,control As in [check_port()].
+#' @param beta_spec Either `"gruber"` or a numeric threshold.
+#'
+#' @return A list with `rows` (a list of per-subgroup tibbles carrying the `time`
+#'   column), `trees` (fitted `rpart` objects), and `beta` (the resolved per-time
+#'   threshold, or `NA` for a skipped time point).
+#' @keywords internal
+#' @noRd
+port_seq_censoring_time <- function(
+  .data,
+  time,
+  exposure_names,
+  censoring_names,
+  covariate_sets,
+  baseline_names,
+  lag,
+  alpha,
+  beta_spec,
+  gamma,
+  n_bins,
+  breaks,
+  control
+) {
+  indices <- censoring_risk_set_indices(.data, censoring_names, time)
+  risk_set <- .data[indices, , drop = FALSE]
+  n_t <- nrow(risk_set)
+  beta_value <- resolve_beta_scalar(beta_spec, n_t)
+
+  if (n_t < 2 || !is.finite(beta_value) || beta_value >= 0.5) {
+    warn(
+      c(
+        "Censoring at time point {time} was skipped: its risk set cannot support the reading rule.",
+        i = "The risk set holds {n_t} subject{?s} and the prevalence threshold resolved to {.val {beta_value}}."
+      ),
+      warning_class = "positively_risk_set_warning"
+    )
+    return(list(rows = list(), trees = list(), beta = NA_real_))
+  }
+
+  response_vec <- risk_set[[censoring_names[[time]]]]
+  if (length(unique(response_vec[!is.na(response_vec)])) < 2) {
+    return(list(rows = list(), trees = list(), beta = beta_value))
+  }
+
+  conditioning <- unique(c(
+    conditioning_set(
+      time = time,
+      covariate_sets = covariate_sets,
+      exposure_names = exposure_names,
+      baseline_names = baseline_names,
+      lag = lag
+    ),
+    exposure_names[[time]]
+  ))
+
+  level_pairs <- port_level_responses(
+    response_vec,
+    "binary",
+    n_bins = n_bins,
+    breaks = breaks
+  )
+
+  search <- run_port(
+    covariate_data = risk_set[conditioning],
+    predictors = conditioning,
+    level_pairs = level_pairs,
+    alpha = alpha,
+    beta_value = beta_value,
+    gamma = gamma,
+    n_total = n_t,
+    control = control
+  )
+
+  rows <- lapply(search$rows, function(subgroup_rows) {
+    vctrs::vec_cbind(
+      tibble::tibble(time = rep(time, nrow(subgroup_rows))),
+      subgroup_rows
+    )
+  })
+
+  list(rows = rows, trees = search$trees, beta = beta_value)
+}
+
+#' The censoring risk-set row indices for one sPoRT time point
+#'
+#' At the first time point every subject is in the censoring risk set. At later
+#' time points the risk set is the subjects uncensored through the previous time
+#' point, that is, those whose earlier censoring indicators are all zero. This is
+#' the never-censored cohort and carries no treatment-follower restriction.
+#'
+#' @param .data The full wide data frame.
+#' @param censoring_names The censoring indicator column names, time-ordered.
+#' @param time The current time point index.
+#'
+#' @return An integer vector of row indices.
+#' @keywords internal
+#' @noRd
+censoring_risk_set_indices <- function(.data, censoring_names, time) {
+  n <- nrow(.data)
+  if (time == 1L) {
+    return(seq_len(n))
+  }
+  prior <- censoring_names[seq_len(time - 1L)]
+  uncensored <- rep(TRUE, n)
+  for (name in prior) {
+    uncensored <- uncensored & .data[[name]] == 0
+  }
+  which(uncensored)
+}
+
+#' Validate the censoring indicator selection
+#'
+#' The selection must supply one indicator per time point and every indicator
+#' must be binary, coded 0 or 1. Monotonicity is not checked, since a subject
+#' censored at a time point is dropped from later censoring risk sets.
+#'
+#' @param .data The data frame.
+#' @param censoring_names The resolved censoring indicator column names.
+#' @param n_times The number of exposure time points.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `censoring_names`, invisibly, when the selection is valid.
+#' @keywords internal
+#' @noRd
+validate_censoring_indicators <- function(
+  .data,
+  censoring_names,
+  n_times,
+  call = rlang::caller_env()
+) {
+  if (length(censoring_names) != n_times) {
+    abort(
+      c(
+        "{.arg .censoring} must select one indicator per time point.",
+        i = "Found {length(censoring_names)} indicator{?s} for {n_times} exposure{?s}."
+      ),
+      error_class = "positively_selection_error",
+      call = call
+    )
+  }
+  non_binary <- censoring_names[
+    !vapply(
+      censoring_names,
+      function(name) {
+        values <- .data[[name]]
+        all(values[!is.na(values)] %in% c(0, 1))
+      },
+      logical(1)
+    )
+  ]
+  if (length(non_binary) > 0) {
+    abort(
+      c(
+        "{.arg .censoring} must select binary 0/1 indicators.",
+        x = "{.val {non_binary}} {?is/are} not coded 0/1.",
+        i = "Code each censoring indicator as 1 when censored and 0 otherwise."
+      ),
+      error_class = "positively_type_error",
+      call = call
+    )
+  }
+  invisible(censoring_names)
+}
+
 #' The regime's untreated level
 #'
 #' Resolves the untreated (reference) exposure level once, from the pooled
@@ -351,4 +583,61 @@ risk_set_indices <- function(
   }
   prior <- .data[[exposure_names[[time - 1L]]]]
   which(prior == untreated_level)
+}
+
+#' Assemble exposure and censoring rows into the sequential results tibble
+#'
+#' Tags each row with a `type` column, `"exposure"` or `"censoring"`, and orders
+#' the columns with `time` and `type` leading. Used only when `.censoring` is
+#' supplied, so the exposure-only path keeps its original columns.
+#'
+#' @param exposure_rows A list of exposure subgroup tibbles.
+#' @param censoring_rows A list of censoring subgroup tibbles.
+#'
+#' @return A tibble with the fixed sequential PoRT columns and a leading `type`
+#'   column.
+#' @keywords internal
+#' @noRd
+assemble_port_seq_results <- function(exposure_rows, censoring_rows) {
+  cols <- c(
+    "time",
+    "type",
+    "subgroup",
+    "description",
+    "exposure_level",
+    "n",
+    "proportion",
+    "prevalence",
+    "flagged"
+  )
+  tagged <- c(
+    tag_port_rows(exposure_rows, "exposure"),
+    tag_port_rows(censoring_rows, "censoring")
+  )
+  populated <- tagged[vapply(tagged, nrow, integer(1)) > 0]
+  if (length(populated) == 0) {
+    base <- empty_port_tibble(sequential = TRUE)
+    return(vctrs::vec_cbind(
+      base["time"],
+      tibble::tibble(type = character(0)),
+      base[setdiff(names(base), "time")]
+    )[cols])
+  }
+  combined <- vctrs::vec_rbind(!!!populated)
+  combined[cols]
+}
+
+#' Tag a list of subgroup tibbles with a row type
+#'
+#' @param rows A list of subgroup tibbles.
+#' @param type The type label to attach, `"exposure"` or `"censoring"`.
+#'
+#' @return The list with a `type` column added to every non-empty tibble.
+#' @keywords internal
+#' @noRd
+tag_port_rows <- function(rows, type) {
+  lapply(rows, function(row) {
+    row$type <- rep(type, nrow(row))
+    row
+  })
 }

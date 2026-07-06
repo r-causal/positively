@@ -43,6 +43,29 @@ test_that("dgp_longitudinal() is wide with a time-2 support gap", {
   expect_identical(sum(data$a2 > 2 & data$a2 < 4), 0L)
 })
 
+test_that("dgp_longitudinal_binary_censoring() plants near-certain t-2 censoring", {
+  data <- dgp_longitudinal_binary_censoring(n = 2000, seed = 7)
+  expect_true(all(c("c1", "c2", "c3") %in% names(data)))
+  # The censoring indicators are binary 0/1.
+  for (nm in c("c1", "c2", "c3")) {
+    expect_setequal(unique(data[[nm]]), c(0L, 1L))
+  }
+  # Among subjects uncensored through t = 1, censoring at t = 2 is near-certain
+  # where l0 > 1 and light otherwise.
+  risk2 <- data$c1 == 0
+  region <- risk2 & data$l0 > 1
+  expect_gt(sum(region), 0)
+  expect_gt(mean(data$c2[region]), 0.9)
+  expect_lt(mean(data$c2[risk2 & data$l0 <= 1]), 0.2)
+  # The uncensored-so-far risk set shrinks across time.
+  risk_sets <- c(
+    nrow(data),
+    sum(data$c1 == 0),
+    sum(data$c1 == 0 & data$c2 == 0)
+  )
+  expect_true(all(diff(risk_sets) < 0))
+})
+
 test_that("each data-generating process is deterministic given its seed", {
   expect_identical(dgp_good_positivity(seed = 7), dgp_good_positivity(seed = 7))
   expect_identical(

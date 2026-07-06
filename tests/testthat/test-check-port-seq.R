@@ -383,6 +383,125 @@ test_that("the lag argument changes the conditioning set", {
   ))
 })
 
+# ---- Censoring -------------------------------------------------------------
+
+test_that("check_port_seq() rejects a censoring selection of the wrong length", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring(n = 400, seed = 7)
+  expect_error(
+    check_port_seq(
+      data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      .censoring = c(c1, c2)
+    ),
+    class = "positively_error"
+  )
+})
+
+test_that("check_port_seq() rejects non-binary censoring indicators", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring(n = 400, seed = 7)
+  # The l0, l1, l2 columns are continuous, so they are not valid 0/1 indicators.
+  expect_error(
+    check_port_seq(
+      data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      .censoring = c(l0, l1, l2)
+    ),
+    class = "positively_error"
+  )
+})
+
+test_that("a censoring result distinguishes censoring rows from exposure rows", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring()
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    cp = 0.01
+  )
+  expect_true("type" %in% names(res@results))
+  expect_setequal(unique(res@results$type), c("exposure", "censoring"))
+})
+
+test_that("the planted censoring subgroup is flagged at its time point", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring()
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3)
+  )
+
+  censoring_flagged <- res@results[
+    res@results$type == "censoring" & res@results$flagged,
+    ,
+    drop = FALSE
+  ]
+  # Censoring is near-certain where l0 > 1 among the uncensored-so-far at t = 2.
+  expect_true(any(
+    censoring_flagged$time == 2 & grepl("l0", censoring_flagged$description)
+  ))
+})
+
+test_that("the censoring risk set shrinks as prior censoring accrues", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring()
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    cp = 0.01
+  )
+
+  # The censoring tree at time t runs on the subjects uncensored through t - 1.
+  risk_sets <- c(
+    nrow(data),
+    sum(data$c1 == 0),
+    sum(data$c1 == 0 & data$c2 == 0)
+  )
+  expect_true(all(diff(risk_sets) < 0))
+
+  censoring <- res@results[res@results$type == "censoring", , drop = FALSE]
+  per_time_n <- as.integer(tapply(censoring$n, censoring$time, max))
+  expect_identical(per_time_n, as.integer(risk_sets))
+  expect_true(all(diff(per_time_n) < 0))
+})
+
+test_that("supplying .censoring leaves the exposure trees unchanged", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring()
+
+  without <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2))
+  with_censoring <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3)
+  )
+
+  # A run without censoring carries no type column and reports exposure rows.
+  expect_false("type" %in% names(without@results))
+
+  # The exposure rows of the censoring run match the standalone run exactly.
+  exposure_rows <- with_censoring@results[
+    with_censoring@results$type == "exposure",
+    ,
+    drop = FALSE
+  ]
+  exposure_rows$type <- NULL
+  expect_equal(exposure_rows, without@results, ignore_attr = TRUE)
+
+  # The resolved per-time thresholds are the exposure risk-set thresholds.
+  expect_equal(with_censoring@beta, without@beta)
+})
+
 # ---- Snapshots ------------------------------------------------------------
 
 test_that("the sequential print method is stable", {
@@ -397,6 +516,53 @@ test_that("the sequential print is stable on the binary longitudinal fixture", {
   data <- dgp_longitudinal_binary()
   res <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2), cp = 0.01)
   expect_snapshot(print(res))
+})
+
+test_that("the sequential print reports censoring subgroups distinctly", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring()
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    cp = 0.01
+  )
+  expect_snapshot(print(res))
+})
+
+test_that("check_port_seq() censoring validation messages are stable", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring(n = 400, seed = 7)
+
+  expect_snapshot(
+    check_port_seq(
+      data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      .censoring = c(c1, c2)
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_port_seq(
+      data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      .censoring = c(l0, l1, l2)
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_port_seq(
+      data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      .censoring = c(c1, c2, c3),
+      strategy = "pooled"
+    ),
+    error = TRUE
+  )
 })
 
 test_that("check_port_seq() argument validation messages are stable", {
@@ -442,10 +608,6 @@ test_that("check_port_seq() argument validation messages are stable", {
   )
   expect_snapshot(
     check_port_seq(data, c(a1, a2, a3), list(c1), strategy = "pooled"),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port_seq(data, c(a1, a2, a3), list(c1), .censoring = c1),
     error = TRUE
   )
 })

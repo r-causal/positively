@@ -33,8 +33,14 @@ points.}
 \item{.baseline}{A tidyselect of baseline covariates always included in every
 conditioning set. Defaults to \code{NULL}.}
 
-\item{.censoring}{An ordered tidyselect of censoring indicators. Reserved for
-a later release and currently unused. Defaults to \code{NULL}.}
+\item{.censoring}{An ordered tidyselect of censoring indicators, one per time
+point, each coded \code{1} when the subject is censored and \code{0} otherwise. When
+supplied, each indicator is analyzed as its own binary-exposure tree, in
+addition to the exposure trees. The selection must match \code{.exposures} in
+length and every indicator must be binary; monotonicity is not required of
+the data, since a subject censored at a time point is dropped from later
+censoring risk sets. Only the default \code{strategy = "stratified"} supports
+censoring. Defaults to \code{NULL}, which runs the exposure trees alone.}
 
 \item{strategy}{The sequential strategy. Only \code{"stratified"} (per-time trees
 among the regime followers, the default) is implemented; \code{"pooled"} is
@@ -52,7 +58,9 @@ resolved per time point when it is \code{"gruber"}.}
 \value{
 A \code{port_result} object, an S7 subclass of \link{positivity_diagnostic}.
 Its \verb{@results} tibble carries the point columns plus a leading \code{time}
-column. \verb{@beta} holds the per-time thresholds ordered by time point.
+column, and a \code{type} column distinguishing exposure from censoring rows when
+\code{.censoring} is supplied. \verb{@beta} holds the per-time exposure thresholds
+ordered by time point.
 }
 \description{
 \code{check_port_seq()} applies the PoRT reading rule one time point at a time
@@ -93,6 +101,21 @@ from the risk-set size \eqn{n_t}, as \eqn{5 / (\sqrt{n_t} \, \ln n_t)}. Under
 a monotone rule the risk set shrinks over time, so the per-time threshold
 grows: smaller follower sets are held to a looser bound. The resolved
 thresholds are stored in \verb{@beta}, ordered by time point.
+
+Supplying \code{.censoring} adds a second family of per-time trees for the
+censoring process (Chatton et al. 2025, section 4). Each censoring indicator
+is analyzed as a binary exposure with the reading rule, so a subgroup nearly
+certain to be censored is flagged just as a subgroup nearly certain to be
+treated is. The censoring tree at time \eqn{t} runs on the subjects uncensored
+through the previous time point, the never-censored risk set, which is the
+full uncensored cohort rather than the treatment-regime followers, since the
+treatment rule plays no role in the censoring process. Its conditioning set is
+the same baseline and \code{lag}-window history the exposure trees use, with the
+current treatment added as a covariate. Its prevalence threshold is resolved
+from the size of the censoring risk set, which shrinks as earlier censoring
+accrues. Censoring rows are marked in the results by a \code{type} column with the
+value \code{"censoring"}, against \code{"exposure"} for the exposure trees, and this
+column appears only when \code{.censoring} is supplied.
 }
 \examples{
 set.seed(1)
@@ -108,6 +131,15 @@ df <- data.frame(c1 = c1, a1 = a1, a2 = a2)
 
 result <- check_port_seq(df, c(a1, a2), list(c1))
 result
+
+# Add censoring indicators, coded 1 when censored. Censoring is near-certain
+# at time 2 where c1 > 1, which the censoring trees flag.
+cens1 <- rbinom(n, 1, 0.1)
+cens2 <- rbinom(n, 1, ifelse(c1 > 1, 0.95, 0.1))
+df$cens1 <- cens1
+df$cens2 <- cens2
+
+check_port_seq(df, c(a1, a2), list(c1), .censoring = c(cens1, cens2))
 
 }
 \references{

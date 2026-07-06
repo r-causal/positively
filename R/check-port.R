@@ -797,9 +797,21 @@ method(print, port_result) <- function(x, ...) {
         "Prevalence threshold beta: {length(beta_finite)} per-time values ({signif(min(beta_finite), 3)} to {signif(max(beta_finite), 3)})"
       )
     }
-    cli::cli_text(
-      "Subgroups: {nrow(x@results)} reported, {flagged_count} flagged"
-    )
+    if ("type" %in% names(x@results)) {
+      is_censoring <- x@results$type == "censoring"
+      exposure_res <- x@results[!is_censoring, , drop = FALSE]
+      censoring_res <- x@results[is_censoring, , drop = FALSE]
+      cli::cli_text(
+        "Exposure subgroups: {nrow(exposure_res)} reported, {sum(exposure_res$flagged)} flagged"
+      )
+      cli::cli_text(
+        "Censoring subgroups: {nrow(censoring_res)} reported, {sum(censoring_res$flagged)} flagged"
+      )
+    } else {
+      cli::cli_text(
+        "Subgroups: {nrow(x@results)} reported, {flagged_count} flagged"
+      )
+    }
   })
   invisible(x)
 }

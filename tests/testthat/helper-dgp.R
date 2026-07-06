@@ -119,3 +119,57 @@ dgp_longitudinal_binary <- function(n = 2000, seed = 6) {
     a3 = a3
   )
 }
+
+# Longitudinal wide-format data over three time points with monotone binary
+# exposures and monotone binary censoring indicators c1, c2, c3, coded 1 when
+# censored and 0 otherwise. It plants a censoring violation at t = 2: among the
+# subjects uncensored through t = 1, censoring is near-certain where the baseline
+# covariate l0 is above 1, while it is light everywhere else and at the first and
+# last time points. Because censoring is analyzed on the uncensored-so-far risk
+# set, that set shrinks across time as earlier censoring accrues. The exposure
+# side carries its own planted region at t = 2 where treatment never initiates
+# for l1 above 1, kept distinct from the l0 censoring region so exposure and
+# censoring subgroups are separable in the tidy output.
+dgp_longitudinal_binary_censoring <- function(n = 2000, seed = 7) {
+  withr::local_seed(seed)
+  l0 <- stats::rnorm(n)
+  a1 <- stats::rbinom(n, 1L, 0.3)
+  c1 <- stats::rbinom(n, 1L, 0.08)
+
+  l1 <- stats::rnorm(n, mean = 0.3 * a1)
+
+  a2 <- a1
+  followers2 <- a1 == 0
+  p2 <- rep(0.5, n)
+  p2[l1 > 1] <- 0
+  a2[followers2] <- stats::rbinom(sum(followers2), 1L, p2[followers2])
+
+  uncensored1 <- c1 == 0
+  q2 <- rep(0.1, n)
+  q2[l0 > 1] <- 0.98
+  c2 <- rep(0L, n)
+  c2[uncensored1] <- stats::rbinom(sum(uncensored1), 1L, q2[uncensored1])
+
+  l2 <- stats::rnorm(n, mean = 0.3 * a2)
+
+  a3 <- a2
+  followers3 <- a2 == 0
+  a3[followers3] <- stats::rbinom(sum(followers3), 1L, 0.4)
+
+  uncensored2 <- c1 == 0 & c2 == 0
+  c3 <- rep(0L, n)
+  c3[uncensored2] <- stats::rbinom(sum(uncensored2), 1L, 0.1)
+
+  tibble::tibble(
+    id = seq_len(n),
+    l0 = l0,
+    a1 = a1,
+    c1 = c1,
+    l1 = l1,
+    a2 = a2,
+    c2 = c2,
+    l2 = l2,
+    a3 = a3,
+    c3 = c3
+  )
+}
