@@ -53,16 +53,45 @@ positivity_diagnostic <- new_class(
 
 #' A container for a set of positivity diagnostics
 #'
-#' `positivity_check` is the S7 container returned by `check_positivity()`. It
+#' `positivity_check` is the S7 container returned by [check_positivity()]. It
 #' bundles one or more [positivity_diagnostic] children with the names of the
 #' diagnostics that produced them. Its print method shows each child's summary
 #' in its own section. It renders no verdicts.
+#'
+#' @details
+#' The container has [generics::tidy()] and [generics::glance()] methods.
+#' `tidy(x)` returns a long combined summary with one row per glance statistic
+#' per child and the columns `diagnostic`, `statistic`, and `value`;
+#' `tidy(x, diagnostic = "port")` returns that named child's `@results` tibble
+#' instead. `glance(x)` returns one row per diagnostic, prefixed with a
+#' `diagnostic` column, stacking each child's [generics::glance()] row and
+#' filling any column a child lacks with `NA`.
 #'
 #' @param checks A list of [positivity_diagnostic] objects.
 #' @param diagnostics A character vector naming the diagnostics, aligned with
 #'   `checks`.
 #'
-#' @return A `positivity_check` object.
+#' @return A `positivity_check` object. Its [generics::tidy()] method returns a
+#'   [tibble][tibble::tibble] and its [generics::glance()] method returns a
+#'   one-row-per-diagnostic tibble.
+#'
+#' @examples
+#' set.seed(1)
+#' n <- 150
+#' x1 <- rnorm(n)
+#' df <- data.frame(exposure = rbinom(n, 1, plogis(0.5 * x1)), x1 = x1)
+#'
+#' res <- check_positivity(df, exposure, x1, diagnostics = "port")
+#'
+#' # The long combined summary across every child.
+#' tidy(res)
+#'
+#' # One named child's results tibble.
+#' tidy(res, diagnostic = "port")
+#'
+#' # One row per diagnostic.
+#' glance(res)
+#' @order 1
 #' @export
 positivity_check <- new_class(
   "positivity_check",

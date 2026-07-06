@@ -72,7 +72,7 @@ opposite-group unit), \code{gower_mean} (mean distance to the opposite group), a
 \code{frac_nearby} (the fraction of the opposite group within \code{nearby} geometric
 variabilities). A planted support gap raises \code{gower_min} and lowers
 \code{frac_nearby} in both directions. The per-group \verb{@summary} column
-\code{prop_supported}, and the \code{prop_supported} statistic in \code{\link[generics:glance]{glance()}} and the
+\code{prop_supported}, and the \code{prop_supported} statistic in \code{\link[=glance]{glance()}} and the
 print method, share one fixed definition: the fraction of units whose nearest
 opposite-group unit lies within one geometric variability
 (\code{gower_min <= geometric_variability}), independent of \code{nearby}.
