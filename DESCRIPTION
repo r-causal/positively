@@ -42,3 +42,4 @@ Imports:
     tidyselect,
     utils,
     vctrs
+LazyData: true

@@ -6,3 +6,4 @@
 ^\.github$
 ^air\.toml$
 ^\.beads$
+^data-raw$
