@@ -600,6 +600,9 @@ method(print, density_ratios_result) <- function(x, ...) {
         "Proportion > {threshold}: {round(mean(displayed > threshold), 4)}"
       )
     }
+    cli::cli_text(
+      "Proportion exactly zero: {round(mean(displayed == 0), 4)}"
+    )
     cli::cli_text("Kish ESS fraction: {round(ess / length(displayed), 3)}")
     if (multi_time) {
       final <- final_ratios(x@ratios)

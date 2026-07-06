@@ -14,6 +14,7 @@
       Maximum: 6.697
       Proportion > 10: 0
       Proportion > 50: 0
+      Proportion exactly zero: 0
       Kish ESS fraction: 0.439
 
 # the multi-time print method is stable
@@ -33,6 +34,7 @@
       Maximum: 3.319
       Proportion > 10: 0
       Proportion > 50: 0
+      Proportion exactly zero: 0
       Kish ESS fraction: 0.783
       Cumulative ESS fraction: 0.604
 
@@ -53,6 +55,7 @@
       Maximum: 6.697
       Proportion > 10: 0
       Proportion > 50: 0
+      Proportion exactly zero: 0
       Kish ESS fraction: 0.439
 
 # the teens percentiles take a plain 'th' ordinal
@@ -70,6 +73,7 @@
       Maximum: 6.697
       Proportion > 10: 0
       Proportion > 50: 0
+      Proportion exactly zero: 0
       Kish ESS fraction: 0.439
 
 # print omits the quantile block when probs is the maximum alone
@@ -84,6 +88,7 @@
       Maximum: 6.697
       Proportion > 10: 0
       Proportion > 50: 0
+      Proportion exactly zero: 0
       Kish ESS fraction: 0.439
 
 # the classed error messages are stable
