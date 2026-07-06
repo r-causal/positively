@@ -291,3 +291,112 @@ validate_numeric_columns <- function(
   }
   invisible(.data)
 }
+
+#' Validate a single truncation bound
+#'
+#' A truncation bound is a length-two numeric vector `c(lower, upper)`, with both
+#' values in `[0, 1]` and `lower` strictly below `upper`. The propensity score is
+#' bounded into this interval inside the estimator.
+#'
+#' @param truncation A candidate truncation bound.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `truncation`, invisibly, when it is a valid bound.
+#' @keywords internal
+#' @noRd
+validate_truncation <- function(
+  truncation,
+  arg_name = "truncation",
+  call = rlang::caller_env()
+) {
+  if (!is.numeric(truncation) || length(truncation) != 2) {
+    abort(
+      "{.arg {arg_name}} must be a length-two numeric vector {.code c(lower, upper)}.",
+      error_class = "positively_type_error",
+      call = call
+    )
+  }
+  if (anyNA(truncation)) {
+    abort(
+      "{.arg {arg_name}} must not contain missing values.",
+      error_class = "positively_missing_error",
+      call = call
+    )
+  }
+  if (any(truncation < 0 | truncation > 1)) {
+    abort(
+      c(
+        "{.arg {arg_name}} must lie between {.val {0}} and {.val {1}}.",
+        x = "Found {.val {truncation}}."
+      ),
+      error_class = "positively_range_error",
+      call = call
+    )
+  }
+  if (truncation[[1]] >= truncation[[2]]) {
+    abort(
+      c(
+        "{.arg {arg_name}} must have its lower bound below its upper bound.",
+        x = "Found lower {.val {truncation[[1]]}} and upper {.val {truncation[[2]]}}."
+      ),
+      error_class = "positively_range_error",
+      call = call
+    )
+  }
+  invisible(truncation)
+}
+
+#' Validate a truncation sweep grid
+#'
+#' A truncation grid is a numeric vector of lower bounds, each in `[0, 0.5)`, so
+#' that the paired upper bound `1 - lower` always stays above `lower`. The sweep
+#' shares one set of bootstrap draws across every grid point.
+#'
+#' @param grid A candidate grid of lower bounds.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `grid`, invisibly, when every lower bound is valid.
+#' @keywords internal
+#' @noRd
+validate_truncation_grid <- function(
+  grid,
+  arg_name = "truncation_grid",
+  call = rlang::caller_env()
+) {
+  if (!is.numeric(grid)) {
+    grid_class <- class(grid)[1]
+    abort(
+      "{.arg {arg_name}} must be numeric, not a {.cls {grid_class}}.",
+      error_class = "positively_type_error",
+      call = call
+    )
+  }
+  if (length(grid) == 0) {
+    abort(
+      "{.arg {arg_name}} must contain at least one lower bound.",
+      error_class = "positively_empty_error",
+      call = call
+    )
+  }
+  if (anyNA(grid)) {
+    abort(
+      "{.arg {arg_name}} must not contain missing values.",
+      error_class = "positively_missing_error",
+      call = call
+    )
+  }
+  if (any(grid < 0 | grid >= 0.5)) {
+    bad <- grid[grid < 0 | grid >= 0.5]
+    abort(
+      c(
+        "{.arg {arg_name}} lower bounds must lie in {.code [0, 0.5)}.",
+        x = "Found {.val {bad}}."
+      ),
+      error_class = "positively_range_error",
+      call = call
+    )
+  }
+  invisible(grid)
+}
