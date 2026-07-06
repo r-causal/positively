@@ -82,6 +82,27 @@ test_that("check_density_ratios() rejects non-positive or non-numeric thresholds
   )
 })
 
+test_that("check_density_ratios() rejects a non-numeric matrix", {
+  # A character matrix dispatches to the matrix method, so the non-numeric
+  # guard fires inside validate_ratios rather than the default-method guard.
+  m <- matrix(c("a", "b", "c", "d"), nrow = 2)
+  expect_error(
+    check_density_ratios(m),
+    class = "positively_error"
+  )
+})
+
+test_that("check_density_ratios() rejects empty or missing thresholds", {
+  expect_error(
+    check_density_ratios(c(1, 1, 1), thresholds = numeric(0)),
+    class = "positively_error"
+  )
+  expect_error(
+    check_density_ratios(c(1, 1, 1), thresholds = c(10, NA)),
+    class = "positively_error"
+  )
+})
+
 test_that("check_density_ratios() rejects a matrix with negative entries", {
   m <- matrix(c(1, 2, -1, 3), nrow = 2)
   expect_error(
@@ -273,6 +294,16 @@ test_that("the tail summaries respond monotonically to severity", {
 
 # ---- Structural signature --------------------------------------------------
 
+test_that("all-zero ratios give a zero Kish effective sample size", {
+  # When every weight is zero the Kish denominator collapses, so the effective
+  # sample size is defined to be zero rather than NaN.
+  summ <- generics::tidy(check_density_ratios(rep(0, 10)))
+
+  expect_equal(stat_value(summ, "ess"), 0)
+  expect_equal(stat_value(summ, "ess_fraction"), 0)
+  expect_equal(stat_value(summ, "prop_zero"), 1)
+})
+
 test_that("a structural violation shows a below-one mean and exact-zero mass", {
   # A leaked-support scenario: 30% of the intervention mass sits outside the
   # observed support, so those ratios are exactly zero and the mean drops below
@@ -402,6 +433,23 @@ test_that("the percentile print labels use correct ordinals", {
   expect_snapshot(print(res))
 })
 
+test_that("the teens percentiles take a plain 'th' ordinal", {
+  # The 11th, 12th, and 13th percentiles are the exception to the ordinal rule
+  # and always take "th", not "st", "nd", or "rd".
+  res <- check_density_ratios(
+    gen_lognormal_ratios(200, k = 1),
+    probs = c(0.11, 0.12, 0.13)
+  )
+  expect_snapshot(print(res))
+})
+
+test_that("print omits the quantile block when probs is the maximum alone", {
+  # With probs = 1 there are no interior quantiles to display, so the printed
+  # summary jumps from the mean straight to the maximum.
+  res <- check_density_ratios(gen_lognormal_ratios(200, k = 1), probs = 1)
+  expect_snapshot(print(res))
+})
+
 # ---- Error snapshots -------------------------------------------------------
 
 test_that("the classed error messages are stable", {
@@ -439,6 +487,18 @@ test_that("the classed error messages are stable", {
   res_point <- check_density_ratios(gen_lognormal_ratios(50, k = 1))
   expect_snapshot(
     ggplot2::autoplot(res_point, type = "cumulative"),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_density_ratios(c(1, 1, 1), thresholds = numeric(0)),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_density_ratios(c(1, 1, 1), thresholds = c(10, NA)),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_density_ratios(matrix(c("a", "b", "c", "d"), nrow = 2)),
     error = TRUE
   )
 })

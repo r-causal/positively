@@ -11,6 +11,19 @@
       Prevalence threshold beta: 0.05
       Subgroups: 2 reported, 1 flagged
 
+# the print method reports an unresolved beta
+
+    Code
+      print(res)
+    Output
+      
+      -- port_result -----------------------------------------------------------------
+      Exposure: "exposure" (binary)
+      Observations: 1
+      Reading rule: alpha = 0.05, gamma = 2
+      Prevalence threshold beta: not resolved
+      Subgroups: 0 reported, 0 flagged
+
 # check_port() argument validation messages are stable
 
     Code

@@ -669,6 +669,17 @@ test_that("autoplot() returns a ggplot for the sequential diagnostic", {
   expect_s3_class(ggplot2::autoplot(res), "ggplot")
 })
 
+test_that("plot() draws the HDR view and returns the result invisibly", {
+  local_quiet()
+  data <- sim_hdr_linear(300, beta = 1, seed = 1)
+  res <- check_hdr(data, exposure, l)
+
+  path <- withr::local_tempfile(fileext = ".pdf")
+  grDevices::pdf(path)
+  withr::defer(grDevices::dev.off())
+  expect_identical(plot(res), res)
+})
+
 # ---- Snapshots ------------------------------------------------------------
 
 test_that("the point print method is stable", {

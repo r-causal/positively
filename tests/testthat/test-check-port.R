@@ -22,6 +22,24 @@ rule_numbers <- function(x) {
   as.numeric(unlist(regmatches(x, gregexpr("[0-9]+\\.?[0-9]*", x))))
 }
 
+# A directly constructed port_result, used to exercise the class validator and
+# the print and plot branches that depend on property shapes a fitted run does
+# not readily produce.
+make_port_result <- function(alpha = 0.05, beta = 0.05, gamma = 2) {
+  port_result(
+    results = empty_port_tibble(sequential = FALSE),
+    exposure = "exposure",
+    exposure_type = "binary",
+    n = 1L,
+    params = list(),
+    call = quote(check_port()),
+    trees = list(),
+    alpha = alpha,
+    beta = beta,
+    gamma = gamma
+  )
+}
+
 # ---- Local scenario generators --------------------------------------------
 # The shared helpers in helper-dgp.R fix a single exposure-covariate dependence.
 # PoRT tests need to dial subgroup size, subgroup prevalence, and the joint
@@ -246,6 +264,58 @@ test_that("check_port() rejects non-numeric breaks", {
     check_port(data, exposure, x1, breaks = "a"),
     class = "positively_error"
   )
+})
+
+# ---- Class validator ------------------------------------------------------
+
+test_that("port_result rejects a non-scalar alpha", {
+  expect_error(make_port_result(alpha = c(0.05, 0.1)), regexp = "@alpha")
+})
+
+test_that("port_result rejects an empty beta", {
+  expect_error(make_port_result(beta = double(0)), regexp = "@beta")
+})
+
+test_that("port_result rejects a non-scalar gamma", {
+  expect_error(make_port_result(gamma = c(1, 2)), regexp = "@gamma")
+})
+
+# ---- Assembly helpers -----------------------------------------------------
+
+test_that("empty_port_tibble carries the fixed schema", {
+  point <- empty_port_tibble(sequential = FALSE)
+  expect_s3_class(point, "tbl_df")
+  expect_identical(nrow(point), 0L)
+  expect_setequal(
+    names(point),
+    c(
+      "subgroup",
+      "description",
+      "exposure_level",
+      "n",
+      "proportion",
+      "prevalence",
+      "flagged"
+    )
+  )
+  expect_type(point$flagged, "logical")
+
+  sequential <- empty_port_tibble(sequential = TRUE)
+  expect_identical(names(sequential)[[1]], "time")
+  expect_type(sequential$time, "integer")
+})
+
+test_that("assemble_port_results returns the empty schema when no rows survive", {
+  from_nothing <- assemble_port_results(list(), sequential = FALSE)
+  expect_identical(nrow(from_nothing), 0L)
+  expect_true("flagged" %in% names(from_nothing))
+
+  from_empties <- assemble_port_results(
+    list(empty_port_tibble(sequential = TRUE)),
+    sequential = TRUE
+  )
+  expect_identical(nrow(from_empties), 0L)
+  expect_identical(names(from_empties)[[1]], "time")
 })
 
 # ---- Result class and properties ------------------------------------------
@@ -593,6 +663,24 @@ test_that("a continuous predictor recovers a threshold a coarse binning misses",
   expect_false(any(grepl("x3", flagged_rows(coarse_res)$description)))
 })
 
+# ---- Continuous binning ----------------------------------------------------
+
+test_that("explicit breaks bin a continuous exposure", {
+  local_quiet()
+  data <- dgp_continuous_support_gap(n = 500, seed = 4)
+  # The exposure occupies [0, 2] and [4, 6]; explicit cut points override the
+  # quantile binning, and the empty (2, 4) bin simply contributes no level.
+  res <- check_port(
+    data,
+    exposure,
+    x1,
+    breaks = c(0, 2, 4, 6),
+    exposure_type = "continuous"
+  )
+  expect_identical(res@exposure_type, "continuous")
+  expect_gte(nrow(res@results), 1L)
+})
+
 # ---- Autoplot contract -----------------------------------------------------
 
 test_that("autoplot() returns a ggplot", {
@@ -626,6 +714,26 @@ test_that("bar width is proportional to subgroup size", {
   )
   # The anchor's two subgroups differ in size, so their bars differ in width.
   expect_gt(length(unique(plot_data$width)), 1)
+})
+
+test_that("port_plot_data returns the display columns for an empty result", {
+  # With no reported subgroups the plotting frame keeps the label, width, and
+  # flagged columns but carries no rows.
+  plot_data <- port_plot_data(make_port_result())
+  expect_identical(nrow(plot_data), 0L)
+  expect_true(all(c("label", "width", "flagged") %in% names(plot_data)))
+  expect_identical(levels(plot_data$flagged), c("FALSE", "TRUE"))
+})
+
+test_that("plot() draws the PoRT view and returns the result invisibly", {
+  local_quiet()
+  data <- sim_port_structural(n = 500, seed = 1)
+  res <- check_port(data, exposure, c(x3, x1))
+
+  path <- withr::local_tempfile(fileext = ".pdf")
+  grDevices::pdf(path)
+  withr::defer(grDevices::dev.off())
+  expect_identical(plot(res), res)
 })
 
 # ---- rpart controls and passthrough (expectation, REPORT) -----------------
@@ -716,6 +824,13 @@ test_that("the point print method is stable", {
   local_quiet()
   data <- port_anchor_data()
   res <- check_port(data, exposure, g, alpha = 0.05, beta = 0.05)
+  expect_snapshot(print(res))
+})
+
+test_that("the print method reports an unresolved beta", {
+  # When every per-time beta is non-finite, as arises if all sequential time
+  # points are skipped, the threshold prints as not resolved.
+  res <- make_port_result(beta = NA_real_)
   expect_snapshot(print(res))
 })
 

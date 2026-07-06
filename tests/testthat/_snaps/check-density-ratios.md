@@ -55,6 +55,37 @@
       Proportion > 50: 0
       Kish ESS fraction: 0.439
 
+# the teens percentiles take a plain 'th' ordinal
+
+    Code
+      print(res)
+    Output
+      
+      -- density_ratios_result -------------------------------------------------------
+      Density ratios: 200 observations across 1 time point
+      Mean ratio: 0.981
+      11th percentile: 0.198
+      12th percentile: 0.212
+      13th percentile: 0.219
+      Maximum: 6.697
+      Proportion > 10: 0
+      Proportion > 50: 0
+      Kish ESS fraction: 0.439
+
+# print omits the quantile block when probs is the maximum alone
+
+    Code
+      print(res)
+    Output
+      
+      -- density_ratios_result -------------------------------------------------------
+      Density ratios: 200 observations across 1 time point
+      Mean ratio: 0.981
+      Maximum: 6.697
+      Proportion > 10: 0
+      Proportion > 50: 0
+      Kish ESS fraction: 0.439
+
 # the classed error messages are stable
 
     Code
@@ -159,4 +190,28 @@
       Error in `autoplot.positively::density_ratios_result`:
       ! `type = "cumulative"` requires a time-varying (matrix) input.
       i This result summarizes a point treatment with a single time point.
+
+---
+
+    Code
+      check_density_ratios(c(1, 1, 1), thresholds = numeric(0))
+    Condition
+      Error in `check_density_ratios()`:
+      ! `thresholds` must contain at least one value.
+
+---
+
+    Code
+      check_density_ratios(c(1, 1, 1), thresholds = c(10, NA))
+    Condition
+      Error in `check_density_ratios()`:
+      ! `thresholds` must not contain missing values.
+
+---
+
+    Code
+      check_density_ratios(matrix(c("a", "b", "c", "d"), nrow = 2))
+    Condition
+      Error in `check_density_ratios()`:
+      ! `ratios` must be numeric, not a <matrix>.
 

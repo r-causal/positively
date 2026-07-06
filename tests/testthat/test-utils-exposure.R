@@ -55,6 +55,14 @@ test_that("match_exposure_type() rejects an unknown type", {
   )
 })
 
+test_that("a single-level factor is detected as binary", {
+  withr::local_options(positively.quiet = TRUE)
+  # A factor with one observed level is not caught by the exactly-two-values
+  # rule, so it falls through the factor branch to binary rather than
+  # categorical.
+  expect_identical(detect_exposure_type(factor(c("a", "a", "a"))), "binary")
+})
+
 test_that("a 0/1 exposure with NA is detected as categorical", {
   withr::local_options(positively.quiet = TRUE)
   # The NA becomes a third unique value, so at a realistic n the unique-value
