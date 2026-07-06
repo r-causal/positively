@@ -1,0 +1,252 @@
+---
+title: "Estimator-focused diagnostics"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Estimator-focused diagnostics}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 4.5,
+  out.width = "100%"
+)
+```
+
+Most positivity diagnostics answer one question: does the assumption hold, and
+where does support run thin? PoRT names the subgroups, effective data points
+measure the support around each intervention, and the extrapolation check
+locates units with no near neighbor in the opposite exposure group. The two
+diagnostics in this vignette answer a different question. They take the
+estimator you intend to use as given, and ask what a positivity violation does
+to that estimator's answer. `check_eta_bias()` estimates the bias a chosen
+estimator and truncation rule incur under the data's own fitted mechanisms.
+`check_extrapolation()`, read through the lens of g-computation, shows which
+units force the outcome model to predict outside the region where it was
+trained.
+
+## Setup
+
+```{r setup}
+library(positively)
+```
+
+Both examples use `pos_violations`, the simulated dataset described in
+`?pos_violations` and in the getting-started vignette. It carries two planted
+problems: a structural violation, where no subject with `region == "b"` and
+`x2 > 1` is ever exposed, and a practical near-violation, where exposure depends
+steeply on `x1`, so the fitted propensity approaches zero in the lower tail of
+`x1` and one in the upper tail while both exposure levels remain observed.
+
+## ETA.Bias: the bias an estimator incurs
+
+`check_eta_bias()` implements the ETA.Bias parametric-bootstrap diagnostic of
+Petersen et al. (2012). The idea is to treat the data's own fitted mechanisms as
+a known truth and measure how a candidate estimator behaves under it.
+
+The procedure has three parts. First, it fits a propensity model for the
+exposure and an outcome regression on the exposure and covariates. The
+g-computation contrast from the outcome model,
+averaged over the sample, becomes the target `truth`. This target depends on the
+outcome model alone, so it is the same for every estimator and constant across
+truncation levels. Second, it draws bootstrap datasets: each resamples the
+covariate rows, draws a bootstrap exposure from the untruncated fitted
+propensity, and draws a bootstrap outcome from the fitted outcome model. Third,
+it refits both models on each bootstrap dataset and applies the candidate
+estimator, bounding the fitted propensity into the truncation interval where the
+estimator uses it. ETA.Bias is the mean of the bootstrap estimates minus the
+target. Because truncation is a property of the estimator rather than of the
+data-generating mechanism, the bootstrap exposure is always drawn from the
+untruncated propensity, so the diagnostic isolates the bias the estimator plus
+its truncation rule introduce.
+
+`check_eta_bias()` needs an outcome, which `pos_violations` does not include, so
+`check_positivity()` never runs it and you call it directly. We construct a
+continuous outcome that depends on the exposure and the covariates. Its true
+average treatment effect is one.
+
+```{r outcome}
+set.seed(2024)
+eta_data <- pos_violations
+eta_data$y <- with(
+  eta_data,
+  exposure + x1 + 0.5 * x2 + rnorm(nrow(eta_data))
+)
+```
+
+The covariates passed to `check_eta_bias()` must be numeric, so we supply `x1`
+and `x2`. The steep dependence of the exposure on `x1` is the source of the
+extreme propensities that inverse probability weighting reacts to. We diagnose
+the inverse-probability-weighting estimator, which divides by the fitted
+propensity and is therefore the estimator most exposed to a positivity
+violation.
+
+The truncation sweep is the useful mode. A vector of lower bounds passed to
+`truncation_grid` becomes a set of truncation levels `c(lower, 1 - lower)`, and
+every level reuses one shared set of bootstrap draws and model refits, so
+differences across the sweep reflect the truncation bound alone. A lower bound
+of zero applies no truncation.
+
+The bootstrap is random, so we set a seed in the chunk. We use `n_boot = 25` to
+keep the vignette fast. This is a toy setting; in practice use several hundred
+bootstrap draws so that the Monte Carlo standard error is small relative to the
+bias you are trying to read.
+
+```{r eta-bias}
+set.seed(2024)
+eta <- check_eta_bias(
+  eta_data,
+  exposure,
+  y,
+  c(x1, x2),
+  estimator = "ipw",
+  truncation_grid = c(0, 0.01, 0.05, 0.1),
+  n_boot = 25
+)
+eta
+```
+
+The printed output reports the target truth, the number of truncation levels,
+and the range of ETA.Bias across the sweep. The full per-level table is in the
+`@results` tibble, one row per truncation level with the bias, its Monte Carlo
+standard error, and the mean bootstrap estimate.
+
+```{r eta-results}
+eta@results
+```
+
+Two patterns appear as the lower bound rises. The bias grows, because tighter
+truncation replaces the extreme fitted propensities that carry the tail
+observations with the truncation bound, which pulls the weighted estimate away
+from the target. The Monte Carlo standard error shrinks, because bounding the
+propensity away from zero and one stabilizes the weights. This is the
+bias-variance tradeoff of weight truncation, read off a single fitted mechanism.
+
+The `type = "sweep"` plot shows ETA.Bias against the truncation lower bound with
+a band of plus or minus two Monte Carlo standard errors. The dashed line at zero
+marks the bias a positivity-robust estimator would achieve.
+
+```{r eta-sweep, fig.alt = "ETA.Bias plotted against the truncation lower bound for the inverse-probability-weighting estimator, rising away from zero as the bound tightens, with a two Monte Carlo standard error band."}
+ggplot2::autoplot(eta, type = "sweep")
+```
+
+The three estimators respond differently. G-computation ignores the propensity,
+so its ETA.Bias is Monte Carlo noise around zero and flat across the sweep. The
+augmented, doubly robust estimator stays near zero in bias while carrying more
+variance than g-computation. Inverse probability weighting is the estimator
+whose bias the truncation sweep traces out, which is why we diagnose it here.
+The `type = "bootstrap"` plot shows the distribution of bootstrap estimates at
+each truncation level with the target truth marked, the raw material behind each
+point on the sweep.
+
+```{r eta-bootstrap, fig.alt = "Histograms of bootstrap estimates for the inverse-probability-weighting estimator, one facet per truncation level, each with a dashed line at the target truth."}
+ggplot2::autoplot(eta, type = "bootstrap")
+```
+
+ETA.Bias captures the positivity, truncation, and sparsity component of bias and
+excludes model-misspecification bias by construction. It reports a diagnostic
+for a fitted mechanism and does not correct the estimate.
+
+## Extrapolation as the g-computation view of positivity
+
+G-computation predicts the outcome under each exposure value for every unit and
+averages the contrast. It never divides by the propensity, so it does not
+produce the extreme weights that a positivity violation creates for inverse
+probability weighting. The violation does not disappear, though. It changes
+form. Where one exposure group has no member near a unit's covariate profile,
+g-computation must predict that unit's outcome under the missing exposure by
+extrapolating the model beyond the data it was trained on. Under g-computation
+the positivity problem becomes an extrapolation problem, and
+`check_extrapolation()` measures it directly.
+
+`check_extrapolation()` implements the extrapolation diagnostics of King and Zeng
+(2006). For every observation it measures how well the opposite exposure group
+covers that unit's position in covariate space, using Gower distances that
+handle numeric and categorical covariates together. We pass all three
+covariates, including the factor `region`.
+
+```{r extrapolation}
+extrapolation <- check_extrapolation(
+  pos_violations,
+  exposure,
+  c(x1, x2, region)
+)
+extrapolation
+```
+
+The Gower distance between two rows is the mean over covariates of a
+per-covariate distance: for a numeric covariate, the absolute difference divided
+by the pooled sample range; for a factor, one when the categories differ and
+zero when they agree. Distances lie in `[0, 1]`. The geometric variability is
+one half the mean of the full distance matrix and sets the reference radius: an
+observation counts an opposite-group unit as nearby when their Gower distance is
+within one geometric variability, controlled by the `nearby` multiplier.
+
+Three per-unit statistics are reported: `gower_min`, the distance to the nearest
+opposite-group unit; `gower_mean`, the mean distance to the opposite group; and
+`frac_nearby`, the fraction of the opposite group within the reference radius.
+
+```{r extrapolation-results}
+tidy(extrapolation)
+```
+
+The units with the lowest `frac_nearby` sit in the covariate tails and in the
+structural subgroup, the same regions PoRT flags. The `type = "distribution"`
+plot shows the distribution of `frac_nearby` within each exposure group. The
+mass near zero is the set of units with no opposite-group neighbor close by, the
+units whose g-computation prediction under the missing exposure rests on
+extrapolation.
+
+```{r extrapolation-distribution, fig.alt = "Histograms of the fraction of nearby opposite-group units, faceted by exposure group, each with mass near zero."}
+ggplot2::autoplot(extrapolation, type = "distribution")
+```
+
+The convex-hull test is the sharper statement of the same idea. It asks whether
+each observation lies inside the convex hull of the opposite group, solved as a
+linear-programming feasibility problem on the numeric covariates. A unit outside
+the opposite group's hull cannot be written as a weighted average of
+opposite-group units, so any g-computation prediction for it under the missing
+exposure is extrapolation by construction. The test runs automatically when
+there are at most ten numeric covariates and the lpSolve package is
+installed; lpSolve is a suggested dependency, so install it to enable the
+hull test. The per-group summary reports the fraction of each group inside the
+opposite group's hull.
+
+```{r extrapolation-summary}
+extrapolation@summary
+```
+
+The `type = "hull"` plot shows how many units of each group fall inside the
+opposite group's hull. The units outside it are the ones that require
+extrapolation, and they include the structural subgroup that is never exposed.
+
+```{r extrapolation-hull, fig.alt = "Stacked bars per exposure group showing the share of units inside versus outside the opposite group's convex hull."}
+ggplot2::autoplot(extrapolation, type = "hull")
+```
+
+Read together, the two diagnostics describe the same positivity violation from
+the estimator's side. ETA.Bias shows the inverse-probability-weighting estimator
+trading bias for variance across the truncation sweep, and the extrapolation
+check shows the g-computation estimator leaning on model predictions for the
+units in the tails and the structural subgroup.
+
+## Where to go next
+
+The getting-started vignette, *Getting started with positively*, covers
+`check_positivity()` end to end and the diagnostics that answer whether
+positivity holds. The vignette *Density ratios and modified treatment policies*
+covers `check_density_ratios()`, the diagnostic for stochastic and modified
+treatment policies, with hand-built ratios and with a fitted longitudinal model.
+
+## References
+
+King G, Zeng L (2006). The Dangers of Extreme Counterfactuals. *Political
+Analysis*, 14(2):131-159.
+
+Petersen ML, Porter KE, Gruber S, Wang Y, van der Laan MJ (2012). Diagnosing and
+responding to violations in the positivity assumption. *Statistical Methods in
+Medical Research*, 21(1):31-54.

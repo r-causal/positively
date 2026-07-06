@@ -1,0 +1,281 @@
+---
+title: "Getting started with positively"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with positively}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 4.5,
+  out.width = "100%"
+)
+```
+
+Causal effect estimates rest on the positivity assumption: every unit must have
+a non-zero probability of receiving each level of the exposure within every
+stratum of the covariates. Where that probability is zero, or close to it, the
+data carry no information about what would have happened under the missing
+exposure level, and any estimate for that region comes from the model
+extrapolating rather than from observed comparisons. positively is the
+positivity and extrapolation member of the r-causal family, alongside
+propensity for weighting and halfmoon for balance. It reports diagnostics only.
+It computes numbers that describe where support is thin and leaves the judgment
+of what to do about it to you.
+
+Positivity violations come in two kinds, and they call for different responses.
+A structural violation is one where treatment is impossible for a subgroup, so
+no amount of additional data would fill the gap. A practical violation is one
+where treatment is rare in a region of covariate space, so both exposure levels
+remain observed overall but the propensity approaches zero or one in the tails.
+Structural violations usually mean the causal question has to be narrowed to the
+population where the exposure is possible. Practical violations are a
+finite-sample problem that shows up as unstable weights and inflated variance,
+and they can sometimes be managed by trimming, truncation, or a change of
+estimand. Distinguishing the two is the first task a positivity diagnostic
+faces, so the methods in positively locate the covariate regions responsible for
+a violation in addition to measuring its overall severity.
+
+## Setup
+
+```{r setup}
+library(positively)
+```
+
+positively includes a small simulated dataset, `pos_violations`, with two known
+problems planted in it so that a diagnostic can be checked against ground truth.
+It has a binary `exposure`, two numeric covariates `x1` and `x2`, and a
+two-level factor `region`.
+
+```{r data}
+pos_violations
+```
+
+The two planted violations are documented in `?pos_violations`. The first is
+structural: no subject with `region == "b"` and `x2 > 1` is ever exposed,
+because the true propensity is zero there. The second is practical: exposure
+depends steeply on `x1`, so the fitted propensity drops below 0.01 in the lower
+tail of `x1` and rises above 0.99 in the upper tail, while both exposure levels
+stay observed across the sample as a whole. A good set of diagnostics should
+recover both, and distinguish the empty subgroup from the near-empty tails.
+
+## Running check_positivity()
+
+`check_positivity()` is the general entry point. It detects the exposure type,
+then checks positivity with the set of diagnostics appropriate to that type,
+composing the individual `check_*()` functions with their defaults. It does not
+classify or grade results; it collects each diagnostic's output into a container
+you can read and plot. You give it the data, the exposure column, and the
+covariates. The
+covariates are required, with no default, so that outcome columns are never
+swept in by accident.
+
+```{r check}
+check <- check_positivity(pos_violations, exposure, c(x1, x2, region))
+```
+
+The message reports that the exposure was detected as binary. For a binary
+exposure the default set is three diagnostics: effective data points (`edp`),
+positivity regression trees (`port`), and an extrapolation check
+(`extrapolation`). Printing the container shows each one in its own section.
+
+```{r print}
+check
+```
+
+Each section reports a numeric summary; the package does not classify results.
+The `edp` section reports the range of effective data points across the sample.
+The `port` section reports how many covariate subgroups were examined and how
+many were flagged by the algorithm's published rule. The `extrapolation` section
+reports the geometric scale used to judge nearness, the average share of the
+opposite exposure group lying nearby each unit, and how many units fall inside
+the opposite group's convex hull. The three flagged subgroups and the units that
+sit far from any opposite-group neighbor are the first signals that this dataset
+has positivity problems.
+
+## Reading the container
+
+Two accessors summarize the container as a whole. `glance()` returns one row per
+diagnostic with its headline statistics.
+
+```{r glance}
+glance(check)
+```
+
+`tidy()` on the container returns a long summary that stacks every diagnostic's
+glance statistics into `diagnostic`, `statistic`, and `value` columns.
+
+```{r tidy-container}
+tidy(check)
+```
+
+To pull a single diagnostic's full results out of the container, name it in
+`tidy()`. This returns that diagnostic's own tidy tibble, one row per unit or
+per subgroup depending on the method.
+
+```{r tidy-named}
+tidy(check, diagnostic = "port")
+```
+
+Each diagnostic can also be called directly. Calling
+`check_port()`, `check_edp()`, or `check_extrapolation()` directly returns the
+same diagnostic object that `check_positivity()` composed, and each object
+carries its own plot method through `autoplot()`. The sections below call the
+individual functions so that we can plot and interpret each diagnostic in turn.
+
+## PoRT: locating the subgroups
+
+The positivity regression tree of Danelian et al. (2023) grows a shallow tree to
+find subgroups where one exposure level is rare or absent. It is the most direct
+diagnostic for the structural-versus-practical distinction, because it reports
+each problem as a human-readable rule over the covariates.
+
+```{r port}
+port <- check_port(pos_violations, exposure, c(x1, x2, region))
+port
+```
+
+The `flagged` column marks subgroups meeting the algorithm's published rule: a
+prevalence below `beta` or above `1 - beta` among subgroups at least `alpha` of
+the sample. Filtering to the flagged rows shows what PoRT found.
+
+```{r port-flagged}
+flagged <- tidy(port)
+flagged[flagged$flagged, c("description", "n", "prevalence", "flagged")]
+```
+
+PoRT recovers both planted violations and describes them in the covariates. The
+rule `x2 >= ... & region = b` has an exposure prevalence of exactly zero: this
+is the structural subgroup, the cell that is empty by construction. The two `x1`
+rules, one in the lower tail with prevalence near 0.05 and one in the upper tail
+with prevalence near 0.96, are the practical near-violation, where exposure is
+almost but not entirely determined by `x1`. The `autoplot()` method draws the
+reported subgroups as a bar chart of prevalence, with dashed reference lines at
+`beta` and `1 - beta` and the flagged subgroups highlighted.
+
+```{r port-plot, fig.alt = "Horizontal bar chart of exposure prevalence for each PoRT subgroup, with flagged subgroups highlighted near prevalence zero and one."}
+ggplot2::autoplot(port)
+```
+
+## Effective data points: how much support surrounds each intervention
+
+The effective-data-points diagnostic of Ring and Schomaker (2026) measures, for
+each unit moved to a candidate exposure value, how much of the observed sample
+lies nearby in covariate space. It sums a product kernel over the data, so the
+result runs from zero, meaning no observed support, up to the sample size. For a
+binary exposure the candidate values are the two levels, 0 and 1.
+
+```{r edp}
+edp <- check_edp(pos_violations, exposure, c(x1, x2, region))
+tidy(edp)
+```
+
+Effective data points are a relative measure. They are meaningful when compared
+across units or across candidate values for a fixed covariate set, not against a
+universal threshold. Units in a thinly supported region carry a low value at the
+exposure level they rarely receive, because few observed neighbors surround the
+intervened-on point. The `autoplot()` method shows the distribution of effective
+data points, faceted by candidate exposure value; the left tail near zero is the
+set of units with little observed support under that intervention.
+
+```{r edp-plot, fig.alt = "Histograms of effective data points faceted by candidate exposure value, each with a left tail of low-support observations near zero."}
+ggplot2::autoplot(edp, type = "histogram")
+```
+
+## Extrapolation: distance and the convex hull
+
+The extrapolation check follows the logic of King and Zeng (2006): a unit whose
+covariate profile has no near neighbor in the opposite exposure group can only
+be compared by extrapolating the model beyond the observed data. It measures
+nearness with a Gower distance that handles numeric and categorical covariates
+together, and, when the covariate count is small enough, tests whether each unit
+falls inside the convex hull of the opposite group.
+
+```{r extrapolation}
+extrapolation <- check_extrapolation(pos_violations, exposure, c(x1, x2, region))
+tidy(extrapolation)
+```
+
+The per-group summary is available through the `@summary` property. It reports,
+for each exposure group, the average fraction of the opposite group lying nearby
+and the share of units inside the opposite group's hull.
+
+```{r extrapolation-summary}
+extrapolation@summary
+```
+
+The units with the lowest `frac_nearby` are the ones sitting in the covariate
+tails and in the structural subgroup, the same regions PoRT flagged. The
+`type = "distribution"` plot shows the distribution of `frac_nearby` within each
+exposure group; the mass near zero is the set of units with no opposite-group
+neighbor close by.
+
+```{r extrapolation-distribution, fig.alt = "Histograms of the fraction of nearby opposite-group units, faceted by exposure group, each with a spike near zero."}
+ggplot2::autoplot(extrapolation, type = "distribution")
+```
+
+When the convex-hull test runs, the `type = "hull"` plot shows how many units of
+each group fall inside the opposite group's hull. Units outside the hull require
+extrapolation by construction.
+
+```{r extrapolation-hull, fig.alt = "Stacked bars per exposure group showing the share of units inside versus outside the opposite group's convex hull."}
+ggplot2::autoplot(extrapolation, type = "hull")
+```
+
+The three diagnostics agree, and their results match the planted ground truth.
+PoRT names the structural subgroup and the practical tails as explicit rules,
+effective data points measure the thin support those regions carry under the
+rare intervention, and the extrapolation check identifies the same units as far
+from any opposite-group neighbor and outside the hull.
+
+## Choosing diagnostics beyond the defaults
+
+The default set depends on the exposure type. A categorical exposure drops the
+extrapolation check; a continuous exposure adds hat values and highest density
+regions and categorizes the exposure for PoRT. You can also request an explicit
+subset with the `diagnostics` argument and tune any method through `args`, a
+named list of per-method option lists.
+
+```{r subset}
+check_positivity(
+  pos_violations,
+  exposure,
+  c(x1, x2, region),
+  diagnostics = "port",
+  args = list(port = list(alpha = 0.1))
+)
+```
+
+Two diagnostics are never run by `check_positivity()`, because each needs
+something the entry point does not have. `check_eta_bias()` needs an outcome,
+and `check_density_ratios()` needs user-supplied density ratios. Call both
+directly.
+
+The other vignettes go deeper into each area:
+
+- *Positivity for continuous exposures* covers effective data points, hat
+  values, and highest density region non-overlap, and when each one applies.
+- *Where violations live: PoRT and sPoRT* covers subgroup trees, tuning `alpha`,
+  `beta`, and `gamma`, and the longitudinal and censoring variants.
+- *Estimator-focused diagnostics* covers ETA.Bias with the truncation sweep and
+  g-computation extrapolation.
+- *Density ratios and modified treatment policies* covers
+  `check_density_ratios()` with hand-built ratios and with a fitted longitudinal
+  model.
+
+## References
+
+Danelian G, Foucher Y, Léger M, Le Borgne F, Chatton A (2023). Identification of
+in-sample positivity violations using regression trees: the PoRT algorithm.
+
+King G, Zeng L (2006). The Dangers of Extreme Counterfactuals. *Political
+Analysis*, 14(2):131-159.
+
+Ring C, Schomaker M (2026). A Diagnostic to Find and Help Combat Stochastic
+Positivity Issues, with a Focus on Continuous Treatments.
+</content>

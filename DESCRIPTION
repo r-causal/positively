@@ -43,3 +43,4 @@ Imports:
     utils,
     vctrs
 LazyData: true
+VignetteBuilder: knitr

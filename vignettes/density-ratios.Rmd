@@ -1,0 +1,255 @@
+---
+title: "Density ratios and modified treatment policies"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Density ratios and modified treatment policies}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 4.5,
+  out.width = "100%"
+)
+```
+
+A modified treatment policy asks what would happen under an intervention that
+shifts each subject's treatment as a function of their observed history, rather
+than setting everyone to a fixed level. Estimators for these policies reweight
+the observed data to the interventional world using a density ratio
+$r = g^*(a \mid h) / g(a \mid h)$, the ratio of the intervention treatment law
+to the observed treatment law. The ratio is large wherever the observed
+conditional treatment density is small, which is where positivity is
+threatened. Reading the distribution of these ratios is therefore a positivity
+diagnostic for the policy.
+
+`check_density_ratios()` summarizes user-supplied ratios. It accepts a numeric
+vector for a point treatment, an n-by-T matrix whose columns are time points
+for a time-varying treatment, and a fitted lmtp object whose
+density-ratio component it reads. A `propensity::psw` weight vector is also
+accepted. The function reports a diagnostic only and assigns no severity grade.
+
+## Setup
+
+```{r setup}
+library(positively)
+```
+
+## What the summaries measure
+
+Because a density ratio is a Radon-Nikodym derivative, its mean is one whenever
+the intervention law is absolutely continuous with respect to the observed law.
+The mean is a specification check rather than a violation detector: well-behaved
+weights on average do not guarantee positivity. The signal lives in the upper
+tail and in the Kish effective sample size
+$(\sum_i r_i)^2 / \sum_i r_i^2$, which equals the sample size when the ratios
+are equal and falls as a few large weights come to dominate. Petersen and
+colleagues (2012) recommend inspecting the weight distribution for exactly this
+reason: a near violation of positivity appears as a heavy upper tail, while an
+observed density close to zero for some treatment level produces ratios that
+are large or exactly zero.
+
+## A hand-built point-treatment example
+
+To see the summaries against known behavior, construct two sets of ratios by
+hand. The first is well-behaved: values scattered close to one. The second has
+a heavy right tail. Both are rescaled to mean one so that the only difference
+between them is the shape of the distribution. The seed is set so the example
+is reproducible.
+
+```{r hand-built}
+set.seed(20260706)
+
+well_behaved <- rlnorm(1000, meanlog = 0, sdlog = 0.3)
+well_behaved <- well_behaved / mean(well_behaved)
+
+heavy_tail <- rlnorm(1000, meanlog = 0, sdlog = 1.4)
+heavy_tail <- heavy_tail / mean(heavy_tail)
+```
+
+Passing the well-behaved ratios prints a compact numeric summary: the mean, a
+set of upper quantiles, the maximum, the proportion of ratios above each
+threshold, and the Kish effective sample size as a fraction of the sample size.
+
+```{r well-behaved}
+check_density_ratios(well_behaved)
+```
+
+The mean is one, as construction guarantees. The quantiles sit close together,
+the maximum is a small multiple of the median, and the effective sample size
+retains most of the 1000 observations. These weights carry no positivity
+warning.
+
+The heavy-tailed ratios have the same mean and the same sample size, but the
+distribution is different.
+
+```{r heavy-tail}
+check_density_ratios(heavy_tail)
+```
+
+The upper quantiles climb steeply, a small fraction of ratios exceed ten, and
+the effective sample size fraction falls to roughly a fifth of the observations.
+The estimate for this policy rests on a much smaller effective sample than the
+raw count suggests, and it is sensitive to the handful of subjects carrying the
+largest weights.
+
+The `autoplot()` method draws the distribution of the raw ratios. The long
+right tail is the visual counterpart of the collapsed effective sample size.
+
+```{r heavy-tail-plot, fig.alt = "Histogram of hand-built density ratios with a long right tail extending well above the bulk of the distribution near one."}
+result <- check_density_ratios(heavy_tail)
+ggplot2::autoplot(result, type = "distribution")
+```
+
+## A mean below one signals leaked support
+
+A mean visibly below one is informative in its own right. It marks a structural
+violation in which intervention probability mass falls outside the observed
+support, so some ratios are exactly zero. The following ratios are rescaled to
+mean one and then have a block of values set to zero, mimicking subjects for
+whom the shifted treatment is never observed.
+
+```{r degenerate}
+set.seed(1)
+degenerate <- rlnorm(500, meanlog = 0, sdlog = 0.5)
+degenerate <- degenerate / mean(degenerate)
+degenerate[sample(500, 40)] <- 0
+
+check_density_ratios(degenerate)
+```
+
+The mean now prints below one. The proportion of exact-zero ratios is reported
+as the `prop_zero` statistic, which the long summary from `tidy()` exposes
+directly.
+
+```{r degenerate-tidy}
+summary <- tidy(check_density_ratios(degenerate))
+summary[summary$statistic == "prop_zero", ]
+```
+
+## Time-varying treatments and cumulative products
+
+For a time-varying treatment, supply one column per time point. The diagnostic
+summarizes the per-time ratios and also their cumulative product across time
+points, which is the density ratio of the whole treatment history. Mild
+per-step non-overlap compounds multiplicatively, so the cumulative effective
+sample size can fall even while each per-time fraction stays healthy.
+
+```{r matrix}
+set.seed(20260706)
+per_time <- replicate(3, {
+  ratios <- rlnorm(800, meanlog = 0, sdlog = 0.8)
+  ratios / mean(ratios)
+})
+
+longitudinal <- check_density_ratios(per_time)
+longitudinal
+```
+
+The printed per-time effective sample size fraction is moderate, but the
+cumulative fraction is far lower: the three per-step distributions multiply into
+a history weight with a much heavier tail. `glance()` returns the headline
+cumulative statistics in one row.
+
+```{r matrix-glance}
+glance(longitudinal)
+```
+
+The `type = "cumulative"` plot shows the cumulative-product quantiles across
+time points. The gap between the upper quantiles and the median widens with each
+step, which is the sequential positivity signature.
+
+```{r matrix-plot, fig.alt = "Cumulative-product quantiles of density ratios across three time points, with upper quantiles rising away from the median as time increases."}
+ggplot2::autoplot(longitudinal, type = "cumulative")
+```
+
+## A fitted longitudinal policy with lmtp
+
+In practice the ratios come from a fitted model. The lmtp package
+estimates modified treatment policy effects and stores the estimated density
+ratios in the fitted object. The chunk below is gated on lmtp being
+installed, so the vignette builds either way.
+
+The model fits a shift intervention that lowers each time-varying treatment by
+one unit, on the `sim_t4` example data. The settings are chosen for a fast
+demonstration: a subset of the rows, two cross-fitting folds, and a single
+generalized linear learner. A serious analysis would use more folds and a
+richer learner library.
+
+```{r lmtp, eval = requireNamespace("lmtp", quietly = TRUE)}
+library(lmtp)
+
+set.seed(20260706)
+demo_data <- head(sim_t4, 300)
+treatments <- c("A_1", "A_2", "A_3", "A_4")
+covariates <- list("L_1", "L_2", "L_3", "L_4")
+
+shift_down <- function(data, trt) pmax(data[[trt]] - 1, 0)
+
+fit <- lmtp_sdr(
+  demo_data,
+  trt = treatments,
+  outcome = "Y",
+  time_vary = covariates,
+  shift = shift_down,
+  outcome_type = "binomial",
+  folds = 2,
+  learners_trt = "SL.glm",
+  learners_outcome = "SL.glm"
+)
+
+check_density_ratios(fit)
+```
+
+Passing the fit reads its density-ratio component and produces the same
+summaries as a hand-built matrix. The per-time effective sample size fraction
+describes the overlap at the final time point, while the cumulative fraction
+describes the overlap for the full four-step history. A large gap between them
+points to sequential positivity strain that no single time point reveals.
+
+```{r lmtp-plot, eval = requireNamespace("lmtp", quietly = TRUE), fig.alt = "Cumulative-product quantiles of lmtp density ratios across four time points, showing the spread of the history weight widening over time."}
+ggplot2::autoplot(check_density_ratios(fit), type = "cumulative")
+```
+
+## Inverse-probability weights from a propensity model
+
+Inverse-probability weights for a binary treatment are also density ratios: they
+reweight each treatment arm toward a target population. `check_density_ratios()`
+accepts a `propensity::psw` vector, so weights from a fitted
+propensity model can be inspected with the same summaries. The example uses the
+`nhefs_weights` data from the halfmoon package, gated on that package being
+installed.
+
+```{r nhefs, eval = requireNamespace("halfmoon", quietly = TRUE)}
+library(halfmoon)
+
+check_density_ratios(nhefs_weights$w_ate)
+```
+
+Average treatment effect weights use a different normalization from a
+mean-one modified treatment policy ratio, so their mean is near two rather than
+one. The informative quantities are the same as before: the upper tail and the
+Kish effective sample size fraction, which report how concentrated the weights
+are and how much of the sample they leave effective.
+
+## Where to go next
+
+The *Getting started with positively* vignette introduces `check_positivity()`
+and the diagnostics it composes for point treatments. `check_density_ratios()`
+sits outside that entry point because it requires user-supplied ratios, but it
+reads and plots through the same `tidy()`, `glance()`, and `autoplot()`
+interface as every other diagnostic in the package.
+
+## References
+
+Petersen ML, Porter KE, Gruber S, Wang Y, van der Laan MJ (2012). Diagnosing and
+Responding to Violations in the Positivity Assumption. *Statistical Methods in
+Medical Research*, 21(1):31-54.
+[doi:10.1177/0962280210386207](https://doi.org/10.1177/0962280210386207)
+
+Ring C, Schomaker M (2026). A Diagnostic to Find and Help Combat Stochastic
+Positivity Issues, with a Focus on Continuous Treatments.
