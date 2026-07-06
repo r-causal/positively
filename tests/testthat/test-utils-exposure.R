@@ -57,10 +57,10 @@ test_that("match_exposure_type() rejects an unknown type", {
 
 test_that("a 0/1 exposure with NA is detected as categorical", {
   withr::local_options(positively.quiet = TRUE)
-  # This mirrors propensity exactly: the NA becomes a third unique value, so at
-  # a realistic n the unique-value ratio sends the vector down the categorical
-  # branch. The behavior is locked here on purpose; changing it would diverge
-  # from the propensity idiom the design doc mandates.
+  # The NA becomes a third unique value, so at a realistic n the unique-value
+  # ratio sends the vector down the categorical branch. This deliberately
+  # mirrors propensity's detection behavior; do not change one without the
+  # other.
   exposure <- c(rep(0, 250), rep(1, 249), NA)
   expect_identical(detect_exposure_type(exposure), "categorical")
 })

@@ -1,7 +1,6 @@
-# The validate_* helpers named in the design doc are validate_data_frame(),
-# validate_column_selection(), and validate_prob(). They mirror halfmoon's
-# validation catalogue: a classed positively_error on failure, the input
-# returned invisibly on success.
+# The validate_* helpers share one contract, mirroring halfmoon's validation
+# catalogue: a classed positively_error on failure, the input returned
+# invisibly on success.
 
 test_that("validate_data_frame() accepts a data frame", {
   data <- tibble::tibble(a = 1:3)
