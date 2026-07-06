@@ -1,0 +1,110 @@
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+# positively
+
+<!-- badges: start -->
+
+[![Lifecycle:
+experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+<!-- badges: end -->
+
+positively provides diagnostics for positivity violations and
+extrapolation in causal inference. Causal effect estimates rest on the
+positivity assumption: every unit must have a non-zero probability of
+receiving each level of the exposure within every stratum of the
+covariates. Where that probability is zero, or close to it, an estimate
+comes from the model extrapolating rather than from observed
+comparisons. positively is the positivity and extrapolation member of
+the r-causal family, alongside propensity for weighting and halfmoon for
+balance. It reports diagnostics only: each function returns a tidy
+result object and an optional plot, and the judgment of what to do is
+left to you.
+
+## Installation
+
+positively is not yet on CRAN. You can install the development version
+from [GitHub](https://github.com/r-causal/positively) with:
+
+``` r
+# install.packages("pak")
+pak::pak("r-causal/positively")
+```
+
+## Example
+
+`check_positivity()` is the general entry point. Give it a data frame,
+an exposure column, and the covariates, and it detects the exposure type
+and runs the diagnostics appropriate to that type. The bundled
+`pos_violations` dataset has two positivity problems planted in it: a
+structural subgroup that is never exposed, and a practical
+near-violation where the fitted propensity approaches zero or one in the
+tails of `x1`.
+
+``` r
+library(positively)
+
+check <- check_positivity(pos_violations, exposure, c(x1, x2, region))
+#> ℹ Treating `.exposure` as binary
+check
+#> 
+#> ── Positivity check ────────────────────────────────────────────────────────────
+#> 
+#> ── edp ──
+#> 
+#> ── edp_result ──────────────────────────────────────────────────────────────────
+#> Exposure: "exposure" (binary)
+#> Observations: 1000
+#> Variant: data
+#> Intervention values: 2
+#> edp range: 0.013 to 144.662
+#> 
+#> ── port ──
+#> 
+#> ── port_result ─────────────────────────────────────────────────────────────────
+#> Exposure: "exposure" (binary)
+#> Observations: 1000
+#> Reading rule: alpha = 0.05, gamma = 2
+#> Prevalence threshold beta: 0.05
+#> Subgroups: 231 reported, 3 flagged
+#> 
+#> ── extrapolation ──
+#> 
+#> ── extrapolation_result ────────────────────────────────────────────────────────
+#> Exposure: "exposure" (binary)
+#> Observations: 1000
+#> Geometric variability: 0.144
+#> Nearby radius (1 x gv): 0.144
+#> Mean fraction nearby: 0.284
+#> Nearest opposite within one geometric variability: 999 of 1000
+#> In opposite-group hull: 784 of 1000
+```
+
+The positivity regression tree (`port`) reports each problem as a rule
+over the covariates. Its plot draws every reported subgroup as a bar of
+exposure prevalence, with dashed reference lines at `beta` and
+`1 - beta` and the flagged subgroups highlighted.
+
+``` r
+library(ggplot2)
+
+port <- check_port(pos_violations, exposure, c(x1, x2, region))
+#> ℹ Treating `.exposure` as binary
+autoplot(port)
+```
+
+<img src="man/figures/README-port-plot-1.png" alt="Horizontal bar chart of exposure prevalence for each PoRT subgroup, with flagged subgroups highlighted near prevalence zero and one." width="100%" />
+
+The three flagged subgroups match the planted ground truth. One rule
+combining `region` and `x2` has an exposure prevalence of zero, the
+structural violation, and two `x1` rules in the lower and upper tails
+have prevalence near zero and one, the practical near-violation.
+positively locates these regions without grading them; the
+interpretation is yours.
+
+## Learn more
+
+- Getting started: `vignette("positively")` walks through
+  `check_positivity()` from end to end.
+- The [package documentation](https://r-causal.github.io/positively/)
+  holds the full reference and articles.
