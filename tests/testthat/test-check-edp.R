@@ -1,0 +1,1042 @@
+# EDP ("effective data points") sums a product kernel over the sample for each
+# intervened-on observation o_int = (l_i, a*): covariates held at their own
+# values, exposure set to the intervention value. Each dimension contributes a
+# factor in [0, 1]:
+#   continuous dimension, half-distance h : 0.5 ^ ((delta / h) ^ 2)
+#                                           (1 at delta 0, exactly 0.5 at |delta| = h)
+#   categorical dimension                 : 1 on a match, else categorical_similarity
+# so 0 <= edp <= n. Binary and categorical exposure dimensions use the match /
+# similarity kernel; only continuous exposures use the half-distance kernel.
+# Numeric covariates are continuous dimensions, factor and character covariates
+# are categorical dimensions. The fixed data-variant results columns are
+# .id / value / edp; the estimator variant replaces edp with edp_outcome /
+# edp_treatment / ideal_weight. EDP is meaningful relative across observations
+# for a fixed covariate set, never against a universal threshold, so magnitude
+# claims are anchored to hand computations or to stratum-versus-stratum ratios.
+
+local_quiet <- function(.env = parent.frame()) {
+  withr::local_options(positively.quiet = TRUE, .local_envir = .env)
+}
+
+# ---- Scenario generators --------------------------------------------------
+
+# Fixed-density Gaussian exposure with an independent Gaussian covariate. a* = 0
+# is well supported; a* = 4 sits four standard deviations from all support.
+sim_edp_gaussian <- function(n, seed = 1) {
+  withr::local_seed(seed)
+  tibble::tibble(exposure = stats::rnorm(n), x1 = stats::rnorm(n))
+}
+
+# The "divided" regime: the exposure clusters near 0.2 for l = 0 and near 0.8
+# for l = 1, so a* = 0.2 is supported within the l = 0 stratum and unsupported
+# within the l = 1 stratum.
+sim_edp_divided <- function(n, seed = 1) {
+  withr::local_seed(seed)
+  l <- stats::rbinom(n, 1L, 0.3)
+  a <- ifelse(
+    l == 1L,
+    stats::rnorm(n, 0.8, 0.1),
+    stats::rnorm(n, 0.2, 0.1)
+  )
+  tibble::tibble(exposure = a, l = l)
+}
+
+# Binary exposure with a structural boundary on a continuous covariate: nobody
+# with x1 > 1.5 is ever treated, so the deep region x1 > 2.5 has little support
+# for a* = 1.
+sim_edp_structural <- function(n, seed = 1) {
+  withr::local_seed(seed)
+  x1 <- stats::rnorm(n)
+  ps <- stats::plogis(0.5 * x1)
+  ps[x1 > 1.5] <- 0
+  exposure <- stats::rbinom(n, 1L, ps)
+  tibble::tibble(exposure = exposure, x1 = x1)
+}
+
+# Binary exposure with a categorical covariate subgroup (s == "s1") that is
+# never treated. At a* = 1 this subgroup has zero support once non-matching
+# categories contribute zero.
+sim_edp_masking <- function(n, seed = 1) {
+  withr::local_seed(seed)
+  s <- factor(sample(c("s0", "s1"), n, replace = TRUE))
+  ps <- ifelse(s == "s1", 0, 0.5)
+  exposure <- stats::rbinom(n, 1L, ps)
+  tibble::tibble(exposure = exposure, s = s)
+}
+
+# Three-level categorical exposure where level 2 is absent when z2 > 1.
+sim_edp_categorical <- function(n, seed = 1) {
+  withr::local_seed(seed)
+  z2 <- stats::rnorm(n)
+  base <- sample(0:2, n, replace = TRUE)
+  base[z2 > 1 & base == 2L] <- 0L
+  tibble::tibble(exposure = factor(base), z2 = z2)
+}
+
+# Continuous exposure that tracks a covariate: g(a* | l) shrinks as l moves away
+# from a*, which drives ideal_weight up where support is thin.
+sim_edp_estimator <- function(n, seed = 1) {
+  withr::local_seed(seed)
+  l <- stats::rnorm(n)
+  a <- stats::rnorm(n, mean = l, sd = 0.5)
+  tibble::tibble(exposure = a, l = l)
+}
+
+# A g-model-only covariate g with an isolated subgroup eight standard deviations
+# out. Placed in the treatment set only, it starves edp_treatment there while
+# edp_outcome (which excludes g) stays high.
+sim_edp_asymmetric <- function(n, seed = 1) {
+  withr::local_seed(seed)
+  l <- stats::rnorm(n)
+  a <- stats::rnorm(n, mean = l, sd = 0.5)
+  g <- stats::rnorm(n)
+  idx <- sample(n, 20L)
+  g[idx] <- g[idx] + 8
+  tibble::tibble(
+    exposure = a,
+    l = l,
+    g = g,
+    subgroup = seq_len(n) %in% idx
+  )
+}
+
+# ---- Argument validation --------------------------------------------------
+
+test_that("check_edp() rejects non-data-frame input", {
+  expect_error(
+    check_edp(1:10, exposure, x1),
+    class = "positively_error"
+  )
+})
+
+test_that("check_edp() rejects an empty covariate selection", {
+  data <- sim_edp_gaussian(60)
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      tidyselect::starts_with("zzz"),
+      exposure_type = "continuous"
+    ),
+    class = "positively_error"
+  )
+})
+
+test_that("check_edp() requires a single exposure column", {
+  data <- sim_edp_gaussian(60)
+  expect_error(
+    check_edp(data, c(exposure, x1), x1, exposure_type = "continuous"),
+    class = "positively_error"
+  )
+})
+
+test_that("check_edp() rejects a categorical_similarity outside the unit interval", {
+  data <- sim_edp_gaussian(60)
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      categorical_similarity = -0.1,
+      exposure_type = "continuous"
+    ),
+    class = "positively_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      categorical_similarity = 1.5,
+      exposure_type = "continuous"
+    ),
+    class = "positively_error"
+  )
+})
+
+test_that("check_edp() rejects a non-numeric or non-scalar categorical_similarity", {
+  data <- sim_edp_gaussian(60)
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      categorical_similarity = "x",
+      exposure_type = "continuous"
+    ),
+    class = "positively_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      categorical_similarity = c(0, 1),
+      exposure_type = "continuous"
+    ),
+    class = "positively_error"
+  )
+})
+
+test_that("check_edp() rejects a negative, non-numeric, or non-scalar bw_exposure", {
+  data <- sim_edp_gaussian(60)
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      bw_exposure = -1,
+      exposure_type = "continuous"
+    ),
+    class = "positively_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      bw_exposure = "1",
+      exposure_type = "continuous"
+    ),
+    class = "positively_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      bw_exposure = c(1, 2),
+      exposure_type = "continuous"
+    ),
+    class = "positively_error"
+  )
+})
+
+test_that("check_edp() rejects a negative bw_covariates", {
+  data <- sim_edp_gaussian(60)
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      bw_covariates = -1,
+      exposure_type = "continuous"
+    ),
+    class = "positively_error"
+  )
+})
+
+test_that("check_edp() aborts on missing exposure or covariate values", {
+  data <- sim_edp_gaussian(60)
+
+  na_exposure <- data
+  na_exposure$exposure[1] <- NA
+  expect_error(
+    check_edp(na_exposure, exposure, x1, exposure_type = "continuous"),
+    class = "positively_error"
+  )
+
+  na_covariate <- data
+  na_covariate$x1[1] <- NA
+  expect_error(
+    check_edp(na_covariate, exposure, x1, exposure_type = "continuous"),
+    class = "positively_error"
+  )
+})
+
+test_that("check_edp() aborts on fewer than two observations", {
+  data <- tibble::tibble(exposure = 0.5, x1 = -0.2)
+  expect_error(
+    check_edp(data, exposure, x1, exposure_type = "continuous"),
+    class = "positively_error"
+  )
+})
+
+test_that("check_edp() rejects an unknown variant or kernel", {
+  data <- sim_edp_gaussian(60)
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      variant = "bogus",
+      exposure_type = "continuous"
+    ),
+    class = "rlang_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      kernel = "bogus",
+      exposure_type = "continuous"
+    ),
+    class = "rlang_error"
+  )
+})
+
+# ---- Result class and structure -------------------------------------------
+
+test_that("check_edp() returns an edp_result diagnostic", {
+  data <- sim_edp_gaussian(150)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+
+  expect_true(S7::S7_inherits(res, positivity_diagnostic))
+  expect_identical(S7::S7_class(res)@name, "edp_result")
+  expect_identical(res@exposure_type, "continuous")
+  expect_identical(res@n, 150L)
+})
+
+test_that("the data variant carries the fixed results columns and variant property", {
+  data <- sim_edp_gaussian(150)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+
+  expect_s3_class(res@results, "tbl_df")
+  expect_setequal(names(res@results), c(".id", "value", "edp"))
+  expect_type(res@results$edp, "double")
+  expect_identical(nrow(res@results), 2L * 150L)
+  expect_identical(res@variant, "data")
+  expect_type(res@bandwidths, "list")
+})
+
+test_that("nrow scales as n times the number of intervention values", {
+  data <- sim_edp_gaussian(120)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(-1, 0, 1),
+    exposure_type = "continuous"
+  )
+  expect_identical(nrow(res@results), 3L * 120L)
+  expect_setequal(unique(res@results$value), c(-1, 0, 1))
+})
+
+test_that("the continuous default grid spans several intervention values", {
+  data <- sim_edp_gaussian(100)
+  res <- check_edp(data, exposure, x1, exposure_type = "continuous")
+
+  expect_gt(length(unique(res@results$value)), 1)
+  expect_identical(
+    nrow(res@results),
+    length(unique(res@results$value)) * 100L
+  )
+})
+
+test_that("check_edp() accepts a binary exposure with all levels by default", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200, seed = 1)
+  res <- check_edp(data, exposure, c(x1, x2))
+
+  expect_identical(res@exposure_type, "binary")
+  expect_identical(nrow(res@results), 2L * 200L)
+})
+
+test_that("check_edp() accepts a categorical exposure with all levels by default", {
+  data <- sim_edp_categorical(300)
+  res <- check_edp(data, exposure, z2, exposure_type = "categorical")
+
+  expect_identical(res@exposure_type, "categorical")
+  expect_identical(nrow(res@results), 3L * 300L)
+})
+
+test_that("the estimator variant swaps in the outcome and treatment columns", {
+  data <- sim_edp_gaussian(150)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    variant = "estimator",
+    values = 0,
+    exposure_type = "continuous"
+  )
+
+  expect_setequal(
+    names(res@results),
+    c(".id", "value", "edp_outcome", "edp_treatment", "ideal_weight")
+  )
+  expect_false("edp" %in% names(res@results))
+  expect_identical(res@variant, "estimator")
+})
+
+test_that("tidy() and glance() follow the shared diagnostic contract", {
+  data <- sim_edp_gaussian(100)
+  res <- check_edp(data, exposure, x1, values = 0, exposure_type = "continuous")
+
+  expect_identical(generics::tidy(res), res@results)
+  glanced <- generics::glance(res)
+  expect_s3_class(glanced, "tbl_df")
+  expect_identical(nrow(glanced), 1L)
+})
+
+# ---- Exact kernel identities ----------------------------------------------
+
+test_that("the half-distance kernel gives k(0) = 1 and k(h) = 0.5", {
+  # A constant covariate contributes a factor of 1 to every pair, isolating the
+  # exposure kernel. obs a = c(0, 1); h = 1; a* = 0 gives edp = 1 + 0.5.
+  data <- tibble::tibble(exposure = c(0, 1), x1 = c(0, 0))
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    bw_exposure = 1,
+    bw_covariates = 1,
+    values = 0,
+    exposure_type = "continuous"
+  )
+
+  expect_equal(unique(res@results$edp), 1.5, tolerance = 1e-8)
+})
+
+test_that("edp matches the hand-computed single-dimension sum", {
+  # obs a = c(0, 1, 2, 5); h = 1; a* = 0. Weights 1, 0.5, 0.0625, ~3e-8 sum to
+  # 1.5625. The constant covariate contributes 1 throughout.
+  data <- tibble::tibble(exposure = c(0, 1, 2, 5), x1 = c(0, 0, 0, 0))
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    bw_exposure = 1,
+    bw_covariates = 1,
+    values = 0,
+    exposure_type = "continuous"
+  )
+
+  expect_equal(unique(res@results$edp), 1.5625, tolerance = 1e-6)
+})
+
+test_that("edp matches the hand-computed two-dimension product", {
+  # covariate x1 with h = 1, exposure with h = 0.5. obs (x1, a) =
+  # (0, 0), (0, 1), (1, 0); a* = 0.5. The two x1 = 0 rows give edp = 1.25, the
+  # x1 = 1 row gives 1.0.
+  data <- tibble::tibble(exposure = c(0, 1, 0), x1 = c(0, 0, 1))
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    bw_exposure = 0.5,
+    bw_covariates = 1,
+    values = 0.5,
+    exposure_type = "continuous"
+  )
+
+  edp <- res@results$edp[order(res@results$.id)]
+  expect_equal(edp[1], 1.25, tolerance = 1e-8)
+  expect_equal(edp[2], 1.25, tolerance = 1e-8)
+  expect_equal(edp[3], 1.0, tolerance = 1e-8)
+})
+
+test_that("edp is bounded in [0, n] for arbitrary input", {
+  data <- sim_edp_gaussian(80, seed = 3)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 4),
+    exposure_type = "continuous"
+  )
+
+  expect_true(all(res@results$edp >= 0))
+  expect_true(all(res@results$edp <= res@n))
+})
+
+# ---- Bandwidth limits and monotonicity ------------------------------------
+
+test_that("a very large bandwidth drives edp to n", {
+  data <- sim_edp_gaussian(100, seed = 2)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    bw_exposure = 1e6,
+    bw_covariates = 1e6,
+    values = 0,
+    exposure_type = "continuous"
+  )
+
+  expect_equal(mean(res@results$edp), res@n, tolerance = 0.5)
+})
+
+test_that("a zero bandwidth counts exact matches", {
+  # a* = 0 with a constant matching covariate counts observed exposures equal to
+  # zero: one for the distinct grid, two once a duplicate is added.
+  distinct <- tibble::tibble(exposure = c(0, 1, 2, 5), x1 = c(0, 0, 0, 0))
+  res_distinct <- check_edp(
+    distinct,
+    exposure,
+    x1,
+    bw_exposure = 0,
+    bw_covariates = 1,
+    values = 0,
+    exposure_type = "continuous"
+  )
+  expect_true(all(res_distinct@results$edp == 1))
+
+  duplicated <- tibble::tibble(exposure = c(0, 0, 1, 2), x1 = c(0, 0, 0, 0))
+  res_duplicated <- check_edp(
+    duplicated,
+    exposure,
+    x1,
+    bw_exposure = 0,
+    bw_covariates = 1,
+    values = 0,
+    exposure_type = "continuous"
+  )
+  expect_true(all(res_duplicated@results$edp == 2))
+})
+
+test_that("mean edp is nondecreasing as the exposure bandwidth grows", {
+  data <- sim_edp_gaussian(200, seed = 1)
+  bws <- c(0.1, 0.25, 0.5, 1, 2, 4)
+  edp_means <- vapply(
+    bws,
+    function(h) {
+      res <- check_edp(
+        data,
+        exposure,
+        x1,
+        bw_exposure = h,
+        bw_covariates = 1,
+        values = 0,
+        exposure_type = "continuous"
+      )
+      mean(res@results$edp)
+    },
+    numeric(1)
+  )
+
+  expect_true(all(diff(edp_means) >= -1e-9))
+})
+
+test_that("a steeper kernel sharpens a far-off violation toward zero", {
+  data <- sim_edp_gaussian(200, seed = 1)
+  bws <- c(2, 1, 0.5, 0.25)
+  edp_medians <- vapply(
+    bws,
+    function(h) {
+      res <- check_edp(
+        data,
+        exposure,
+        x1,
+        bw_exposure = h,
+        bw_covariates = 1,
+        values = 4,
+        exposure_type = "continuous"
+      )
+      stats::median(res@results$edp)
+    },
+    numeric(1)
+  )
+
+  expect_true(all(diff(edp_medians) < 0))
+  expect_lt(edp_medians[length(edp_medians)], 0.5)
+})
+
+# ---- Behavioural separation -----------------------------------------------
+
+test_that("good binary overlap keeps every subject away from zero support", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 1000, seed = 1)
+  res <- check_edp(data, exposure, c(x1, x2), values = 1)
+
+  expect_gt(min(res@results$edp), 1)
+  expect_gt(stats::quantile(res@results$edp, 0.05), 5)
+})
+
+test_that("a stratified continuous violation collapses the unsupported stratum", {
+  data <- sim_edp_divided(350, seed = 1)
+  res <- check_edp(
+    data,
+    exposure,
+    l,
+    values = 0.2,
+    exposure_type = "continuous"
+  )
+
+  l_by_id <- data$l[res@results$.id]
+  supported <- stats::median(res@results$edp[l_by_id == 0])
+  unsupported <- stats::median(res@results$edp[l_by_id == 1])
+
+  expect_lt(unsupported, 0.10 * supported)
+})
+
+test_that("a continuous structural boundary starves the deep region", {
+  data <- sim_edp_structural(1000, seed = 1)
+  res <- check_edp(data, exposure, x1, values = 1)
+
+  x1_by_id <- data$x1[res@results$.id]
+  deep <- res@results$edp[x1_by_id > 2.5]
+  bulk <- res@results$edp[abs(x1_by_id) < 0.5]
+
+  # A continuous boundary degrades support gradually, so the deep region sits
+  # well below the bulk median rather than exactly at zero.
+  expect_lt(max(deep), 0.3 * stats::median(bulk))
+})
+
+test_that("a never-treated categorical subgroup reads as zero at c = 0", {
+  data <- sim_edp_masking(600, seed = 1)
+  res <- check_edp(data, exposure, s, values = 1, categorical_similarity = 0)
+
+  subgroup <- data$s[res@results$.id] == "s1"
+  expect_equal(stats::median(res@results$edp[subgroup]), 0)
+})
+
+test_that("a positive similarity masks the categorical violation", {
+  data <- sim_edp_masking(600, seed = 1)
+  res <- check_edp(data, exposure, s, values = 1, categorical_similarity = 0.5)
+
+  subgroup <- data$s[res@results$.id] == "s1"
+  supported <- data$s[res@results$.id] == "s0"
+  masked <- stats::median(res@results$edp[subgroup])
+
+  expect_gt(masked, 100)
+  expect_gt(masked, 0.5 * stats::median(res@results$edp[supported]))
+})
+
+# ---- n-scaling ------------------------------------------------------------
+
+test_that("edp per n is stable and edp scales roughly linearly with n", {
+  ns <- c(100L, 400L, 1600L)
+  supported <- vapply(
+    ns,
+    function(nn) {
+      res <- check_edp(
+        sim_edp_gaussian(nn, seed = 1),
+        exposure,
+        x1,
+        values = 0,
+        exposure_type = "continuous"
+      )
+      stats::median(res@results$edp)
+    },
+    numeric(1)
+  )
+
+  edp_per_n <- supported / ns
+  expect_lt(stats::sd(edp_per_n) / mean(edp_per_n), 0.15)
+  expect_gt(supported[2] / supported[1], 3.0)
+  expect_lt(supported[2] / supported[1], 5.0)
+})
+
+test_that("a violation point stays at negligible edp per n across n", {
+  ns <- c(100L, 400L, 1600L)
+  violated <- vapply(
+    ns,
+    function(nn) {
+      res <- check_edp(
+        sim_edp_gaussian(nn, seed = 1),
+        exposure,
+        x1,
+        values = 4,
+        exposure_type = "continuous"
+      )
+      stats::median(res@results$edp) / nn
+    },
+    numeric(1)
+  )
+
+  expect_true(all(violated < 0.01))
+})
+
+# ---- Estimator variant ----------------------------------------------------
+
+test_that("equal covariate sets guarantee edp_outcome <= edp_treatment", {
+  data <- sim_edp_gaussian(300, seed = 1)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    variant = "estimator",
+    values = 0,
+    exposure_type = "continuous"
+  )
+
+  expect_true(all(
+    res@results$edp_outcome <= res@results$edp_treatment + 1e-9
+  ))
+})
+
+test_that("ideal_weight is inversely related to treatment support", {
+  data <- sim_edp_estimator(500, seed = 1)
+  res <- check_edp(
+    data,
+    exposure,
+    l,
+    variant = "estimator",
+    values = 0,
+    exposure_type = "continuous"
+  )
+  d <- res@results
+
+  expect_lt(stats::cor(log(d$ideal_weight), d$edp_treatment), 0)
+
+  cuts <- stats::quantile(d$edp_treatment, c(0.1, 0.9))
+  low_support <- d$ideal_weight[d$edp_treatment <= cuts[1]]
+  high_support <- d$ideal_weight[d$edp_treatment >= cuts[2]]
+  expect_gt(stats::median(low_support), stats::median(high_support))
+})
+
+test_that("a g-model-only violation drives edp_treatment below edp_outcome", {
+  data <- sim_edp_asymmetric(400, seed = 1)
+  res <- check_edp(
+    data,
+    exposure,
+    l,
+    .outcome_covariates = l,
+    .treatment_covariates = c(l, g),
+    variant = "estimator",
+    values = 0,
+    exposure_type = "continuous"
+  )
+
+  subgroup <- data$subgroup[res@results$.id]
+  expect_lt(
+    stats::median(res@results$edp_treatment[subgroup]),
+    0.2 * stats::median(res@results$edp_outcome[subgroup])
+  )
+})
+
+# ---- Autoplot contract ----------------------------------------------------
+
+test_that("autoplot() returns a ggplot for each data-variant type", {
+  data <- sim_edp_gaussian(150)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+
+  expect_s3_class(ggplot2::autoplot(res, type = "histogram"), "ggplot")
+  expect_s3_class(ggplot2::autoplot(res, type = "ecdf"), "ggplot")
+})
+
+test_that("the estimator scatter view is a ggplot and aborts for the data variant", {
+  data <- sim_edp_gaussian(150)
+  estimator <- check_edp(
+    data,
+    exposure,
+    x1,
+    variant = "estimator",
+    values = 0,
+    exposure_type = "continuous"
+  )
+  expect_s3_class(ggplot2::autoplot(estimator, type = "scatter"), "ggplot")
+
+  plain <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = 0,
+    exposure_type = "continuous"
+  )
+  expect_error(
+    ggplot2::autoplot(plain, type = "scatter"),
+    class = "positively_error"
+  )
+})
+
+# ---- Value and estimator-selection validation -----------------------------
+
+test_that("check_edp() validates a user-supplied intervention-value grid", {
+  data <- sim_edp_gaussian(60)
+
+  expect_error(
+    check_edp(data, exposure, x1, values = "a", exposure_type = "continuous"),
+    class = "positively_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = c(0, NA),
+      exposure_type = "continuous"
+    ),
+    class = "positively_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = numeric(0),
+      exposure_type = "continuous"
+    ),
+    class = "positively_error"
+  )
+})
+
+test_that("check_edp() rejects empty estimator covariate selections", {
+  data <- sim_edp_gaussian(60)
+
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      .outcome_covariates = tidyselect::starts_with("zzz"),
+      variant = "estimator",
+      values = 0,
+      exposure_type = "continuous"
+    ),
+    class = "positively_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      .treatment_covariates = tidyselect::starts_with("zzz"),
+      variant = "estimator",
+      values = 0,
+      exposure_type = "continuous"
+    ),
+    class = "positively_error"
+  )
+})
+
+test_that("check_edp() warns when a supplied bandwidth reaches no continuous dimension", {
+  local_quiet()
+
+  binary <- dgp_good_positivity(n = 60, seed = 1)
+  expect_warning(
+    check_edp(binary, exposure, c(x1, x2), bw_exposure = 0.1),
+    class = "positively_warning"
+  )
+
+  categorical <- sim_edp_masking(60)
+  expect_warning(
+    check_edp(categorical, exposure, s, bw_covariates = 0.5),
+    class = "positively_warning"
+  )
+})
+
+# ---- Snapshots ------------------------------------------------------------
+
+test_that("the argument validation messages are stable", {
+  local_quiet()
+  data <- sim_edp_gaussian(60)
+
+  expect_snapshot(check_edp(1:10, exposure, x1), error = TRUE)
+  expect_snapshot(
+    check_edp(
+      data,
+      exposure,
+      tidyselect::starts_with("zzz"),
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(data, c(exposure, x1), x1, exposure_type = "continuous"),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      categorical_similarity = 1.5,
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      categorical_similarity = "x",
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      bw_exposure = -1,
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      bw_exposure = c(1, 2),
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      bw_covariates = -1,
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      variant = "bogus",
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      kernel = "bogus",
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+})
+
+test_that("the data-integrity error messages are stable", {
+  local_quiet()
+  data <- sim_edp_gaussian(60)
+
+  one_row <- tibble::tibble(exposure = 0.5, x1 = -0.2)
+  expect_snapshot(
+    check_edp(one_row, exposure, x1, exposure_type = "continuous"),
+    error = TRUE
+  )
+
+  na_exposure <- data
+  na_exposure$exposure[1] <- NA
+  expect_snapshot(
+    check_edp(na_exposure, exposure, x1, exposure_type = "continuous"),
+    error = TRUE
+  )
+
+  na_covariate <- data
+  na_covariate$x1[1] <- NA
+  expect_snapshot(
+    check_edp(na_covariate, exposure, x1, exposure_type = "continuous"),
+    error = TRUE
+  )
+})
+
+test_that("the value and estimator-selection error messages are stable", {
+  local_quiet()
+  data <- sim_edp_gaussian(60)
+
+  expect_snapshot(
+    check_edp(data, exposure, x1, values = "a", exposure_type = "continuous"),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = c(0, NA),
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = numeric(0),
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      .outcome_covariates = tidyselect::starts_with("zzz"),
+      variant = "estimator",
+      values = 0,
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      .treatment_covariates = tidyselect::starts_with("zzz"),
+      variant = "estimator",
+      values = 0,
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+})
+
+test_that("the unused-bandwidth warnings are stable", {
+  local_quiet()
+
+  binary <- dgp_good_positivity(n = 60, seed = 1)
+  expect_snapshot(
+    res <- check_edp(binary, exposure, c(x1, x2), bw_exposure = 0.1)
+  )
+
+  categorical <- sim_edp_masking(60)
+  expect_snapshot(
+    res <- check_edp(categorical, exposure, s, bw_covariates = 0.5)
+  )
+})
+
+test_that("the print method is stable", {
+  local_quiet()
+
+  continuous <- check_edp(
+    sim_edp_gaussian(150),
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+  expect_snapshot(print(continuous))
+
+  binary <- check_edp(
+    dgp_good_positivity(n = 200, seed = 1),
+    exposure,
+    c(x1, x2)
+  )
+  expect_snapshot(print(binary))
+
+  estimator <- check_edp(
+    sim_edp_gaussian(150),
+    exposure,
+    x1,
+    variant = "estimator",
+    values = 0,
+    exposure_type = "continuous"
+  )
+  expect_snapshot(print(estimator))
+})

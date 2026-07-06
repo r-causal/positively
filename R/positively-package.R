@@ -8,6 +8,7 @@
 #' @importFrom generics tidy
 #' @importFrom ggplot2 autoplot
 #' @importFrom purrr map
+#' @importFrom rlang %||%
 #' @importFrom rlang .data
 #' @importFrom rlang caller_env
 #' @importFrom rpart rpart
