@@ -392,6 +392,52 @@ test_that("printing the container names each diagnostic section", {
   expect_output(print(res), "extrapolation")
 })
 
+# ---- Extracting a child diagnostic ----------------------------------------
+
+test_that("[[ extracts the identical child diagnostic object by name", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  res <- check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = c("port", "extrapolation")
+  )
+  expect_identical(res[["port"]], child_named(res, "port"))
+  expect_identical(res[["extrapolation"]], child_named(res, "extrapolation"))
+})
+
+test_that("autoplot works on an extracted child", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  res <- check_positivity(data, exposure, c(x1, x2), diagnostics = "port")
+  expect_s3_class(ggplot2::autoplot(res[["port"]]), "ggplot")
+})
+
+test_that("[[ aborts on an unknown diagnostic name", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  res <- check_positivity(data, exposure, c(x1, x2), diagnostics = "port")
+  expect_error(res[["nonexistent"]], class = "positively_error")
+})
+
+test_that("names() returns the composed diagnostic names", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  res <- check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = c("port", "extrapolation")
+  )
+  expect_identical(names(res), c("port", "extrapolation"))
+})
+
+test_that("names() on an empty container is character(0)", {
+  empty <- positivity_check(checks = list(), diagnostics = character(0))
+  expect_identical(names(empty), character(0))
+})
+
 # ---- Classed errors -------------------------------------------------------
 
 test_that("an unknown diagnostic name aborts", {
@@ -575,6 +621,11 @@ test_that("the classed errors are stable", {
   res <- check_positivity(data, exposure, c(x1, x2), diagnostics = "port")
   expect_snapshot(
     generics::tidy(res, diagnostic = "nonexistent"),
+    error = TRUE
+  )
+  # [[ rejects an unknown diagnostic name.
+  expect_snapshot(
+    res[["nonexistent"]],
     error = TRUE
   )
 })

@@ -142,3 +142,12 @@
       ! `diagnostic` must name a diagnostic in this container.
       i Available diagnostics are "port".
 
+---
+
+    Code
+      res[["nonexistent"]]
+    Condition
+      Error in `res[["nonexistent"]]`:
+      ! "nonexistent" is not a diagnostic in this container.
+      i Available diagnostics are "port".
+

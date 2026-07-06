@@ -4,6 +4,8 @@
 \alias{positivity_check}
 \alias{tidy,positively::positivity_check-method}
 \alias{glance,positively::positivity_check-method}
+\alias{[[,positively::positivity_check-method}
+\alias{names,positively::positivity_check-method}
 \title{A container for a set of positivity diagnostics}
 \usage{
 positivity_check(checks = list(), diagnostics = character(0))

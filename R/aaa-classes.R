@@ -156,3 +156,30 @@ method(print, positivity_check) <- function(x, ...) {
   }
   invisible(x)
 }
+
+#' @rdname positivity_check
+#' @usage NULL
+#' @order 4
+method(`[[`, positivity_check) <- function(x, i, ...) {
+  if (is.character(i)) {
+    idx <- match(i, x@diagnostics)
+    if (length(i) != 1 || is.na(idx)) {
+      abort(
+        c(
+          "{.val {i}} is not a diagnostic in this container.",
+          i = "Available diagnostics are {.val {x@diagnostics}}."
+        ),
+        error_class = "positively_diagnostic_error"
+      )
+    }
+    return(x@checks[[idx]])
+  }
+  x@checks[[i]]
+}
+
+#' @rdname positivity_check
+#' @usage NULL
+#' @order 5
+method(names, positivity_check) <- function(x) {
+  x@diagnostics
+}
