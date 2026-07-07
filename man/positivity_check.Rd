@@ -35,6 +35,9 @@ per child and the columns \code{diagnostic}, \code{statistic}, and \code{value};
 instead. \code{glance(x)} returns one row per diagnostic, prefixed with a
 \code{diagnostic} column, stacking each child's \code{\link[generics:glance]{generics::glance()}} row and
 filling any column a child lacks with \code{NA}.
+
+Extract a child diagnostic with \code{x[["port"]]}, and list the diagnostics the
+container holds with \code{names(x)}.
 }
 \examples{
 set.seed(1)
@@ -52,4 +55,8 @@ tidy(res, diagnostic = "port")
 
 # One row per diagnostic.
 glance(res)
+
+# List the diagnostics and extract one child.
+names(res)
+res[["port"]]
 }

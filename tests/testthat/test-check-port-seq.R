@@ -266,6 +266,98 @@ test_that("each facet shows its own resolved beta reference lines", {
   expect_gt(length(unique(vlines$xintercept)), 2)
 })
 
+# ---- Censoring autoplot -----------------------------------------------------
+
+test_that("the censoring run stores resolved per-time censoring thresholds", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring()
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    beta = "gruber",
+    cp = 0.01
+  )
+
+  # The censoring thresholds resolve from the censoring risk-set sizes, the
+  # subjects uncensored through the previous time point, which differ from the
+  # exposure risk-set sizes.
+  risk_sets <- c(
+    nrow(data),
+    sum(data$c1 == 0),
+    sum(data$c1 == 0 & data$c2 == 0)
+  )
+  expected <- 5 / (sqrt(risk_sets) * log(risk_sets))
+  expect_equal(res@censoring_beta, expected, tolerance = 1e-8)
+  expect_false(isTRUE(all.equal(res@censoring_beta, res@beta)))
+})
+
+test_that("autoplot on a censoring run facets by type", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring()
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    cp = 0.01
+  )
+
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(res))
+  # The facet layout carries the type column, so exposure and censoring
+  # subgroups occupy distinct panels.
+  expect_true("type" %in% names(built$layout$layout))
+  expect_setequal(unique(built$layout$layout$type), c("exposure", "censoring"))
+})
+
+test_that("censoring panels draw their own resolved reference lines", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring()
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    beta = "gruber",
+    cp = 0.01
+  )
+
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(res))
+  layout <- built$layout$layout
+  vlines <- built$data[[2]]
+
+  for (i in seq_len(nrow(layout))) {
+    panel <- layout$PANEL[[i]]
+    time <- layout$time[[i]]
+    beta_t <- if (layout$type[[i]] == "censoring") {
+      res@censoring_beta[[time]]
+    } else {
+      res@beta[[time]]
+    }
+    got <- sort(vlines$xintercept[vlines$PANEL == panel])
+    if (length(got) > 0 && is.finite(beta_t)) {
+      expect_equal(got, sort(c(beta_t, 1 - beta_t)), tolerance = 1e-8)
+    }
+  }
+})
+
+test_that("sPoRT censoring autoplot renders by type", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring()
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    cp = 0.01
+  )
+  expect_doppelganger(
+    "sPoRT censoring subgroups by type",
+    ggplot2::autoplot(res)
+  )
+})
+
 # ---- Degenerate risk sets (finding 5) -------------------------------------
 
 # Collect and muffle the risk-set warnings, since more than one wave may skip.
@@ -470,32 +562,67 @@ test_that("the censoring risk set shrinks as prior censoring accrues", {
   expect_true(all(diff(per_time_n) < 0))
 })
 
-test_that("supplying .censoring leaves the exposure trees unchanged", {
+test_that("supplying .censoring shrinks the exposure risk sets", {
   local_quiet()
   data <- dgp_longitudinal_binary_censoring()
 
-  without <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2))
+  without <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2), cp = 0.01)
   with_censoring <- check_port_seq(
     data,
     c(a1, a2, a3),
     list(l0, l1, l2),
-    .censoring = c(c1, c2, c3)
+    .censoring = c(c1, c2, c3),
+    cp = 0.01
   )
 
   # A run without censoring carries no type column and reports exposure rows.
   expect_false("type" %in% names(without@results))
 
-  # The exposure rows of the censoring run match the standalone run exactly.
+  # The largest reported subgroup at each time is the whole risk set, so the
+  # per-time size tracks the exposure risk set.
+  max_n <- function(rows) as.integer(tapply(rows$n, rows$time, max))
   exposure_rows <- with_censoring@results[
     with_censoring@results$type == "exposure",
     ,
     drop = FALSE
   ]
-  exposure_rows$type <- NULL
-  expect_equal(exposure_rows, without@results, ignore_attr = TRUE)
 
-  # The resolved per-time thresholds are the exposure risk-set thresholds.
-  expect_equal(with_censoring@beta, without@beta)
+  # Without censoring the exposure risk set is the regime followers alone.
+  followers <- c(nrow(data), sum(data$a1 == 0), sum(data$a2 == 0))
+  expect_identical(max_n(without@results), followers)
+
+  # With censoring the exposure risk set is the followers who are also
+  # uncensored through the previous time point, so it is strictly smaller from
+  # time 2 on and unchanged at time 1, which has no prior censoring.
+  followers_uncensored <- c(
+    nrow(data),
+    sum(data$a1 == 0 & data$c1 == 0),
+    sum(data$a2 == 0 & data$c1 == 0 & data$c2 == 0)
+  )
+  expect_identical(max_n(exposure_rows), followers_uncensored)
+  expect_identical(followers_uncensored[[1]], followers[[1]])
+  expect_true(all(followers_uncensored[-1] < followers[-1]))
+})
+
+test_that("pooled exposure type detection skips NA exposures", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring(n = 1000, seed = 7)
+  # Censored subjects carry no observed exposure at later time points, so the
+  # pooled exposure column holds 0, 1, and NA.
+  data$a2[data$c1 == 1] <- NA
+  data$a3[data$c1 == 1 | data$c2 == 1] <- NA
+
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    cp = 0.01
+  )
+
+  # Skipping the NA values keeps the pooled exposure binary rather than
+  # resolving it to categorical on the three distinct values 0, 1, and NA.
+  expect_identical(res@exposure_type, "binary")
 })
 
 # ---- Snapshots ------------------------------------------------------------

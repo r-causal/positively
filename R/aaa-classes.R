@@ -67,6 +67,9 @@ positivity_diagnostic <- new_class(
 #' `diagnostic` column, stacking each child's [generics::glance()] row and
 #' filling any column a child lacks with `NA`.
 #'
+#' Extract a child diagnostic with `x[["port"]]`, and list the diagnostics the
+#' container holds with `names(x)`.
+#'
 #' @param checks A list of [positivity_diagnostic] objects.
 #' @param diagnostics A character vector naming the diagnostics, aligned with
 #'   `checks`.
@@ -91,6 +94,10 @@ positivity_diagnostic <- new_class(
 #'
 #' # One row per diagnostic.
 #' glance(res)
+#'
+#' # List the diagnostics and extract one child.
+#' names(res)
+#' res[["port"]]
 #' @order 1
 #' @export
 positivity_check <- new_class(

@@ -232,13 +232,21 @@ remaining uncensored is itself a condition of the counterfactual question. The
 `.censoring` argument takes an ordered selection of censoring indicators, one per
 time point, each coded `1` when the subject is censored and `0` otherwise. When
 supplied, `check_port_seq()` analyzes each indicator as its own binary-exposure
-tree in addition to the exposure trees, so a subgroup nearly certain to be
-censored is flagged just as a subgroup nearly certain to be treated is. Following
-Chatton et al. (2025), the censoring tree at each time point runs on the subjects
-uncensored through the previous time point, the never-censored risk set, and adds
-the current treatment to its conditioning set. The treatment rule plays no role
-in the censoring process, so this risk set is the full uncensored cohort rather
-than the treatment followers.
+tree in addition to the exposure trees, using the same two-sided reading rule.
+The rule flags a subgroup whose censoring prevalence is below `beta` or above
+`1 - beta`. The upper tail flags a subgroup nearly certain to be censored, just
+as the exposure trees flag a subgroup nearly certain to be treated. The lower
+tail flags a subgroup nearly certain to remain uncensored, the never-censored
+subgroups on which the counterfactual under no censoring rests (Chatton et al.,
+2025). Because censoring is light in most subgroups, the lower tail usually
+accounts for most of the flagged censoring rows. Following Chatton et al. (2025),
+the censoring tree at each time point runs on the subjects uncensored through the
+previous time point, the never-censored risk set, and adds the current treatment
+to its conditioning set. The treatment rule plays no role in the censoring
+process, so this risk set is the full uncensored cohort rather than the treatment
+followers. Supplying `.censoring` also restricts each exposure risk set to the
+followers who are still uncensored, since a subject censored earlier has no
+observed exposure to analyze.
 
 The longitudinal dataset carries continuous exposures and no censoring columns,
 so the following small seeded example constructs a monotone binary regime with
@@ -279,8 +287,13 @@ cens <- check_port_seq(
 cens
 ```
 
-Filtering to the flagged censoring rows surfaces the planted subgroup: at time 2,
-censoring is near-certain where `l0` is above 1.
+Filtering to the flagged censoring rows surfaces the planted subgroup at the
+upper tail: at time 2, censoring is near-certain where `l0` is above 1, with a
+prevalence close to 1. The remaining flagged rows sit at the lower tail, with
+prevalences below `beta`. These are the never-censored subgroups, in which almost
+no one is censored, and the two-sided rule reports them alongside the
+near-certain-to-be-censored subgroup. Reading the `prevalence` column tells the
+two tails apart.
 
 ```{r censoring-flagged}
 cens_rows <- tidy(cens)

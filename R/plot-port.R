@@ -6,7 +6,9 @@
 #' prevalence, with dashed reference lines at `beta` and `1 - beta`. Bar width
 #' is proportional to subgroup size, and flagged subgroups are highlighted. A
 #' sequential result is faceted by time point, and each facet carries its own
-#' resolved thresholds.
+#' resolved thresholds. A censoring run is faceted by both time point and row
+#' type, so the exposure and censoring subgroups are separated and each facet's
+#' reference lines are drawn from the thresholds that family was judged against.
 #'
 #' @param object A `port_result` from [check_port()] or [check_port_seq()].
 #' @param ... Not used.
@@ -31,6 +33,7 @@ method(autoplot, port_result) <- function(object, ...) {
   plot_data <- port_plot_data(object)
   reference <- port_beta_reference(object)
   sequential <- "time" %in% names(object@results)
+  has_type <- "type" %in% names(object@results)
 
   plot <- ggplot2::ggplot(
     plot_data,
@@ -57,7 +60,15 @@ method(autoplot, port_result) <- function(object, ...) {
       title = "PoRT subgroups against the prevalence thresholds"
     )
 
-  if (sequential) {
+  if (has_type) {
+    plot <- plot +
+      ggplot2::facet_wrap(
+        ggplot2::vars(.data$time, .data$type),
+        ncol = 2,
+        labeller = ggplot2::label_both,
+        scales = "free_y"
+      )
+  } else if (sequential) {
     plot <- plot +
       ggplot2::facet_wrap(
         ggplot2::vars(.data$time),
@@ -86,7 +97,15 @@ method(autoplot, port_result) <- function(object, ...) {
 port_plot_data <- function(object) {
   plot_data <- object@results
   key_cols <- intersect(
-    c("time", "description", "exposure_level", "prevalence", "n", "flagged"),
+    c(
+      "time",
+      "type",
+      "description",
+      "exposure_level",
+      "prevalence",
+      "n",
+      "flagged"
+    ),
     names(plot_data)
   )
   plot_data <- plot_data[!duplicated(plot_data[key_cols]), , drop = FALSE]
@@ -114,21 +133,42 @@ port_plot_data <- function(object) {
 
 #' The per-time beta reference-line frame
 #'
-#' Builds one row per reference line so that each sequential facet shows the
-#' thresholds actually applied at its own time point rather than a shared pair.
-#' Skipped time points, whose resolved threshold is `NA`, contribute no lines.
+#' Builds one row per reference line so that each facet shows the thresholds
+#' actually applied within it rather than a shared pair. Skipped time points,
+#' whose resolved threshold is `NA`, contribute no lines. On a censoring run the
+#' exposure and censoring facets are each drawn against their own resolved
+#' thresholds, since the two families are judged on different risk-set sizes.
 #'
 #' @param object A `port_result`.
 #'
 #' @return A tibble with an `xintercept` column, plus a `time` column for a
-#'   sequential result.
+#'   sequential result and a `type` column for a censoring result.
 #' @keywords internal
 #' @noRd
 port_beta_reference <- function(object) {
-  beta <- object@beta
-  if (!("time" %in% names(object@results))) {
+  results <- object@results
+  if (!("time" %in% names(results))) {
+    beta <- object@beta
     return(tibble::tibble(xintercept = c(beta[[1]], 1 - beta[[1]])))
   }
+  if (!("type" %in% names(results))) {
+    return(beta_reference_frame(object@beta))
+  }
+  exposure_reference <- beta_reference_frame(object@beta)
+  exposure_reference$type <- rep("exposure", nrow(exposure_reference))
+  censoring_reference <- beta_reference_frame(object@censoring_beta)
+  censoring_reference$type <- rep("censoring", nrow(censoring_reference))
+  vctrs::vec_rbind(exposure_reference, censoring_reference)
+}
+
+#' One reference-line row pair per finite per-time threshold
+#'
+#' @param beta A per-time threshold vector, with `NA` for skipped time points.
+#'
+#' @return A tibble with `time` and `xintercept` columns.
+#' @keywords internal
+#' @noRd
+beta_reference_frame <- function(beta) {
   times <- seq_along(beta)
   keep <- is.finite(beta)
   tibble::tibble(

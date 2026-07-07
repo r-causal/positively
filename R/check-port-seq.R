@@ -43,19 +43,36 @@
 #' thresholds are stored in `@beta`, ordered by time point.
 #'
 #' Supplying `.censoring` adds a second family of per-time trees for the
-#' censoring process (Chatton et al. 2025, section 4). Each censoring indicator
-#' is analyzed as a binary exposure with the reading rule, so a subgroup nearly
-#' certain to be censored is flagged just as a subgroup nearly certain to be
-#' treated is. The censoring tree at time \eqn{t} runs on the subjects uncensored
-#' through the previous time point, the never-censored risk set, which is the
-#' full uncensored cohort rather than the treatment-regime followers, since the
-#' treatment rule plays no role in the censoring process. Its conditioning set is
-#' the same baseline and `lag`-window history the exposure trees use, with the
-#' current treatment added as a covariate. Its prevalence threshold is resolved
-#' from the size of the censoring risk set, which shrinks as earlier censoring
-#' accrues. Censoring rows are marked in the results by a `type` column with the
-#' value `"censoring"`, against `"exposure"` for the exposure trees, and this
-#' column appears only when `.censoring` is supplied.
+#' censoring process (Chatton et al. 2025). Each censoring indicator is analyzed
+#' as a binary exposure with the same two-sided reading rule, which flags a
+#' subgroup whose censoring prevalence is below `beta` or above `1 - beta`. The
+#' upper tail flags a subgroup nearly certain to be censored, just as the
+#' exposure trees flag a subgroup nearly certain to be treated; the lower tail
+#' flags a subgroup nearly certain to remain uncensored, the never-censored
+#' subgroups on which the counterfactual under no censoring rests (Chatton et
+#' al. 2025, page 11). Because real censoring is light in most subgroups, the
+#' lower tail usually accounts for most of the flagged censoring rows. The
+#' censoring tree at time \eqn{t} runs on the subjects uncensored through the
+#' previous time point, the never-censored risk set, which is the full uncensored
+#' cohort rather than the treatment-regime followers, since the treatment rule
+#' plays no role in the censoring process. Its conditioning set is the same
+#' baseline and `lag`-window history the exposure trees use, with the current
+#' treatment added as a covariate. Its prevalence threshold is resolved from the
+#' size of the censoring risk set, which shrinks as earlier censoring accrues.
+#' Censoring rows are marked in the results by a `type` column with the value
+#' `"censoring"`, against `"exposure"` for the exposure trees, and this column
+#' appears only when `.censoring` is supplied.
+#'
+#' Supplying `.censoring` also restricts the exposure risk sets. At time \eqn{t}
+#' the exposure risk set becomes the regime followers who are also uncensored
+#' through time \eqn{t - 1}, since a subject censored earlier has no observed
+#' exposure at time \eqn{t} and cannot follow the regime (Chatton et al. 2025,
+#' Figure 2). The exposure risk sets therefore shrink faster than under the
+#' follower restriction alone, and the per-time thresholds in `@beta` grow
+#' accordingly. A censored subject may carry an `NA` exposure at the time points
+#' after it leaves the study; the exposure type is resolved from the non-missing
+#' pooled values, and such subjects fall outside the restricted exposure risk
+#' sets, so their missing exposures never enter a tree.
 #'
 #' @param .data A data frame in wide form, one row per subject.
 #' @param .exposures An ordered tidyselect of exposure columns, one per time
@@ -71,7 +88,10 @@
 #'   addition to the exposure trees. The selection must match `.exposures` in
 #'   length and every indicator must be binary; monotonicity is not required of
 #'   the data, since a subject censored at a time point is dropped from later
-#'   censoring risk sets. Only the default `strategy = "stratified"` supports
+#'   censoring risk sets. Supplying it also restricts each exposure risk set to
+#'   the followers uncensored so far, and the exposure type is detected from the
+#'   non-missing pooled values so that `NA` exposures for censored subjects do
+#'   not distort it. Only the default `strategy = "stratified"` supports
 #'   censoring. Defaults to `NULL`, which runs the exposure trees alone.
 #' @param strategy The sequential strategy. Only `"stratified"` (per-time trees
 #'   among the regime followers, the default) is implemented; `"pooled"` is
@@ -87,7 +107,8 @@
 #'   Its `@results` tibble carries the point columns plus a leading `time`
 #'   column, and a `type` column distinguishing exposure from censoring rows when
 #'   `.censoring` is supplied. `@beta` holds the per-time exposure thresholds
-#'   ordered by time point.
+#'   ordered by time point, and `@censoring_beta` holds the per-time censoring
+#'   thresholds when `.censoring` is supplied.
 #'
 #' @references
 #' Danelian G, Foucher Y, Léger M, Le Borgne F, Chatton A (2023). Identification
@@ -100,7 +121,7 @@
 #'
 #' @examples
 #' set.seed(1)
-#' n <- 400
+#' n <- 1000
 #' c1 <- rnorm(n)
 #' a1 <- rbinom(n, 1, 0.3)
 #' # Monotone treatment: once treated, stays treated.
@@ -115,8 +136,8 @@
 #'
 #' # Add censoring indicators, coded 1 when censored. Censoring is near-certain
 #' # at time 2 where c1 > 1, which the censoring trees flag.
-#' cens1 <- rbinom(n, 1, 0.1)
-#' cens2 <- rbinom(n, 1, ifelse(c1 > 1, 0.95, 0.1))
+#' cens1 <- rbinom(n, 1, 0.08)
+#' cens2 <- rbinom(n, 1, ifelse(c1 > 1, 0.98, 0.1))
 #' df$cens1 <- cens1
 #' df$cens2 <- cens2
 #'
@@ -179,8 +200,14 @@ check_port_seq <- function(
   }
 
   pooled_exposure <- unlist(.data[exposure_names], use.names = FALSE)
+  pooled_exposure <- pooled_exposure[!is.na(pooled_exposure)]
   resolved_type <- detect_exposure_type(pooled_exposure)
   untreated_level <- resolve_untreated_level(pooled_exposure, resolved_type)
+
+  # Supplying censoring restricts the exposure risk sets to the followers who
+  # are also uncensored through the previous time point; without it the exposure
+  # pass sees no censoring information and keeps every follower.
+  exposure_censoring_names <- if (has_censoring) censoring_names else NULL
 
   control <- port_control(...)
   per_time <- purrr::map(seq_len(n_times), function(t) {
@@ -188,6 +215,7 @@ check_port_seq <- function(
       .data = .data,
       time = t,
       exposure_names = exposure_names,
+      censoring_names = exposure_censoring_names,
       covariate_sets = covariate_sets,
       baseline_names = baseline_names,
       exposure_type = resolved_type,
@@ -226,8 +254,14 @@ check_port_seq <- function(
     })
     censoring_rows <- do.call(c, purrr::map(per_time_censoring, "rows"))
     trees <- c(trees, do.call(c, purrr::map(per_time_censoring, "trees")))
+    censoring_beta_by_time <- vapply(
+      per_time_censoring,
+      function(x) x$beta,
+      numeric(1)
+    )
     results <- assemble_port_seq_results(exposure_rows, censoring_rows)
   } else {
+    censoring_beta_by_time <- numeric(0)
     results <- assemble_port_results(exposure_rows, sequential = TRUE)
   }
 
@@ -249,6 +283,7 @@ check_port_seq <- function(
     trees = trees,
     alpha = as.double(alpha),
     beta = beta_by_time,
+    censoring_beta = censoring_beta_by_time,
     gamma = as.double(gamma)
   )
 }
@@ -262,6 +297,9 @@ check_port_seq <- function(
 #' @param .data The full wide data frame.
 #' @param time The current time point index.
 #' @param exposure_names The exposure column names, time-ordered.
+#' @param censoring_names The censoring indicator column names, time-ordered, or
+#'   `NULL` when no censoring is supplied. When present the risk set is further
+#'   restricted to the subjects uncensored through the previous time point.
 #' @param covariate_sets The per-time covariate name list.
 #' @param baseline_names The baseline covariate names.
 #' @param exposure_type The resolved exposure type.
@@ -279,6 +317,7 @@ port_seq_time <- function(
   .data,
   time,
   exposure_names,
+  censoring_names,
   covariate_sets,
   baseline_names,
   exposure_type,
@@ -296,7 +335,8 @@ port_seq_time <- function(
     exposure_names,
     time,
     exposure_type,
-    untreated_level
+    untreated_level,
+    censoring_names
   )
   risk_set <- .data[indices, , drop = FALSE]
   n_t <- nrow(risk_set)
@@ -561,11 +601,18 @@ resolve_untreated_level <- function(pooled_exposure, exposure_type) {
 #' non-binary exposure no follower restriction applies, so every subject is
 #' retained.
 #'
+#' When censoring indicators are supplied the risk set is the intersection of
+#' the regime followers with the subjects uncensored through the previous time
+#' point, since a subject censored earlier has no observed exposure at this time
+#' point and is not a follower of the regime.
+#'
 #' @param .data The full wide data frame.
 #' @param exposure_names The exposure column names, time-ordered.
 #' @param time The current time point index.
 #' @param exposure_type The resolved exposure type.
 #' @param untreated_level The regime's untreated level.
+#' @param censoring_names The censoring indicator column names, time-ordered, or
+#'   `NULL` when no censoring restriction applies.
 #'
 #' @return An integer vector of row indices.
 #' @keywords internal
@@ -575,14 +622,21 @@ risk_set_indices <- function(
   exposure_names,
   time,
   exposure_type,
-  untreated_level
+  untreated_level,
+  censoring_names = NULL
 ) {
   n <- nrow(.data)
-  if (time == 1L || exposure_type != "binary") {
-    return(seq_len(n))
+  followers <- if (time == 1L || exposure_type != "binary") {
+    seq_len(n)
+  } else {
+    prior <- .data[[exposure_names[[time - 1L]]]]
+    which(prior == untreated_level)
   }
-  prior <- .data[[exposure_names[[time - 1L]]]]
-  which(prior == untreated_level)
+  if (is.null(censoring_names)) {
+    return(followers)
+  }
+  uncensored <- censoring_risk_set_indices(.data, censoring_names, time)
+  intersect(followers, uncensored)
 }
 
 #' Assemble exposure and censoring rows into the sequential results tibble

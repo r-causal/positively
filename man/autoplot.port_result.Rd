@@ -17,7 +17,9 @@ Draws the reported subgroups as a horizontal bar chart of exposure
 prevalence, with dashed reference lines at \code{beta} and \code{1 - beta}. Bar width
 is proportional to subgroup size, and flagged subgroups are highlighted. A
 sequential result is faceted by time point, and each facet carries its own
-resolved thresholds.
+resolved thresholds. A censoring run is faceted by both time point and row
+type, so the exposure and censoring subgroups are separated and each facet's
+reference lines are drawn from the thresholds that family was judged against.
 }
 \examples{
 set.seed(1)

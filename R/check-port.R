@@ -17,6 +17,7 @@ port_result <- new_class(
     trees = class_list,
     alpha = class_double,
     beta = class_double,
+    censoring_beta = class_double,
     gamma = class_double
   ),
   validator = function(self) {
