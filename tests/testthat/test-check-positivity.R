@@ -434,6 +434,38 @@ test_that("names() on an empty container is character(0)", {
   expect_identical(names(empty), character(0))
 })
 
+test_that("[[ extracts a child by numeric position", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  res <- check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = c("port", "extrapolation")
+  )
+  expect_identical(res[[1]], child_named(res, "port"))
+  expect_identical(res[[2]], child_named(res, "extrapolation"))
+})
+
+test_that("[[ aborts on an out-of-bounds numeric index", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  res <- check_positivity(data, exposure, c(x1, x2), diagnostics = "port")
+  expect_error(res[[2]], class = "positively_bounds_error")
+})
+
+test_that("[[ aborts on a non-scalar index", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  res <- check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = c("port", "extrapolation")
+  )
+  expect_error(res[[c("port", "extrapolation")]], class = "positively_error")
+})
+
 # ---- Classed errors -------------------------------------------------------
 
 test_that("an unknown diagnostic name aborts", {
@@ -622,6 +654,16 @@ test_that("the classed errors are stable", {
   # [[ rejects an unknown diagnostic name.
   expect_snapshot(
     res[["nonexistent"]],
+    error = TRUE
+  )
+  # [[ rejects an out-of-bounds numeric index.
+  expect_snapshot(
+    res[[5]],
+    error = TRUE
+  )
+  # [[ rejects a non-scalar index.
+  expect_snapshot(
+    res[[c("port", "extrapolation")]],
     error = TRUE
   )
 })

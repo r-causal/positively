@@ -27,11 +27,14 @@
 #' exposures within that window. The reading rule and the combination search
 #' behave exactly as in the point diagnostic.
 #'
-#' The untreated level is resolved once from the pooled exposure across all time
-#' points, so the follower set is defined against the regime's untreated level
-#' rather than whichever levels happen to survive at a given wave. A non-binary
-#' exposure carries no follower restriction, so every subject stays in every
-#' risk set. When a risk set at some time point is empty or too small to support
+#' The exposure type and the untreated level are both resolved once from the
+#' non-missing pooled exposure across all time points, so the follower set is
+#' defined against the regime's untreated level rather than whichever levels
+#' happen to survive at a given wave, and an `NA` exposure, for example one a
+#' censored subject carries after leaving the study, distorts neither. A
+#' non-binary exposure carries no follower restriction, so every subject stays
+#' in every risk set. When a risk set at some time point is empty or too small
+#' to support
 #' the reading rule, for example a fully treated preceding wave or a single
 #' follower under the Gruber bound, that time point is skipped with a warning,
 #' contributes no rows, and records `NA` in `@beta`.
@@ -58,8 +61,12 @@
 #' plays no role in the censoring process. Its conditioning set is the same
 #' baseline and `lag`-window history the exposure trees use, with the current
 #' treatment added as a covariate. Its prevalence threshold is resolved from the
-#' size of the censoring risk set, which shrinks as earlier censoring accrues.
-#' Censoring rows are marked in the results by a `type` column with the value
+#' size of the censoring risk set, which shrinks as earlier censoring accrues. A
+#' censoring wave in which every subject in its risk set shares the same
+#' censoring status offers no contrast to split on, so it contributes no
+#' censoring rows while still recording its resolved threshold in
+#' `@censoring_beta`. Censoring rows are marked in the results by a `type` column
+#' with the value
 #' `"censoring"`, against `"exposure"` for the exposure trees, and this column
 #' appears only when `.censoring` is supplied.
 #'
@@ -69,10 +76,9 @@
 #' exposure at time \eqn{t} and cannot follow the regime (Chatton et al. 2025,
 #' Figure 2). The exposure risk sets therefore shrink faster than under the
 #' follower restriction alone, and the per-time thresholds in `@beta` grow
-#' accordingly. A censored subject may carry an `NA` exposure at the time points
-#' after it leaves the study; the exposure type is resolved from the non-missing
-#' pooled values, and such subjects fall outside the restricted exposure risk
-#' sets, so their missing exposures never enter a tree.
+#' accordingly. A censored subject that carries an `NA` exposure after it leaves
+#' the study falls outside the restricted exposure risk sets, so its missing
+#' exposures never enter a tree.
 #'
 #' @param .data A data frame in wide form, one row per subject.
 #' @param .exposures An ordered tidyselect of exposure columns, one per time
@@ -88,11 +94,12 @@
 #'   addition to the exposure trees. The selection must match `.exposures` in
 #'   length and every indicator must be binary; monotonicity is not required of
 #'   the data, since a subject censored at a time point is dropped from later
-#'   censoring risk sets. Supplying it also restricts each exposure risk set to
-#'   the followers uncensored so far, and the exposure type is detected from the
-#'   non-missing pooled values so that `NA` exposures for censored subjects do
-#'   not distort it. Only the default `strategy = "stratified"` supports
-#'   censoring. Defaults to `NULL`, which runs the exposure trees alone.
+#'   censoring risk sets. An indicator that is `NA` at a time point is read as
+#'   unknown censoring status and also drops that subject from every later
+#'   censoring risk set. Supplying `.censoring` also restricts each exposure risk
+#'   set to the followers uncensored so far. Censoring is available under the
+#'   stratified strategy, the only strategy currently implemented. Defaults to
+#'   `NULL`, which runs the exposure trees alone.
 #' @param strategy The sequential strategy. Only `"stratified"` (per-time trees
 #'   among the regime followers, the default) is implemented; `"pooled"` is
 #'   reserved for a later release.
@@ -106,9 +113,11 @@
 #' @return A `port_result` object, an S7 subclass of [positivity_diagnostic].
 #'   Its `@results` tibble carries the point columns plus a leading `time`
 #'   column, and a `type` column distinguishing exposure from censoring rows when
-#'   `.censoring` is supplied. `@beta` holds the per-time exposure thresholds
-#'   ordered by time point, and `@censoring_beta` holds the per-time censoring
-#'   thresholds when `.censoring` is supplied.
+#'   `.censoring` is supplied. Censoring rows report `exposure_level` `"1"`, the
+#'   censored level, so their `prevalence` is the subgroup's censoring rate.
+#'   `@beta` holds the per-time exposure thresholds ordered by time point, and
+#'   `@censoring_beta` holds the per-time censoring thresholds when `.censoring`
+#'   is supplied.
 #'
 #' @references
 #' Danelian G, Foucher Y, Léger M, Le Borgne F, Chatton A (2023). Identification
@@ -496,7 +505,9 @@ port_seq_censoring_time <- function(
 #' At the first time point every subject is in the censoring risk set. At later
 #' time points the risk set is the subjects uncensored through the previous time
 #' point, that is, those whose earlier censoring indicators are all zero. This is
-#' the never-censored cohort and carries no treatment-follower restriction.
+#' the never-censored cohort and carries no treatment-follower restriction. A
+#' subject whose earlier censoring indicator is `NA` fails the zero test and is
+#' likewise excluded.
 #'
 #' @param .data The full wide data frame.
 #' @param censoring_names The censoring indicator column names, time-ordered.

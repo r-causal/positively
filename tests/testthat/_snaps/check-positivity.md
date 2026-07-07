@@ -151,3 +151,21 @@
       ! "nonexistent" is not a diagnostic in this container.
       i Available diagnostics are "port".
 
+---
+
+    Code
+      res[[5]]
+    Condition
+      Error in `res[[5]]`:
+      ! Index 5 is out of bounds.
+      i The container holds 1 diagnostic.
+
+---
+
+    Code
+      res[[c("port", "extrapolation")]]
+    Condition
+      Error in `res[[c("port", "extrapolation")]]`:
+      ! `i` must select a single diagnostic.
+      x You supplied 2 values.
+

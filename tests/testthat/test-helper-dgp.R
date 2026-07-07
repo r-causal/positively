@@ -43,6 +43,29 @@ test_that("dgp_longitudinal() is wide with a time-2 support gap", {
   expect_identical(sum(data$a2 > 2 & data$a2 < 4), 0L)
 })
 
+test_that("dgp_longitudinal_binary() plants two never-initiate regions at t = 2", {
+  data <- dgp_longitudinal_binary(n = 2000, seed = 6)
+  expect_true(all(c("a1", "a2", "a3") %in% names(data)))
+  expect_true(all(c("l0", "l1", "l2") %in% names(data)))
+  # Monotone treatment: once treated, stays treated.
+  expect_true(all(data$a2 >= data$a1))
+  expect_true(all(data$a3 >= data$a2))
+  # Among the followers at t = 2, treatment never initiates where the lagged
+  # covariate l0 is above 1 or where the current covariate l1 is above 1.
+  followers2 <- data$a1 == 0
+  region_l0 <- followers2 & data$l0 > 1
+  region_l1 <- followers2 & data$l1 > 1
+  expect_gt(sum(region_l0), 0)
+  expect_gt(sum(region_l1), 0)
+  expect_true(all(data$a2[region_l0] == 0L))
+  expect_true(all(data$a2[region_l1] == 0L))
+  # Treatment still initiates among followers outside the planted regions.
+  free <- followers2 & data$l0 <= 1 & data$l1 <= 1
+  expect_gt(sum(data$a2[free]), 0)
+  # The follower risk set shrinks across time.
+  expect_gt(sum(data$a1 == 0), sum(data$a2 == 0))
+})
+
 test_that("dgp_longitudinal_binary_censoring() plants near-certain t-2 censoring", {
   data <- dgp_longitudinal_binary_censoring(n = 2000, seed = 7)
   expect_true(all(c("c1", "c2", "c3") %in% names(data)))
@@ -81,4 +104,12 @@ test_that("each data-generating process is deterministic given its seed", {
     dgp_continuous_support_gap(seed = 7)
   )
   expect_identical(dgp_longitudinal(seed = 7), dgp_longitudinal(seed = 7))
+  expect_identical(
+    dgp_longitudinal_binary(seed = 7),
+    dgp_longitudinal_binary(seed = 7)
+  )
+  expect_identical(
+    dgp_longitudinal_binary_censoring(seed = 7),
+    dgp_longitudinal_binary_censoring(seed = 7)
+  )
 })

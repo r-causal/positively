@@ -39,11 +39,12 @@ supplied, each indicator is analyzed as its own binary-exposure tree, in
 addition to the exposure trees. The selection must match \code{.exposures} in
 length and every indicator must be binary; monotonicity is not required of
 the data, since a subject censored at a time point is dropped from later
-censoring risk sets. Supplying it also restricts each exposure risk set to
-the followers uncensored so far, and the exposure type is detected from the
-non-missing pooled values so that \code{NA} exposures for censored subjects do
-not distort it. Only the default \code{strategy = "stratified"} supports
-censoring. Defaults to \code{NULL}, which runs the exposure trees alone.}
+censoring risk sets. An indicator that is \code{NA} at a time point is read as
+unknown censoring status and also drops that subject from every later
+censoring risk set. Supplying \code{.censoring} also restricts each exposure risk
+set to the followers uncensored so far. Censoring is available under the
+stratified strategy, the only strategy currently implemented. Defaults to
+\code{NULL}, which runs the exposure trees alone.}
 
 \item{strategy}{The sequential strategy. Only \code{"stratified"} (per-time trees
 among the regime followers, the default) is implemented; \code{"pooled"} is
@@ -62,9 +63,11 @@ resolved per time point when it is \code{"gruber"}.}
 A \code{port_result} object, an S7 subclass of \link{positivity_diagnostic}.
 Its \verb{@results} tibble carries the point columns plus a leading \code{time}
 column, and a \code{type} column distinguishing exposure from censoring rows when
-\code{.censoring} is supplied. \verb{@beta} holds the per-time exposure thresholds
-ordered by time point, and \verb{@censoring_beta} holds the per-time censoring
-thresholds when \code{.censoring} is supplied.
+\code{.censoring} is supplied. Censoring rows report \code{exposure_level} \code{"1"}, the
+censored level, so their \code{prevalence} is the subgroup's censoring rate.
+\verb{@beta} holds the per-time exposure thresholds ordered by time point, and
+\verb{@censoring_beta} holds the per-time censoring thresholds when \code{.censoring}
+is supplied.
 }
 \description{
 \code{check_port_seq()} applies the PoRT reading rule one time point at a time
@@ -91,11 +94,14 @@ the time-varying covariates within the \code{lag} history window, and the earlie
 exposures within that window. The reading rule and the combination search
 behave exactly as in the point diagnostic.
 
-The untreated level is resolved once from the pooled exposure across all time
-points, so the follower set is defined against the regime's untreated level
-rather than whichever levels happen to survive at a given wave. A non-binary
-exposure carries no follower restriction, so every subject stays in every
-risk set. When a risk set at some time point is empty or too small to support
+The exposure type and the untreated level are both resolved once from the
+non-missing pooled exposure across all time points, so the follower set is
+defined against the regime's untreated level rather than whichever levels
+happen to survive at a given wave, and an \code{NA} exposure, for example one a
+censored subject carries after leaving the study, distorts neither. A
+non-binary exposure carries no follower restriction, so every subject stays
+in every risk set. When a risk set at some time point is empty or too small
+to support
 the reading rule, for example a fully treated preceding wave or a single
 follower under the Gruber bound, that time point is skipped with a warning,
 contributes no rows, and records \code{NA} in \verb{@beta}.
@@ -122,8 +128,12 @@ cohort rather than the treatment-regime followers, since the treatment rule
 plays no role in the censoring process. Its conditioning set is the same
 baseline and \code{lag}-window history the exposure trees use, with the current
 treatment added as a covariate. Its prevalence threshold is resolved from the
-size of the censoring risk set, which shrinks as earlier censoring accrues.
-Censoring rows are marked in the results by a \code{type} column with the value
+size of the censoring risk set, which shrinks as earlier censoring accrues. A
+censoring wave in which every subject in its risk set shares the same
+censoring status offers no contrast to split on, so it contributes no
+censoring rows while still recording its resolved threshold in
+\verb{@censoring_beta}. Censoring rows are marked in the results by a \code{type} column
+with the value
 \code{"censoring"}, against \code{"exposure"} for the exposure trees, and this column
 appears only when \code{.censoring} is supplied.
 
@@ -133,10 +143,9 @@ through time \eqn{t - 1}, since a subject censored earlier has no observed
 exposure at time \eqn{t} and cannot follow the regime (Chatton et al. 2025,
 Figure 2). The exposure risk sets therefore shrink faster than under the
 follower restriction alone, and the per-time thresholds in \verb{@beta} grow
-accordingly. A censored subject may carry an \code{NA} exposure at the time points
-after it leaves the study; the exposure type is resolved from the non-missing
-pooled values, and such subjects fall outside the restricted exposure risk
-sets, so their missing exposures never enter a tree.
+accordingly. A censored subject that carries an \code{NA} exposure after it leaves
+the study falls outside the restricted exposure risk sets, so its missing
+exposures never enter a tree.
 }
 \examples{
 set.seed(1)

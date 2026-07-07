@@ -438,6 +438,13 @@ test_that("the print method is stable", {
   expect_snapshot(print(res))
 })
 
+test_that("the print method shows a nonzero proportion exactly zero", {
+  # A structural violation leaves exact zeros in the ratios, the case the
+  # "Proportion exactly zero" line exists for.
+  res <- check_density_ratios(c(0, 0, 1, 1, 2, 5))
+  expect_snapshot(print(res))
+})
+
 test_that("the multi-time print method is stable", {
   m <- matrix(gen_lognormal_ratios(300, k = 0.5), nrow = 100, ncol = 3)
   res <- check_density_ratios(m)

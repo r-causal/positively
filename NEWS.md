@@ -27,3 +27,20 @@
 
 * Five vignettes covering the general workflow, continuous exposures, density
   ratios, positivity regression trees, and estimator-focused diagnostics.
+
+* `check_port_seq()` gains a `.censoring` argument, an ordered selection of
+  per-time censoring indicators. Each indicator is analyzed as its own binary
+  tree under a two-sided reading rule, and supplying it also restricts the
+  exposure risk sets to the subjects uncensored so far.
+
+* `check_eta_bias()` accepts factor and character covariates, which the fitted
+  treatment and outcome models expand into indicator terms.
+
+* The `positivity_check` container supports `x[["port"]]` to extract a child
+  diagnostic and `names(x)` to list the diagnostics it holds.
+
+* `check_hat_values()` records the number of fitted model parameters in a new
+  `@p` property.
+
+* The `check_density_ratios()` print method reports the proportion of density
+  ratios exactly equal to zero.

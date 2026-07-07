@@ -237,7 +237,7 @@ The rule flags a subgroup whose censoring prevalence is below `beta` or above
 `1 - beta`. The upper tail flags a subgroup nearly certain to be censored, just
 as the exposure trees flag a subgroup nearly certain to be treated. The lower
 tail flags a subgroup nearly certain to remain uncensored, the never-censored
-subgroups on which the counterfactual under no censoring rests (Chatton et al.,
+subgroups on which the counterfactual under no censoring rests (Chatton et al.
 2025). Because censoring is light in most subgroups, the lower tail usually
 accounts for most of the flagged censoring rows. Following Chatton et al. (2025),
 the censoring tree at each time point runs on the subjects uncensored through the

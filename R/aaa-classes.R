@@ -168,9 +168,18 @@ method(print, positivity_check) <- function(x, ...) {
 #' @usage NULL
 #' @order 4
 method(`[[`, positivity_check) <- function(x, i, ...) {
+  if (length(i) != 1) {
+    abort(
+      c(
+        "{.arg i} must select a single diagnostic.",
+        x = "You supplied {length(i)} value{?s}."
+      ),
+      error_class = "positively_diagnostic_error"
+    )
+  }
   if (is.character(i)) {
     idx <- match(i, x@diagnostics)
-    if (length(i) != 1 || is.na(idx)) {
+    if (is.na(idx)) {
       abort(
         c(
           "{.val {i}} is not a diagnostic in this container.",
@@ -180,6 +189,15 @@ method(`[[`, positivity_check) <- function(x, i, ...) {
       )
     }
     return(x@checks[[idx]])
+  }
+  if (i < 1 || i > length(x@checks)) {
+    abort(
+      c(
+        "Index {i} is out of bounds.",
+        i = "The container holds {length(x@checks)} diagnostic{?s}."
+      ),
+      error_class = "positively_bounds_error"
+    )
   }
   x@checks[[i]]
 }

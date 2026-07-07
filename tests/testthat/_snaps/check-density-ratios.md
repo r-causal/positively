@@ -17,6 +17,25 @@
       Proportion exactly zero: 0
       Kish ESS fraction: 0.439
 
+# the print method shows a nonzero proportion exactly zero
+
+    Code
+      print(res)
+    Output
+      
+      -- density_ratios_result -------------------------------------------------------
+      Density ratios: 6 observations across 1 time point
+      Mean ratio: 1.5
+      50th percentile: 1
+      90th percentile: 3.5
+      95th percentile: 4.25
+      99th percentile: 4.85
+      Maximum: 5
+      Proportion > 10: 0
+      Proportion > 50: 0
+      Proportion exactly zero: 0.3333
+      Kish ESS fraction: 0.435
+
 # the multi-time print method is stable
 
     Code
