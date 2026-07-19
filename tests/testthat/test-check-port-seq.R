@@ -625,6 +625,71 @@ test_that("pooled exposure type detection skips NA exposures", {
   expect_identical(res@exposure_type, "binary")
 })
 
+# ---- Factor-coded binary exposures ----------------------------------------
+
+# check_port() accepts a factor exposure by resolving its levels with sort(), so
+# the sequential reader must resolve the untreated (reference) level the same
+# way rather than with min(), which is undefined for unordered factors.
+
+test_that("check_port_seq() reads factor-coded binary exposures like integers", {
+  local_quiet()
+  data <- sim_port_seq(n = 3000, seed = 1)
+  integer_res <- check_port_seq(data, c(a1, a2, a3), list(c1))
+
+  factored <- data
+  factored$a1 <- factor(factored$a1, labels = c("no", "yes"))
+  factored$a2 <- factor(factored$a2, labels = c("no", "yes"))
+  factored$a3 <- factor(factored$a3, labels = c("no", "yes"))
+  factor_res <- check_port_seq(factored, c(a1, a2, a3), list(c1))
+
+  expect_identical(factor_res@exposure_type, "binary")
+
+  # The planted time-2 violation and its localization survive the factor coding.
+  factor_flagged <- flagged_rows(factor_res)
+  expect_true(any(factor_flagged$time == 2))
+  expect_false(any(factor_flagged$time %in% c(1, 3)))
+
+  # The flags land on the same time points and subgroups as the integer run.
+  flag_keys <- function(res) {
+    flagged <- flagged_rows(res)
+    sort(paste(flagged$time, flagged$description))
+  }
+  expect_identical(flag_keys(factor_res), flag_keys(integer_res))
+
+  # The per-time follower risk set, read as the largest reported subgroup at
+  # each time, is identical to the integer-coded run.
+  max_n <- function(res) {
+    as.integer(tapply(res@results$n, res@results$time, max))
+  }
+  expect_identical(max_n(factor_res), max_n(integer_res))
+})
+
+test_that("the untreated level is the first factor level, not the sorted label", {
+  local_quiet()
+  data <- sim_port_seq(n = 3000, seed = 1)
+
+  # Reverse the alphabetical order of the labels relative to the level order:
+  # value 0 maps to "untreated" (the reference level) and value 1 to "treated",
+  # yet "treated" sorts before "untreated". A reader that resolved the untreated
+  # level by sorted label order would flip the follower set to the treated.
+  labelled <- data
+  labelled$a1 <- factor(labelled$a1, labels = c("untreated", "treated"))
+  labelled$a2 <- factor(labelled$a2, labels = c("untreated", "treated"))
+  labelled$a3 <- factor(labelled$a3, labels = c("untreated", "treated"))
+
+  res <- check_port_seq(labelled, c(a1, a2, a3), list(c1))
+
+  # The time-2 follower risk set is the subjects untreated after time 1, read as
+  # the largest reported subgroup at that time. Resolving the untreated level to
+  # the alphabetically first label would instead size it from the treated.
+  followers_t2 <- sum(data$a1 == 0)
+  treated_t1 <- sum(data$a1 == 1)
+  expect_false(followers_t2 == treated_t1)
+
+  time2_max_n <- max(res@results$n[res@results$time == 2])
+  expect_identical(as.integer(time2_max_n), as.integer(followers_t2))
+})
+
 # ---- Snapshots ------------------------------------------------------------
 
 test_that("the sequential print method is stable", {
