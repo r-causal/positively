@@ -49,10 +49,6 @@ method(autoplot, port_result) <- function(object, ...) {
       mapping = ggplot2::aes(xintercept = .data$xintercept),
       linetype = "dashed"
     ) +
-    ggplot2::scale_fill_manual(
-      values = c("FALSE" = "grey70", "TRUE" = "#B2182B"),
-      drop = FALSE
-    ) +
     ggplot2::labs(
       x = "Exposure prevalence in subgroup",
       y = "Subgroup",
@@ -60,7 +56,18 @@ method(autoplot, port_result) <- function(object, ...) {
       title = "PoRT subgroups against the prevalence thresholds"
     )
 
-  if (has_type) {
+  # The manual fill scale has no levels to match when there are no bars, and a
+  # discrete scale with an all-empty column warns; the empty panel needs no fill.
+  if (nrow(plot_data) > 0) {
+    plot <- plot +
+      ggplot2::scale_fill_manual(
+        values = c("FALSE" = "grey70", "TRUE" = "#B2182B"),
+        drop = FALSE
+      )
+  }
+
+  has_facets <- nrow(plot_data) > 0 || nrow(reference) > 0
+  if (has_type && has_facets) {
     plot <- plot +
       ggplot2::facet_wrap(
         ggplot2::vars(.data$time, .data$type),
@@ -68,7 +75,7 @@ method(autoplot, port_result) <- function(object, ...) {
         labeller = ggplot2::label_both,
         scales = "free_y"
       )
-  } else if (sequential) {
+  } else if (sequential && has_facets) {
     plot <- plot +
       ggplot2::facet_wrap(
         ggplot2::vars(.data$time),

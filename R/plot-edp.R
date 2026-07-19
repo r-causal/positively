@@ -109,20 +109,46 @@ autoplot_edp_scatter <- function(object) {
       error_class = "positively_variant_error"
     )
   }
-  ggplot2::ggplot(
-    object@results,
-    ggplot2::aes(
-      x = .data$edp_treatment,
-      y = .data$edp_outcome,
-      color = .data$ideal_weight
-    )
-  ) +
-    ggplot2::geom_point(alpha = 0.6) +
+  results <- object@results
+  finite_rows <- results[is.finite(results$ideal_weight), , drop = FALSE]
+  infinite_rows <- results[is.infinite(results$ideal_weight), , drop = FALSE]
+
+  plot <- ggplot2::ggplot(
+    mapping = ggplot2::aes(x = .data$edp_treatment, y = .data$edp_outcome)
+  )
+  if (nrow(finite_rows) > 0) {
+    plot <- plot +
+      ggplot2::geom_point(
+        data = finite_rows,
+        mapping = ggplot2::aes(color = .data$ideal_weight),
+        alpha = 0.6
+      )
+  }
+  if (nrow(infinite_rows) > 0) {
+    plot <- plot +
+      ggplot2::geom_point(
+        data = infinite_rows,
+        shape = 4,
+        color = "#B2182B",
+        alpha = 0.6
+      )
+  }
+
+  subtitle <- if (nrow(infinite_rows) > 0) {
+    "Crosses mark infinite ideal weight, where outcome support is zero"
+  }
+  # The colour label belongs to the finite layer's mapping; without finite rows
+  # there is no colour aesthetic, so naming it draws an unknown-label message.
+  color_label <- if (nrow(finite_rows) > 0) {
+    "Ideal weight"
+  }
+  plot +
     ggplot2::labs(
       x = "Treatment-model effective data points",
       y = "Outcome-model effective data points",
-      color = "Ideal weight",
-      title = "Outcome against treatment support"
+      color = color_label,
+      title = "Outcome against treatment support",
+      subtitle = subtitle
     )
 }
 

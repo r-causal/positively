@@ -835,7 +835,37 @@ test_that("the scatter view separates infinite ideal weights into their own laye
   expect_false(unique(infinite_layer$shape) %in% unique(finite_layer$shape))
 })
 
+test_that("the scatter view builds without a colour label when every weight is infinite", {
+  local_quiet()
+  # A single never-treated stratum has zero outcome support at the treated target,
+  # so every ideal weight is infinite and no finite rows drive the colour mapping.
+  # Naming the colour label with no colour aesthetic draws an unknown-label
+  # message, so the label must be dropped in this case.
+  data <- data.frame(
+    exposure = rep(0L, 8L),
+    s = factor(rep("a", 8L))
+  )
+  res <- check_edp(
+    data,
+    exposure,
+    s,
+    variant = "estimator",
+    values = 1,
+    categorical_similarity = 0
+  )
+  expect_true(all(is.infinite(res@results$ideal_weight)))
+
+  plot <- ggplot2::autoplot(res, type = "scatter")
+  expect_no_condition(ggplot2::ggplot_build(plot))
+
+  built <- ggplot2::ggplot_build(plot)
+  expect_length(built$data, 1)
+  expect_length(unique(built$data[[1]]$shape), 1)
+  expect_false(is.null(plot$labels$subtitle))
+})
+
 test_that("EDP autoplot views render as expected", {
+  local_quiet()
   data <- sim_edp_gaussian(150)
   res <- check_edp(
     data,
@@ -864,6 +894,27 @@ test_that("EDP autoplot views render as expected", {
   expect_doppelganger(
     "EDP estimator scatter",
     ggplot2::autoplot(estimator, type = "scatter")
+  )
+
+  infinite <- data.frame(
+    exposure = c(
+      rep(c(0L, 1L), c(4L, 4L)),
+      rep(c(0L, 1L), c(4L, 2L)),
+      rep(0L, 5L)
+    ),
+    s = factor(rep(c("a", "b", "c"), c(8L, 6L, 5L)))
+  )
+  res_infinite <- check_edp(
+    infinite,
+    exposure,
+    s,
+    variant = "estimator",
+    values = 1,
+    categorical_similarity = 0
+  )
+  expect_doppelganger(
+    "EDP estimator scatter with infinite weights",
+    ggplot2::autoplot(res_infinite, type = "scatter")
   )
 })
 

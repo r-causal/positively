@@ -48,6 +48,7 @@ autoplot_hdr_point <- function(results) {
   ) +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
     ggplot2::geom_line() +
+    ggplot2::geom_point() +
     ggplot2::labs(
       x = "Target exposure value",
       y = "Non-overlap ratio",
@@ -75,6 +76,7 @@ autoplot_hdr_sequential <- function(results) {
   ) +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
     ggplot2::geom_line() +
+    ggplot2::geom_point() +
     ggplot2::labs(
       x = "Target exposure value",
       y = "Non-overlap ratio",
