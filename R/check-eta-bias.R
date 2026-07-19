@@ -718,9 +718,12 @@ eta_fitters_matrix <- function(x_cov, q_family) {
 
 #' General formula fitters for user-supplied models
 #'
-#' Fits the treatment and outcome models from arbitrary formulas via
-#' [stats::glm()], rebuilding the model frame on each bootstrap dataset. Used
-#' only when the user overrides a model formula.
+#' Fits the treatment and outcome models from arbitrary formulas by building the
+#' design matrix with [stats::glm.fit()], rebuilding the model frame on each
+#' bootstrap dataset. Fitting the design directly, rather than through
+#' [stats::glm()], avoids dropping unused factor levels, so a resample missing a
+#' rare level keeps its design column instead of aborting. Used only when the
+#' user overrides a model formula or supplies a non-numeric covariate.
 #'
 #' @inheritParams eta_bias_bootstrap
 #'
@@ -735,55 +738,82 @@ eta_fitters_formula <- function(
   formulas
 ) {
   binomial_family <- stats::binomial()
+  # A bootstrap resample can drop every row that holds a rare character level,
+  # re-factoring the covariate to a single level and aborting the contrasts.
+  # Fixing character covariates to factors once on the observed data keeps their
+  # levels constant across resamples, so the design columns never change.
+  covariates[] <- lapply(covariates, function(column) {
+    if (is.character(column)) factor(column) else column
+  })
+
   assemble <- function(exposure, response) {
     frame <- covariates
     frame[[exposure_name]] <- exposure
     frame[[outcome_name]] <- response
     frame
   }
-  predict_q <- function(model, frame) {
+
+  # stats::glm() forces drop.unused.levels = TRUE in its model.frame call, so a
+  # resample missing a factor level collapses that factor to one level and
+  # `contrasts<-` aborts. Building the model frame directly leaves
+  # drop.unused.levels at its FALSE default, retaining an absent level as an
+  # all-zero design column whose aliased coefficient is zeroed, matching the
+  # matrix path on rank-deficient designs.
+  fit_glm <- function(formula, frame, family) {
+    frame <- stats::model.frame(formula, data = frame)
+    design <- stats::model.matrix(attr(frame, "terms"), frame)
+    fit <- suppressWarnings(stats::glm.fit(
+      design,
+      stats::model.response(frame),
+      family = family,
+      offset = stats::model.offset(frame)
+    ))
+    coef <- fit$coefficients
+    coef[is.na(coef)] <- 0
+    list(
+      formula = formula,
+      family = family,
+      coef = coef,
+      df_residual = fit$df.residual
+    )
+  }
+  predict_fit <- function(fit, frame) {
+    frame <- stats::model.frame(fit$formula, data = frame)
+    design <- stats::model.matrix(attr(frame, "terms"), frame)
+    eta <- drop(design %*% fit$coef)
+    offset <- stats::model.offset(frame)
+    if (!is.null(offset)) {
+      eta <- eta + offset
+    }
+    as.double(fit$family$linkinv(eta))
+  }
+
+  fit_pair <- function(frame) {
+    ps_fit <- fit_glm(formulas$exposure, frame, binomial_family)
+    q_fit <- fit_glm(formulas$outcome, frame, q_family)
     frame1 <- frame
     frame0 <- frame
     frame1[[exposure_name]] <- 1
     frame0[[exposure_name]] <- 0
     list(
-      q1 = as.double(stats::predict(model, frame1, type = "response")),
-      q0 = as.double(stats::predict(model, frame0, type = "response"))
-    )
-  }
-
-  fit_pair <- function(frame) {
-    ps_model <- suppressWarnings(stats::glm(
-      formulas$exposure,
-      data = frame,
-      family = binomial_family
-    ))
-    q_model <- suppressWarnings(stats::glm(
-      formulas$outcome,
-      data = frame,
-      family = q_family
-    ))
-    q <- predict_q(q_model, frame)
-    list(
-      ps = as.double(stats::predict(ps_model, type = "response")),
-      q1 = q$q1,
-      q0 = q$q0,
-      q_model = q_model
+      ps = predict_fit(ps_fit, frame),
+      q1 = predict_fit(q_fit, frame1),
+      q0 = predict_fit(q_fit, frame0),
+      q_fit = q_fit
     )
   }
 
   observed <- function(a, y) {
     frame <- assemble(a, y)
     fit <- fit_pair(frame)
-    residuals <- as.double(stats::residuals(fit$q_model, type = "response"))
-    df_residual <- stats::df.residual(fit$q_model)
+    residuals <- y - predict_fit(fit$q_fit, frame)
     list(
       ps = fit$ps,
       q1 = fit$q1,
       q0 = fit$q0,
       truth = mean(fit$q1 - fit$q0),
       residuals = residuals,
-      sigma = sqrt(sum(residuals^2) / df_residual)
+      sigma = sqrt(sum(residuals^2) / fit$q_fit$df_residual)
     )
   }
 
