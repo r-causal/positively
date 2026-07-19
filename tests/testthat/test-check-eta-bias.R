@@ -71,6 +71,35 @@ sim_eta_factor <- function(seed = 1) {
   data
 }
 
+# A two-level covariate whose second level is held by only two of 200 rows.
+# A bootstrap resample can miss both rows and leave region with a single level.
+# The outcome carries a region effect so truth stays near the treatment effect.
+# `character` returns region as a character vector rather than a factor.
+sim_eta_rare_level <- function(seed = 2, n = 200, character = FALSE) {
+  withr::local_seed(seed)
+  x1 <- stats::rnorm(n)
+  x2 <- stats::rnorm(n)
+  region <- c(rep("a", n - 2), rep("b", 2))
+  if (!character) {
+    region <- factor(region, levels = c("a", "b"))
+  }
+  a <- stats::rbinom(n, 1L, stats::plogis(x1))
+  y <- a + x1 + (region == "b") + stats::rnorm(n)
+  tibble::tibble(a = a, y = y, x1 = x1, x2 = x2, region = region)
+}
+
+# A balanced two-level character covariate with no rare level, so every
+# bootstrap resample holds both levels. The outcome carries a region effect.
+sim_eta_character <- function(seed = 1, n = 400) {
+  withr::local_seed(seed)
+  x1 <- stats::rnorm(n)
+  x2 <- stats::rnorm(n)
+  region <- sample(c("a", "b"), n, replace = TRUE)
+  a <- stats::rbinom(n, 1L, stats::plogis(0.5 * x1))
+  y <- a + x1 + (region == "b") + stats::rnorm(n)
+  tibble::tibble(a = a, y = y, x1 = x1, x2 = x2, region = region)
+}
+
 # ---- Local accessors ------------------------------------------------------
 # Each check_eta_bias() call is a single estimator, so a single-run result is a
 # one-row tibble. A fixed seed makes the bootstrap draw reproducible.
@@ -440,6 +469,92 @@ test_that("the truncation sweep runs with a factor covariate present", {
   expect_setequal(res@results$truncation_lower, grid)
   expect_true(all(is.finite(res@results$bias)))
   expect_length(res@boot_estimates, length(grid))
+})
+
+test_that("a rare factor level survives the bootstrap for every estimator", {
+  local_quiet()
+  data <- sim_eta_rare_level(seed = 2)
+  for (estimator in c("gcomp", "ipw", "aipw")) {
+    res <- withr::with_seed(
+      9,
+      check_eta_bias(
+        data,
+        a,
+        y,
+        c(x1, x2, region),
+        estimator = estimator,
+        n_boot = 50
+      )
+    )
+    expect_true(is.finite(res@results$bias[[1]]))
+    expect_true(is.finite(res@results$mc_se[[1]]))
+    expect_true(is.finite(res@truth))
+  }
+})
+
+test_that("a rare character level survives the bootstrap for every estimator", {
+  local_quiet()
+  data <- sim_eta_rare_level(seed = 2, character = TRUE)
+  for (estimator in c("gcomp", "ipw", "aipw")) {
+    res <- withr::with_seed(
+      9,
+      check_eta_bias(
+        data,
+        a,
+        y,
+        c(x1, x2, region),
+        estimator = estimator,
+        n_boot = 50
+      )
+    )
+    expect_true(is.finite(res@results$bias[[1]]))
+    expect_true(is.finite(res@results$mc_se[[1]]))
+    expect_true(is.finite(res@truth))
+  }
+})
+
+test_that("a rare level survives the bootstrap under formula overrides", {
+  local_quiet()
+  data <- sim_eta_rare_level(seed = 2)
+  for (estimator in c("gcomp", "ipw", "aipw")) {
+    res <- withr::with_seed(
+      9,
+      check_eta_bias(
+        data,
+        a,
+        y,
+        c(x1, x2, region),
+        estimator = estimator,
+        exposure_formula = a ~ x1 + x2 + region,
+        outcome_formula = y ~ a + x1 + x2 + region,
+        n_boot = 50
+      )
+    )
+    expect_true(is.finite(res@results$bias[[1]]))
+    expect_true(is.finite(res@results$mc_se[[1]]))
+    expect_true(is.finite(res@truth))
+  }
+})
+
+test_that("a balanced character covariate returns finite estimates", {
+  local_quiet()
+  data <- sim_eta_character(seed = 1)
+  for (estimator in c("gcomp", "ipw", "aipw")) {
+    res <- withr::with_seed(
+      2024,
+      check_eta_bias(
+        data,
+        a,
+        y,
+        c(x1, x2, region),
+        estimator = estimator,
+        n_boot = 50
+      )
+    )
+    expect_true(is.finite(res@results$bias[[1]]))
+    expect_true(is.finite(res@results$mc_se[[1]]))
+    expect_true(is.finite(res@truth))
+  }
 })
 
 test_that("the numeric matrix path is unchanged under a fixed seed (regression)", {
