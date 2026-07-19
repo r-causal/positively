@@ -149,32 +149,42 @@ check_edp <- function(
     validate_nonnegative_scalar(bw_covariates, "bw_covariates")
   }
 
-  exposure_pos <- tidyselect::eval_select(rlang::enquo(.exposure), .data)
-  if (length(exposure_pos) != 1) {
-    abort(
-      "{.arg .exposure} must select exactly one column, not {length(exposure_pos)}.",
-      error_class = "positively_selection_error"
-    )
-  }
+  exposure_pos <- eval_select_column(
+    rlang::enquo(.exposure),
+    .data,
+    ".exposure"
+  )
   exposure_name <- names(exposure_pos)
   exposure_vec <- .data[[exposure_pos]]
 
-  covariate_pos <- tidyselect::eval_select(rlang::enquo(.covariates), .data)
+  covariate_pos <- eval_select_columns(
+    rlang::enquo(.covariates),
+    .data,
+    ".covariates"
+  )
   validate_column_selection(covariate_pos, ".covariates")
   covariate_names <- names(covariate_pos)
 
+  outcome_covariates_quo <- rlang::enquo(.outcome_covariates)
+  treatment_covariates_quo <- rlang::enquo(.treatment_covariates)
   outcome_names <- resolve_covariate_names(
-    rlang::enquo(.outcome_covariates),
+    outcome_covariates_quo,
     .data,
     covariate_names,
     ".outcome_covariates"
   )
   treatment_names <- resolve_covariate_names(
-    rlang::enquo(.treatment_covariates),
+    treatment_covariates_quo,
     .data,
     covariate_names,
     ".treatment_covariates"
   )
+  if (variant == "data") {
+    warn_unused_estimator_covariates(
+      outcome_covariates_quo,
+      treatment_covariates_quo
+    )
+  }
 
   validate_complete_columns(.data, exposure_name, ".exposure")
   validate_finite_columns(.data, exposure_name, ".exposure")
@@ -345,7 +355,7 @@ resolve_covariate_names <- function(
   if (rlang::quo_is_null(quo)) {
     return(default)
   }
-  selection <- tidyselect::eval_select(quo, .data)
+  selection <- eval_select_columns(quo, .data, arg_name, call = call)
   validate_column_selection(selection, arg_name, call = call)
   names(selection)
 }
@@ -464,6 +474,44 @@ warn_unused_bandwidths <- function(
       c(
         "{.arg bw_covariates} was supplied but no covariate is numeric.",
         i = "The half-distance is ignored when every covariate is categorical."
+      ),
+      warning_class = "positively_unused_arg_warning",
+      call = call
+    )
+  }
+  invisible()
+}
+
+#' Warn when estimator covariates are supplied to the data variant
+#'
+#' The `.outcome_covariates` and `.treatment_covariates` selections shape the
+#' estimator variant alone. Supplying either under the data variant has no
+#' effect, so a classed warning flags the discarded selection.
+#'
+#' @param outcome_quo The captured `.outcome_covariates` selection.
+#' @param treatment_quo The captured `.treatment_covariates` selection.
+#' @param call The calling environment, used to build the warning's call.
+#'
+#' @return Invisibly `NULL`; raises a warning as a side effect.
+#' @keywords internal
+#' @noRd
+warn_unused_estimator_covariates <- function(
+  outcome_quo,
+  treatment_quo,
+  call = rlang::caller_env()
+) {
+  supplied <- character(0)
+  if (!rlang::quo_is_null(outcome_quo)) {
+    supplied <- c(supplied, ".outcome_covariates")
+  }
+  if (!rlang::quo_is_null(treatment_quo)) {
+    supplied <- c(supplied, ".treatment_covariates")
+  }
+  if (length(supplied) > 0) {
+    warn(
+      c(
+        "{.arg {supplied}} {?applies/apply} only to the estimator variant.",
+        i = "The {cli::qty(supplied)}selection{?s} {?is/are} ignored when {.arg variant} is {.val {\"data\"}}."
       ),
       warning_class = "positively_unused_arg_warning",
       call = call

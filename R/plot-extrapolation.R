@@ -38,7 +38,7 @@ method(autoplot, extrapolation_result) <- function(
   if (type == "distribution") {
     autoplot_extrapolation_distribution(object)
   } else {
-    autoplot_extrapolation_hull(object)
+    autoplot_extrapolation_hull(object, call = rlang::current_call())
   }
 }
 
@@ -77,18 +77,27 @@ autoplot_extrapolation_distribution <- function(object) {
 #' The convex-hull membership view of an extrapolation diagnostic
 #'
 #' @param object An `extrapolation_result`.
+#' @param call The calling environment, used to build the error's call.
 #'
 #' @return A [ggplot2::ggplot] object.
 #' @keywords internal
 #' @noRd
-autoplot_extrapolation_hull <- function(object) {
+autoplot_extrapolation_hull <- function(object, call = rlang::caller_env()) {
   if (!object@hull_run) {
+    # A skipped hull with hull = TRUE requested can only mean no numeric
+    # covariate was available, so rerunning with hull = TRUE would not help.
+    advice <- if (isTRUE(object@params$hull)) {
+      "The hull test needs at least one numeric covariate."
+    } else {
+      "Rerun {.fn check_extrapolation} with {.code hull = TRUE}."
+    }
     abort(
       c(
         "The convex-hull view needs the hull test to have run.",
-        i = "Rerun {.fn check_extrapolation} with {.code hull = TRUE}."
+        i = advice
       ),
-      error_class = "positively_hull_absent_error"
+      error_class = "positively_hull_absent_error",
+      call = call
     )
   }
   plot_data <- object@results

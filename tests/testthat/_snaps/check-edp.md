@@ -1,3 +1,12 @@
+# the scatter view-gate abort names the autoplot method
+
+    Code
+      ggplot2::autoplot(plain, type = "scatter")
+    Condition
+      Error in `autoplot.positively::edp_result`:
+      ! The scatter view needs the estimator variant.
+      i Rerun `check_edp()` with `variant = "estimator"`.
+
 # the argument validation messages are stable
 
     Code

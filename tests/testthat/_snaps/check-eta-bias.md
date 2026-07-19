@@ -12,7 +12,7 @@
     Code
       ggplot2::autoplot(single, type = "sweep")
     Condition
-      Error in `autoplot_eta_bias_sweep()`:
+      Error in `autoplot.positively::eta_bias_result`:
       ! The sweep view needs a truncation sweep of more than one level.
       i Rerun `check_eta_bias()` with a `truncation_grid` of multiple lower bounds.
 

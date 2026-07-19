@@ -54,6 +54,82 @@ validate_column_selection <- function(
   invisible(selection)
 }
 
+#' Select exactly one column, reporting failures as a positively error
+#'
+#' Evaluates a single-column data-masked selection and translates a tidyselect
+#' failure (an unknown column, say) into a classed `positively_selection_error`,
+#' so that every user-facing failure carries the package's condition class.
+#'
+#' @param quo A quosure holding the data-masked selection.
+#' @param .data The data frame to select from.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return A named integer of length one, the selected column position.
+#' @keywords internal
+#' @noRd
+eval_select_column <- function(
+  quo,
+  .data,
+  arg_name,
+  call = rlang::caller_env()
+) {
+  pos <- rlang::try_fetch(
+    tidyselect::eval_select(quo, .data),
+    error = function(cnd) {
+      abort(
+        "{.arg {arg_name}} must select a column that exists in {.arg .data}.",
+        error_class = "positively_selection_error",
+        call = call,
+        parent = cnd
+      )
+    }
+  )
+  if (length(pos) != 1) {
+    abort(
+      "{.arg {arg_name}} must select exactly one column, not {length(pos)}.",
+      error_class = "positively_selection_error",
+      call = call
+    )
+  }
+  pos
+}
+
+#' Select one or more columns, reporting failures as a positively error
+#'
+#' Evaluates a multi-column data-masked selection and translates a tidyselect
+#' failure (an unknown column, say) into a classed `positively_selection_error`,
+#' so that every user-facing failure carries the package's condition class. The
+#' emptiness of the selection is left to `validate_column_selection()`, which
+#' each caller applies with its own argument name.
+#'
+#' @param quo A quosure holding the data-masked selection.
+#' @param .data The data frame to select from.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return A named integer vector of the selected column positions.
+#' @keywords internal
+#' @noRd
+eval_select_columns <- function(
+  quo,
+  .data,
+  arg_name,
+  call = rlang::caller_env()
+) {
+  rlang::try_fetch(
+    tidyselect::eval_select(quo, .data),
+    error = function(cnd) {
+      abort(
+        "{.arg {arg_name}} must select columns that exist in {.arg .data}.",
+        error_class = "positively_selection_error",
+        call = call,
+        parent = cnd
+      )
+    }
+  )
+}
+
 #' Validate probabilities in the unit interval
 #'
 #' @param probs A numeric vector of probabilities.

@@ -279,7 +279,7 @@
 <polyline points='76.54,257.74 79.28,257.74 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
 <text x='74.35' y='479.56' text-anchor='end' style='font-size: 8.80px; fill: #4D4D4D; font-family: sans;' textLength='44.01px' lengthAdjust='spacingAndGlyphs'>(overall) [1]</text>
 <polyline points='76.54,476.53 79.28,476.53 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<text x='366.10' y='568.24' text-anchor='middle' style='font-size: 11.00px; font-family: sans;' textLength='163.91px' lengthAdjust='spacingAndGlyphs'>Exposure prevalence in subgroup</text>
+<text x='366.10' y='568.24' text-anchor='middle' style='font-size: 11.00px; font-family: sans;' textLength='115.59px' lengthAdjust='spacingAndGlyphs'>Prevalence in subgroup</text>
 <text transform='translate(13.05,300.60) rotate(-90)' text-anchor='middle' style='font-size: 11.00px; font-family: sans;' textLength='47.71px' lengthAdjust='spacingAndGlyphs'>Subgroup</text>
 <rect x='663.88' y='275.65' width='50.64' height='49.89' style='stroke-width: 1.07; stroke: none; fill: #FFFFFF;' />
 <text x='663.88' y='284.36' style='font-size: 11.00px; font-family: sans;' textLength='39.75px' lengthAdjust='spacingAndGlyphs'>Flagged</text>

@@ -180,7 +180,11 @@ check_port_seq <- function(
   validate_lag(lag)
   strategy <- rlang::arg_match(strategy)
 
-  exposure_pos <- tidyselect::eval_select(rlang::enquo(.exposures), .data)
+  exposure_pos <- eval_select_columns(
+    rlang::enquo(.exposures),
+    .data,
+    ".exposures"
+  )
   validate_column_selection(exposure_pos, ".exposures")
   exposure_names <- names(exposure_pos)
   n_times <- length(exposure_names)
@@ -224,7 +228,7 @@ check_port_seq <- function(
   has_censoring <- !rlang::quo_is_null(censoring_quo)
   censoring_names <- character(0)
   if (has_censoring) {
-    censoring_pos <- tidyselect::eval_select(censoring_quo, .data)
+    censoring_pos <- eval_select_columns(censoring_quo, .data, ".censoring")
     censoring_names <- names(censoring_pos)
     validate_censoring_indicators(.data, censoring_names, n_times)
   }

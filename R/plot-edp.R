@@ -40,7 +40,7 @@ method(autoplot, edp_result) <- function(
   } else if (type == "ecdf") {
     autoplot_edp_ecdf(object)
   } else {
-    autoplot_edp_scatter(object)
+    autoplot_edp_scatter(object, call = rlang::current_call())
   }
 }
 
@@ -95,18 +95,20 @@ autoplot_edp_ecdf <- function(object) {
 #' The estimator scatter view of an EDP diagnostic
 #'
 #' @param object An `edp_result`.
+#' @param call The calling environment, used to build the error's call.
 #'
 #' @return A [ggplot2::ggplot] object.
 #' @keywords internal
 #' @noRd
-autoplot_edp_scatter <- function(object) {
+autoplot_edp_scatter <- function(object, call = rlang::caller_env()) {
   if (object@variant != "estimator") {
     abort(
       c(
         "The scatter view needs the estimator variant.",
         i = "Rerun {.fn check_edp} with {.code variant = \"estimator\"}."
       ),
-      error_class = "positively_variant_error"
+      error_class = "positively_variant_error",
+      call = call
     )
   }
   results <- object@results

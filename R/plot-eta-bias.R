@@ -49,7 +49,7 @@ method(autoplot, eta_bias_result) <- function(
   if (type == "bootstrap") {
     autoplot_eta_bias_bootstrap(object)
   } else {
-    autoplot_eta_bias_sweep(object)
+    autoplot_eta_bias_sweep(object, call = rlang::current_call())
   }
 }
 
@@ -100,11 +100,12 @@ autoplot_eta_bias_bootstrap <- function(object) {
 #' The truncation-sweep view of an ETA.Bias diagnostic
 #'
 #' @param object An `eta_bias_result`.
+#' @param call The calling environment, used to build the error's call.
 #'
 #' @return A [ggplot2::ggplot] object.
 #' @keywords internal
 #' @noRd
-autoplot_eta_bias_sweep <- function(object) {
+autoplot_eta_bias_sweep <- function(object, call = rlang::caller_env()) {
   results <- object@results
   if (nrow(results) == 1) {
     abort(
@@ -112,7 +113,8 @@ autoplot_eta_bias_sweep <- function(object) {
         "The sweep view needs a truncation sweep of more than one level.",
         i = "Rerun {.fn check_eta_bias} with a {.arg truncation_grid} of multiple lower bounds."
       ),
-      error_class = "positively_sweep_absent_error"
+      error_class = "positively_sweep_absent_error",
+      call = call
     )
   }
   sweep_data <- tibble::tibble(

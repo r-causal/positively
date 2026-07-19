@@ -7,8 +7,9 @@
 #' is proportional to subgroup size, and flagged subgroups are highlighted. A
 #' sequential result is faceted by time point, and each facet carries its own
 #' resolved thresholds. A censoring run is faceted by both time point and row
-#' type, so the exposure and censoring subgroups are separated and each facet's
-#' reference lines are drawn from the thresholds that family was judged against.
+#' type, so the exposure and censoring subgroups are separated, the censoring
+#' facets plot censoring prevalence, and each facet's reference lines are drawn
+#' from the thresholds that family was judged against.
 #'
 #' @param object A `port_result` from [check_port()] or [check_port_seq()].
 #' @param ... Not used.
@@ -35,6 +36,14 @@ method(autoplot, port_result) <- function(object, ...) {
   sequential <- "time" %in% names(object@results)
   has_type <- "type" %in% names(object@results)
 
+  # A censoring run pools exposure and censoring subgroups into one plot, so the
+  # axis cannot claim exposure prevalence for every bar.
+  x_label <- if (has_type) {
+    "Prevalence in subgroup"
+  } else {
+    "Exposure prevalence in subgroup"
+  }
+
   plot <- ggplot2::ggplot(
     plot_data,
     ggplot2::aes(
@@ -50,7 +59,7 @@ method(autoplot, port_result) <- function(object, ...) {
       linetype = "dashed"
     ) +
     ggplot2::labs(
-      x = "Exposure prevalence in subgroup",
+      x = x_label,
       y = "Subgroup",
       fill = "Flagged",
       title = "PoRT subgroups against the prevalence thresholds"

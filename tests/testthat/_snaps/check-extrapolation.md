@@ -123,9 +123,18 @@
     Code
       ggplot2::autoplot(res, type = "hull")
     Condition
-      Error in `autoplot_extrapolation_hull()`:
+      Error in `autoplot.positively::extrapolation_result`:
       ! The convex-hull view needs the hull test to have run.
       i Rerun `check_extrapolation()` with `hull = TRUE`.
+
+# the hull-view abort points to the numeric-covariate precondition when hull was skipped
+
+    Code
+      ggplot2::autoplot(res, type = "hull")
+    Condition
+      Error in `autoplot.positively::extrapolation_result`:
+      ! The convex-hull view needs the hull test to have run.
+      i The hull test needs at least one numeric covariate.
 
 # the high-dimensional hull messages are stable
 

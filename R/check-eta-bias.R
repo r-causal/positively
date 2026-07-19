@@ -180,7 +180,11 @@ check_eta_bias <- function(
     ".exposure"
   )
   outcome_pos <- eval_select_column(rlang::enquo(.outcome), .data, ".outcome")
-  covariate_pos <- tidyselect::eval_select(rlang::enquo(.covariates), .data)
+  covariate_pos <- eval_select_columns(
+    rlang::enquo(.covariates),
+    .data,
+    ".covariates"
+  )
   validate_column_selection(covariate_pos, ".covariates")
 
   exposure_name <- names(exposure_pos)
@@ -295,46 +299,6 @@ check_eta_bias <- function(
 }
 
 # ---- Argument resolution --------------------------------------------------
-
-#' Select exactly one column, reporting failures as a positively error
-#'
-#' Evaluates a single-column data-masked selection and translates a tidyselect
-#' failure (an unknown column, say) into a classed `positively_error`, so that
-#' every user-facing failure carries the package's condition class.
-#'
-#' @param quo A quosure holding the data-masked selection.
-#' @param .data The data frame to select from.
-#' @param arg_name The argument name used in error messages.
-#'
-#' @return A named integer of length one, the selected column position.
-#' @keywords internal
-#' @noRd
-eval_select_column <- function(
-  quo,
-  .data,
-  arg_name,
-  call = rlang::caller_env()
-) {
-  pos <- rlang::try_fetch(
-    tidyselect::eval_select(quo, .data),
-    error = function(cnd) {
-      abort(
-        "{.arg {arg_name}} must select a column that exists in {.arg .data}.",
-        error_class = "positively_selection_error",
-        call = call,
-        parent = cnd
-      )
-    }
-  )
-  if (length(pos) != 1) {
-    abort(
-      "{.arg {arg_name}} must select exactly one column, not {length(pos)}.",
-      error_class = "positively_selection_error",
-      call = call
-    )
-  }
-  pos
-}
 
 #' Resolve the truncation levels for a run or a sweep
 #'

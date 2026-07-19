@@ -141,13 +141,11 @@ check_hat_values <- function(
   validate_count(null_reps, arg_name = "null_reps")
   null_method <- rlang::arg_match(null_method)
 
-  exposure_pos <- tidyselect::eval_select(rlang::enquo(.exposure), .data)
-  if (length(exposure_pos) != 1) {
-    abort(
-      "{.arg .exposure} must select exactly one column, not {length(exposure_pos)}.",
-      error_class = "positively_selection_error"
-    )
-  }
+  exposure_pos <- eval_select_column(
+    rlang::enquo(.exposure),
+    .data,
+    ".exposure"
+  )
   exposure_name <- names(exposure_pos)
   exposure_vec <- .data[[exposure_pos]]
 
@@ -162,7 +160,11 @@ check_hat_values <- function(
     )
   }
 
-  covariate_pos <- tidyselect::eval_select(rlang::enquo(.covariates), .data)
+  covariate_pos <- eval_select_columns(
+    rlang::enquo(.covariates),
+    .data,
+    ".covariates"
+  )
   validate_column_selection(covariate_pos, ".covariates")
 
   covariate_names <- names(covariate_pos)

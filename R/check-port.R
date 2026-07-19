@@ -165,7 +165,11 @@ check_port <- function(
 
   resolved_type <- match_exposure_type(exposure_type, exposure_vec)
 
-  covariate_pos <- tidyselect::eval_select(rlang::enquo(.covariates), .data)
+  covariate_pos <- eval_select_columns(
+    rlang::enquo(.covariates),
+    .data,
+    ".covariates"
+  )
   validate_column_selection(covariate_pos, ".covariates")
   covariate_names <- names(covariate_pos)
   validate_complete_columns(.data, covariate_names, ".covariates")

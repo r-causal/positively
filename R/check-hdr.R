@@ -125,7 +125,11 @@ check_hdr <- function(
     )
   }
 
-  covariate_pos <- tidyselect::eval_select(rlang::enquo(.covariates), .data)
+  covariate_pos <- eval_select_columns(
+    rlang::enquo(.covariates),
+    .data,
+    ".covariates"
+  )
   validate_column_selection(covariate_pos, ".covariates")
   covariate_names <- names(covariate_pos)
 
@@ -258,15 +262,7 @@ select_single_exposure <- function(
   .data,
   call = rlang::caller_env()
 ) {
-  exposure_pos <- tidyselect::eval_select(exposure_quo, .data)
-  if (length(exposure_pos) != 1) {
-    abort(
-      "{.arg .exposure} must select exactly one column, not {length(exposure_pos)}.",
-      error_class = "positively_selection_error",
-      call = call
-    )
-  }
-  names(exposure_pos)
+  names(eval_select_column(exposure_quo, .data, ".exposure", call = call))
 }
 
 #' Resolve the target grid of exposure values
@@ -457,7 +453,11 @@ check_hdr_seq <- function(
   validate_hdr_estimator(density_estimator)
   validate_lag(lag)
 
-  exposure_pos <- tidyselect::eval_select(rlang::enquo(.exposures), .data)
+  exposure_pos <- eval_select_columns(
+    rlang::enquo(.exposures),
+    .data,
+    ".exposures"
+  )
   validate_column_selection(exposure_pos, ".exposures")
   exposure_names <- names(exposure_pos)
   n_times <- length(exposure_names)
@@ -573,7 +573,12 @@ parse_covariate_list <- function(
 
   sets <- lapply(elements, function(element) {
     element_quo <- rlang::new_quosure(element, env)
-    selection <- tidyselect::eval_select(element_quo, .data)
+    selection <- eval_select_columns(
+      element_quo,
+      .data,
+      ".covariates",
+      call = call
+    )
     names(selection)
   })
 
@@ -597,16 +602,23 @@ parse_covariate_list <- function(
 #'
 #' @param selection_quo A quosure capturing the selection.
 #' @param .data The data frame.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
 #'
 #' @return A character vector of column names, empty when the selection is
 #'   `NULL`.
 #' @keywords internal
 #' @noRd
-eval_optional_selection <- function(selection_quo, .data) {
+eval_optional_selection <- function(
+  selection_quo,
+  .data,
+  arg_name = ".baseline",
+  call = rlang::caller_env()
+) {
   if (rlang::quo_is_null(selection_quo)) {
     return(character(0))
   }
-  names(tidyselect::eval_select(selection_quo, .data))
+  names(eval_select_columns(selection_quo, .data, arg_name, call = call))
 }
 
 #' The conditioning set for one time point
