@@ -66,6 +66,15 @@ test_that("check_port_seq() rejects an empty exposure selection", {
   )
 })
 
+test_that("check_port_seq() rejects an empty conditioning set", {
+  local_quiet()
+  data <- sim_port_seq(n = 300, seed = 1)
+  expect_error(
+    check_port_seq(data, c(a1, a2), list(tidyselect::starts_with("zzz"))),
+    class = "positively_empty_error"
+  )
+})
+
 test_that("check_port_seq() validates the lag", {
   local_quiet()
   data <- sim_port_seq(n = 300, seed = 1)
@@ -764,6 +773,10 @@ test_that("check_port_seq() argument validation messages are stable", {
   )
   expect_snapshot(
     check_port_seq(data, c(a1, a2, a3), list(c1, x)),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_port_seq(data, c(a1, a2), list(tidyselect::starts_with("zzz"))),
     error = TRUE
   )
   expect_snapshot(

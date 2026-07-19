@@ -633,6 +633,84 @@ test_that("a length-one covariate list recycles across time points", {
   expect_equal(recycled@results$nonoverlap, explicit@results$nonoverlap)
 })
 
+# ---- Exposure in the conditioning set -------------------------------------
+
+test_that("check_hdr() rejects covariates overlapping the exposure", {
+  local_quiet()
+  data <- sim_hdr_linear(80, seed = 1)
+  expect_error(
+    check_hdr(data, exposure, c(exposure, l)),
+    class = "positively_selection_error"
+  )
+  expect_error(
+    check_hdr(data, exposure, tidyselect::everything()),
+    class = "positively_selection_error"
+  )
+})
+
+test_that("check_hdr_seq() rejects an exposure in its own conditioning set", {
+  local_quiet()
+  data <- dgp_longitudinal(n = 300, seed = 5)
+  # a1 is the time-1 exposure, so listing it in the time-1 covariate set puts the
+  # response into its own model.
+  expect_error(
+    check_hdr_seq(data, c(a1, a2), list(c(l0, a1), l1), values = 0),
+    class = "positively_selection_error"
+  )
+  # A baseline exposure enters every conditioning set, including its own time.
+  expect_error(
+    check_hdr_seq(
+      data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      .baseline = a2,
+      values = 0
+    ),
+    class = "positively_selection_error"
+  )
+})
+
+test_that("check_hdr_seq() keeps a prior exposure as a valid conditioning column", {
+  local_quiet()
+  data <- dgp_longitudinal(n = 300, seed = 5)
+  # At the full lag the time-1 exposure a1 legitimately conditions the time-2
+  # model, so the run succeeds with every time point represented.
+  res <- check_hdr_seq(data, c(a1, a2, a3), list(l0, l1, l2), values = 0)
+  expect_identical(S7::S7_class(res)@name, "hdr_result")
+  expect_length(sort(unique(res@results$time)), 3)
+})
+
+# ---- Empty conditioning sets ----------------------------------------------
+
+test_that("check_hdr_seq() rejects an empty conditioning set", {
+  local_quiet()
+  data <- dgp_longitudinal(n = 300, seed = 5)
+  expect_error(
+    check_hdr_seq(
+      data,
+      c(a1, a2, a3),
+      list(tidyselect::starts_with("zzz")),
+      values = 0
+    ),
+    class = "positively_empty_error"
+  )
+})
+
+test_that("an empty per-time selection is allowed when .baseline covers it", {
+  local_quiet()
+  data <- dgp_longitudinal(n = 300, seed = 5)
+  # The per-time covariate selection is empty, but the baseline covariate fills
+  # every conditioning set, so all time points are still returned.
+  res <- check_hdr_seq(
+    data,
+    c(a1, a2, a3),
+    list(tidyselect::starts_with("zzz")),
+    .baseline = l0,
+    values = 0
+  )
+  expect_length(sort(unique(res@results$time)), 3)
+})
+
 # ---- Autoplot contract ----------------------------------------------------
 
 test_that("autoplot() returns a ggplot for the point diagnostic", {
@@ -745,6 +823,8 @@ test_that("check_hdr() argument validation messages are stable", {
 
   one_row <- tibble::tibble(exposure = 0.5, l = -0.2)
   expect_snapshot(check_hdr(one_row, exposure, l), error = TRUE)
+
+  expect_snapshot(check_hdr(data, exposure, c(exposure, l)), error = TRUE)
 })
 
 test_that("check_hdr_seq() argument validation messages are stable", {
@@ -772,6 +852,30 @@ test_that("check_hdr_seq() argument validation messages are stable", {
   binary$a2 <- rep(c(0, 1), length.out = nrow(binary))
   expect_snapshot(
     check_hdr_seq(binary, c(a1, a2, a3), list(l0, l1, l2)),
+    error = TRUE
+  )
+
+  expect_snapshot(
+    check_hdr_seq(data, c(a1, a2), list(c(l0, a1), l1), values = 0),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_hdr_seq(
+      data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      .baseline = a2,
+      values = 0
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_hdr_seq(
+      data,
+      c(a1, a2, a3),
+      list(tidyselect::starts_with("zzz")),
+      values = 0
+    ),
     error = TRUE
   )
 })

@@ -164,6 +164,25 @@ test_that("check_eta_bias() rejects an empty covariate selection", {
   )
 })
 
+test_that("check_eta_bias() rejects covariates overlapping the exposure or outcome", {
+  local_quiet()
+  # A small design keeps a low n_boot; the abort must fire ahead of any
+  # bootstrap work, so the resampling size never matters here.
+  data <- sim_eta_good(n = 100, seed = 1)
+  expect_error(
+    check_eta_bias(data, a, y, c(a, x1, x2), n_boot = 5),
+    class = "positively_selection_error"
+  )
+  expect_error(
+    check_eta_bias(data, a, y, c(y, x1, x2), n_boot = 5),
+    class = "positively_selection_error"
+  )
+  expect_error(
+    check_eta_bias(data, a, y, tidyselect::everything(), n_boot = 5),
+    class = "positively_selection_error"
+  )
+})
+
 test_that("check_eta_bias() aborts on a missing outcome column", {
   local_quiet()
   data <- sim_eta_good(n = 100, seed = 1)
@@ -925,6 +944,10 @@ test_that("the input and exposure validation messages are stable", {
   )
   expect_snapshot(
     check_eta_bias(good, a, y, c(x1, x2), outcome_type = "binary", n_boot = 10),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_eta_bias(good, a, y, c(a, x1, x2), n_boot = 10),
     error = TRUE
   )
 })

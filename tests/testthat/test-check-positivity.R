@@ -500,6 +500,19 @@ test_that("a diagnostic that needs an outcome cannot be requested", {
   )
 })
 
+test_that("covariates overlapping the exposure are rejected", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  # everything() sweeps the exposure column into the covariate selection.
+  expect_error(
+    check_positivity(data, exposure, tidyselect::everything()),
+    class = "positively_selection_error"
+  )
+  # A covariate selection disjoint from the exposure still succeeds.
+  res <- check_positivity(data, exposure, c(x1, x2))
+  expect_true(S7::S7_inherits(res, positivity_check))
+})
+
 test_that("hat_values is invalid for a binary exposure", {
   local_quiet()
   data <- dgp_good_positivity(n = 200)
@@ -651,6 +664,11 @@ test_that("the classed errors are stable", {
   # A single-column exposure selection is required.
   expect_snapshot(
     check_positivity(data, c(exposure, x1), x2),
+    error = TRUE
+  )
+  # A covariate selection that includes the exposure column.
+  expect_snapshot(
+    check_positivity(data, exposure, tidyselect::everything()),
     error = TRUE
   )
   # tidy() rejects an unknown diagnostic name.
