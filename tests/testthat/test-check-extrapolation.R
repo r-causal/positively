@@ -166,6 +166,21 @@ test_that("check_extrapolation() aborts on missing exposure or covariate values"
   )
 })
 
+test_that("check_extrapolation() rejects non-finite covariate values", {
+  local_quiet()
+  data <- withr::with_seed(1, {
+    data.frame(
+      exposure = rep(0:1, each = 5),
+      x1 = c(stats::rnorm(9), Inf),
+      x2 = stats::rnorm(10)
+    )
+  })
+  expect_error(
+    check_extrapolation(data, exposure, c(x1, x2), hull = FALSE),
+    class = "positively_error"
+  )
+})
+
 test_that("check_extrapolation() aborts on fewer than two observations", {
   local_quiet()
   data <- tibble::tibble(exposure = 1L, x1 = 0.5, x2 = -0.2)
@@ -719,6 +734,18 @@ test_that("the missing-value and sample-size abort messages are stable", {
   too_small <- tibble::tibble(exposure = 1L, x1 = 0.5, x2 = -0.2)
   expect_snapshot(
     check_extrapolation(too_small, exposure, c(x1, x2)),
+    error = TRUE
+  )
+
+  non_finite <- withr::with_seed(1, {
+    data.frame(
+      exposure = rep(0:1, each = 5),
+      x1 = c(stats::rnorm(9), Inf),
+      x2 = stats::rnorm(10)
+    )
+  })
+  expect_snapshot(
+    check_extrapolation(non_finite, exposure, c(x1, x2), hull = FALSE),
     error = TRUE
   )
 })

@@ -494,6 +494,28 @@ test_that("a zero bandwidth counts exact matches", {
   expect_true(all(res_duplicated@results$edp == 2))
 })
 
+test_that("check_edp() rejects non-finite exposure or covariate values", {
+  inf_exposure <- data.frame(a = c(1, 2, Inf, 4), x1 = 0)
+  expect_error(
+    check_edp(inf_exposure, a, x1, values = 1, exposure_type = "continuous"),
+    class = "positively_error"
+  )
+
+  inf_covariate <- data.frame(a = c(1, 2, 3, 4), x1 = c(0, -Inf, 0, 0))
+  expect_error(
+    check_edp(
+      inf_covariate,
+      a,
+      x1,
+      bw_exposure = 1,
+      bw_covariates = 1,
+      values = 1,
+      exposure_type = "continuous"
+    ),
+    class = "positively_range_error"
+  )
+})
+
 test_that("mean edp is nondecreasing as the exposure bandwidth grows", {
   data <- sim_edp_gaussian(200, seed = 1)
   bws <- c(0.1, 0.25, 0.5, 1, 2, 4)

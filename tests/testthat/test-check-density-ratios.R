@@ -43,6 +43,22 @@ test_that("check_density_ratios() rejects missing ratios", {
   )
 })
 
+test_that("check_density_ratios() rejects infinite ratios", {
+  expect_error(
+    check_density_ratios(c(1, Inf, 2)),
+    class = "positively_error"
+  )
+  expect_error(
+    check_density_ratios(matrix(c(1, 2, Inf, 3), nrow = 2)),
+    class = "positively_error"
+  )
+  # -Inf is negative, so the negativity guard fires first and must keep firing.
+  expect_error(
+    check_density_ratios(c(1, -Inf)),
+    class = "positively_range_error"
+  )
+})
+
 test_that("check_density_ratios() rejects an empty numeric input", {
   expect_error(
     check_density_ratios(numeric(0)),
@@ -237,6 +253,18 @@ test_that("Kish ESS matches hand-computed values and is scale invariant", {
 
   outlier <- generics::tidy(check_density_ratios(c(1, 1, 1, 1, 100)))
   expect_equal(stat_value(outlier, "ess"), 1.081168, tolerance = 1e-5)
+})
+
+test_that("Kish ESS is scale invariant at extreme magnitudes", {
+  # Equal weights give a full effective sample size at any overall scale, even
+  # where the naive sum of squares would overflow or underflow to give NaN.
+  huge <- generics::tidy(check_density_ratios(rep(1e160, 4)))
+  expect_equal(stat_value(huge, "ess"), 4)
+  expect_equal(stat_value(huge, "ess_fraction"), 1)
+
+  tiny <- generics::tidy(check_density_ratios(rep(1e-200, 4)))
+  expect_equal(stat_value(tiny, "ess"), 4)
+  expect_equal(stat_value(tiny, "ess_fraction"), 1)
 })
 
 # ---- Lognormal generator behavior ----------------------------------------
@@ -525,6 +553,11 @@ test_that("the classed error messages are stable", {
   )
   expect_snapshot(
     check_density_ratios(matrix(c("a", "b", "c", "d"), nrow = 2)),
+    error = TRUE
+  )
+  expect_snapshot(check_density_ratios(c(1, Inf, 2)), error = TRUE)
+  expect_snapshot(
+    check_density_ratios(matrix(c(1, 2, Inf, 3), nrow = 2)),
     error = TRUE
   )
 })

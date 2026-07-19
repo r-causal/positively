@@ -198,6 +198,15 @@ test_that("check_hdr() validates a user-supplied target grid", {
   )
 })
 
+test_that("check_hdr() rejects a non-finite target value", {
+  local_quiet()
+  data <- sim_hdr_linear(80, seed = 1)
+  expect_error(
+    check_hdr(data, exposure, l, values = c(0, Inf)),
+    class = "positively_range_error"
+  )
+})
+
 test_that("check_hdr() rejects a density_estimator that is not an hdr_density", {
   local_quiet()
   data <- sim_hdr_linear(80, seed = 1)
@@ -719,6 +728,10 @@ test_that("check_hdr() argument validation messages are stable", {
   )
   expect_snapshot(
     check_hdr(data, exposure, l, values = numeric(0)),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_hdr(data, exposure, l, values = c(0, Inf)),
     error = TRUE
   )
   expect_snapshot(

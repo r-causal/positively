@@ -183,7 +183,66 @@ test_that("the normal density matches a plain Gaussian around fitted means", {
   )
 })
 
+# ---- Numeric-grid cutoff on a degenerate density --------------------------
+
+test_that("check_hdr() aborts when the numeric-grid cutoff is undefined", {
+  local_quiet()
+  # A near-degenerate conditional density (sigma = 1e-8) with hdr_threshold left
+  # NULL forces the numeric-grid fallback, whose mass-capturing cutoff is
+  # undefined because the density spike falls between grid points.
+  est <- new_hdr_density(
+    fit = function(formula, data) {
+      list(model = stats::lm(formula, data = data), sigma = 1e-8)
+    },
+    density = function(state, a, newdata) {
+      stats::dnorm(
+        a,
+        mean = stats::predict(state$model, newdata = newdata),
+        sd = state$sigma
+      )
+    }
+  )
+
+  df <- withr::with_seed(1, {
+    frame <- data.frame(l = stats::rnorm(100))
+    frame$exposure <- frame$l + stats::rnorm(100)
+    frame
+  })
+
+  expect_error(
+    check_hdr(df, exposure, l, values = c(0, 1), density_estimator = est),
+    class = "positively_range_error"
+  )
+})
+
 # ---- Snapshots ------------------------------------------------------------
+
+test_that("the numeric-grid undefined-cutoff message is stable", {
+  local_quiet()
+  est <- new_hdr_density(
+    fit = function(formula, data) {
+      list(model = stats::lm(formula, data = data), sigma = 1e-8)
+    },
+    density = function(state, a, newdata) {
+      stats::dnorm(
+        a,
+        mean = stats::predict(state$model, newdata = newdata),
+        sd = state$sigma
+      )
+    }
+  )
+
+  df <- withr::with_seed(1, {
+    frame <- data.frame(l = stats::rnorm(100))
+    frame$exposure <- frame$l + stats::rnorm(100)
+    frame
+  })
+
+  expect_snapshot(
+    check_hdr(df, exposure, l, values = c(0, 1), density_estimator = est),
+    error = TRUE
+  )
+})
 
 test_that("new_hdr_density() validation messages are stable", {
   good_density <- function(state, a, newdata) rep(1, nrow(newdata))
