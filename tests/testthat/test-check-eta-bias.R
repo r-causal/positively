@@ -400,6 +400,48 @@ test_that("check_eta_bias() rejects an unsupported covariate type", {
   )
 })
 
+test_that("check_eta_bias() handles a non-syntactic covariate name", {
+  local_quiet()
+  data <- withr::with_seed(1, {
+    d <- data.frame(
+      a = stats::rbinom(200, 1L, 0.5),
+      y = stats::rnorm(200),
+      x = stats::rnorm(200)
+    )
+    names(d)[3] <- "my var"
+    d
+  })
+  res <- withr::with_seed(
+    2024,
+    check_eta_bias(data, a, y, `my var`, n_boot = 10)
+  )
+  expect_identical(S7::S7_class(res)@name, "eta_bias_result")
+  expect_true(all(is.finite(res@results$bias)))
+  expect_true(all(is.finite(res@results$mc_se)))
+  expect_true(is.finite(res@truth))
+})
+
+test_that("check_eta_bias() handles non-syntactic exposure and outcome names", {
+  local_quiet()
+  data <- withr::with_seed(1, {
+    d <- data.frame(
+      a = stats::rbinom(200, 1L, 0.5),
+      y = stats::rnorm(200),
+      x = stats::rnorm(200)
+    )
+    names(d) <- c("my a", "my y", "x")
+    d
+  })
+  res <- withr::with_seed(
+    2024,
+    check_eta_bias(data, `my a`, `my y`, x, n_boot = 10)
+  )
+  expect_identical(S7::S7_class(res)@name, "eta_bias_result")
+  expect_true(all(is.finite(res@results$bias)))
+  expect_true(all(is.finite(res@results$mc_se)))
+  expect_true(is.finite(res@truth))
+})
+
 test_that("check_eta_bias() aborts on a non-0/1 binary outcome", {
   local_quiet()
   data <- sim_eta_good(n = 100, seed = 1)

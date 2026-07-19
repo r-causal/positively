@@ -270,6 +270,33 @@ test_that("duplicate diagnostics are rejected", {
   )
 })
 
+test_that("duplicate args names are rejected", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  # A named list with a repeated name silently keeps only the first entry, so the
+  # second set of options would vanish without warning.
+  expect_error(
+    check_positivity(
+      data,
+      exposure,
+      c(x1, x2),
+      diagnostics = "port",
+      args = list(port = list(alpha = 0.2), port = list(alpha = 0.4))
+    ),
+    class = "positively_args_error"
+  )
+  expect_snapshot(
+    check_positivity(
+      data,
+      exposure,
+      c(x1, x2),
+      diagnostics = "port",
+      args = list(port = list(alpha = 0.2), port = list(alpha = 0.4))
+    ),
+    error = TRUE
+  )
+})
+
 test_that("an args entry that is not a list is rejected", {
   local_quiet()
   data <- dgp_good_positivity(n = 200)

@@ -1089,6 +1089,35 @@ test_that("check_port() aborts on a missing covariate value", {
   )
 })
 
+# ---- Missing exposure ------------------------------------------------------
+
+# A 0/1 exposure with a large block of missing values. rpart would otherwise
+# treat the exposure as a third category and report deflated prevalences, so a
+# missing exposure value must abort.
+port_missing_exposure_data <- function() {
+  withr::with_seed(1, {
+    exposure <- stats::rbinom(1000, 1L, 0.5)
+    exposure[seq_len(400)] <- NA
+    tibble::tibble(exposure = exposure, g = stats::rnorm(1000))
+  })
+}
+
+test_that("check_port() aborts on a missing exposure value", {
+  local_quiet()
+  expect_error(
+    check_port(port_missing_exposure_data(), exposure, g),
+    class = "positively_missing_error"
+  )
+})
+
+test_that("check_port() missing-exposure message is stable", {
+  local_quiet()
+  expect_snapshot(
+    check_port(port_missing_exposure_data(), exposure, g),
+    error = TRUE
+  )
+})
+
 # ---- Response-name collision ----------------------------------------------
 
 # A covariate named .port_response collides with the internal response column

@@ -143,6 +143,33 @@ test_that("check_density_ratios() aborts on an lmtp fit without a ratio componen
   )
 })
 
+# ---- Label collisions ------------------------------------------------------
+
+test_that("thresholds that collapse to one statistic label are rejected", {
+  # 1e-9 and 2e-9 are distinct values but round to the same eight-decimal label,
+  # so both would name the statistic prop_gt_0.
+  expect_error(
+    check_density_ratios(c(0.5, 1, 2), thresholds = c(1e-9, 2e-9)),
+    class = "positively_duplicate_error"
+  )
+  expect_snapshot(
+    check_density_ratios(c(0.5, 1, 2), thresholds = c(1e-9, 2e-9)),
+    error = TRUE
+  )
+})
+
+test_that("probs that collapse to one quantile label are rejected", {
+  # 0.5 and 0.5 + 1e-11 are distinct but both map to the quantile_50 label.
+  expect_error(
+    check_density_ratios(c(0.5, 1, 2), probs = c(0.5, 0.5 + 1e-11)),
+    class = "positively_duplicate_error"
+  )
+  expect_snapshot(
+    check_density_ratios(c(0.5, 1, 2), probs = c(0.5, 0.5 + 1e-11)),
+    error = TRUE
+  )
+})
+
 # ---- Result class and properties ------------------------------------------
 
 test_that("check_density_ratios() returns a density_ratios_result diagnostic", {

@@ -190,6 +190,59 @@ test_that("check_extrapolation() aborts on fewer than two observations", {
   )
 })
 
+# ---- Unsupported covariate types ------------------------------------------
+
+test_that("check_extrapolation() rejects a Date covariate", {
+  local_quiet()
+  data <- withr::with_seed(1, {
+    tibble::tibble(
+      exposure = rep(0:1, each = 50),
+      x1 = stats::rnorm(100),
+      d = as.Date("2020-01-01") + seq_len(100)
+    )
+  })
+  expect_error(
+    check_extrapolation(data, exposure, c(x1, d), hull = FALSE),
+    class = "positively_error"
+  )
+  expect_snapshot(
+    check_extrapolation(data, exposure, c(x1, d), hull = FALSE),
+    error = TRUE
+  )
+})
+
+test_that("check_extrapolation() rejects a list-column covariate", {
+  local_quiet()
+  data <- withr::with_seed(1, {
+    tibble::tibble(
+      exposure = rep(0:1, each = 50),
+      x1 = stats::rnorm(100),
+      lc = as.list(seq_len(100))
+    )
+  })
+  expect_error(
+    check_extrapolation(data, exposure, c(x1, lc), hull = FALSE),
+    class = "positively_error"
+  )
+})
+
+test_that("a logical covariate returns finite geometric variability and results", {
+  local_quiet()
+  data <- withr::with_seed(1, {
+    tibble::tibble(
+      exposure = rep(0:1, each = 50),
+      x1 = stats::rnorm(100),
+      flag = sample(c(TRUE, FALSE), 100, replace = TRUE)
+    )
+  })
+  res <- check_extrapolation(data, exposure, c(x1, flag), hull = FALSE)
+
+  expect_true(is.finite(res@geometric_variability))
+  expect_true(all(is.finite(res@results$gower_min)))
+  expect_true(all(is.finite(res@results$gower_mean)))
+  expect_true(all(is.finite(res@results$frac_nearby)))
+})
+
 # ---- Result class and properties ------------------------------------------
 
 test_that("check_extrapolation() returns an extrapolation_result diagnostic", {
