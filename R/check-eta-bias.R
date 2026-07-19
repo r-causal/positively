@@ -480,14 +480,16 @@ resolve_eta_formulas <- function(
   covariate_names
 ) {
   default <- is.null(exposure_formula) && is.null(outcome_formula)
-  covariate_terms <- paste(covariate_names, collapse = " + ")
+  # Backticks keep non-syntactic names intact through parsing.
+  backticked <- function(name) paste0("`", name, "`")
+  covariate_terms <- paste(backticked(covariate_names), collapse = " + ")
   exposure_formula <- exposure_formula %||%
-    stats::as.formula(paste(exposure_name, "~", covariate_terms))
+    stats::as.formula(paste(backticked(exposure_name), "~", covariate_terms))
   outcome_formula <- outcome_formula %||%
     stats::as.formula(paste(
-      outcome_name,
+      backticked(outcome_name),
       "~",
-      exposure_name,
+      backticked(exposure_name),
       "+",
       covariate_terms
     ))

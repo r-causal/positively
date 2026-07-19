@@ -531,6 +531,18 @@ validate_thresholds <- function(thresholds, call = rlang::caller_env()) {
       call = call
     )
   }
+  labels <- number_label(thresholds)
+  if (anyDuplicated(labels)) {
+    dupes <- unique(labels[duplicated(labels)])
+    abort(
+      c(
+        "{.arg thresholds} must be distinct to eight decimal places.",
+        x = "{.val {paste0('prop_gt_', dupes)}} would name more than one statistic."
+      ),
+      error_class = "positively_duplicate_error",
+      call = call
+    )
+  }
   invisible(thresholds)
 }
 
@@ -554,6 +566,18 @@ validate_summary_probs <- function(probs, call = rlang::caller_env()) {
       c(
         "{.arg probs} must not contain duplicate values.",
         x = "Found {.val {dupes}} more than once."
+      ),
+      error_class = "positively_duplicate_error",
+      call = call
+    )
+  }
+  statistic_names <- quantile_statistic_names(probs)
+  if (anyDuplicated(statistic_names)) {
+    dupes <- unique(statistic_names[duplicated(statistic_names)])
+    abort(
+      c(
+        "{.arg probs} must be distinct to eight decimal places of the percent scale.",
+        x = "{.val {dupes}} would name more than one statistic."
       ),
       error_class = "positively_duplicate_error",
       call = call

@@ -276,6 +276,7 @@ test_that("duplicate args names are rejected", {
   # A named list with a repeated name silently keeps only the first entry, so the
   # second set of options would vanish without warning.
   expect_error(
+    # jarl-ignore duplicated_arguments: the repeated name is the condition under test
     check_positivity(
       data,
       exposure,
@@ -286,6 +287,7 @@ test_that("duplicate args names are rejected", {
     class = "positively_args_error"
   )
   expect_snapshot(
+    # jarl-ignore duplicated_arguments: the repeated name is the condition under test
     check_positivity(
       data,
       exposure,

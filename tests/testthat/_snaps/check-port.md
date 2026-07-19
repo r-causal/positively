@@ -165,6 +165,14 @@
       Error in `check_port()`:
       ! `breaks` must be numeric or `NULL`, not a <character>.
 
+# check_port() missing-exposure message is stable
+
+    Code
+      check_port(port_missing_exposure_data(), exposure, g)
+    Condition
+      Error in `check_port()`:
+      ! `.exposure` must not contain missing values.
+
 # check_port() degenerate binning messages are stable
 
     Code

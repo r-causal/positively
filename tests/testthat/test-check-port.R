@@ -736,9 +736,10 @@ test_that("explicit breaks bin a continuous exposure", {
 
 test_that("quantile bins recover the continuous support gap", {
   local_quiet()
-  # Default quantile binning cuts the exposure into three levels. The support
-  # gap plants a covariate region of high x1 that only ever sees the lowest
-  # exposure bin, so a low-bin subgroup flags on a high x1 lower bound.
+  # Default quantile binning cuts the exposure into three levels. Because
+  # x1 = 0.5 * exposure + noise, high-x1 subjects concentrate in the highest
+  # exposure bin and are nearly absent from the lowest, so the lowest bin flags a
+  # subgroup carrying a high x1 lower bound.
   data <- dgp_continuous_support_gap(n = 1000, seed = 4)
   res <- check_port(data, exposure, x1, exposure_type = "continuous")
 

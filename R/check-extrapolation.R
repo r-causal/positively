@@ -209,6 +209,27 @@ check_extrapolation <- function(
       error_class = "positively_missing_error"
     )
   }
+  unsupported_covariates <- covariate_names[vapply(
+    covariate_names,
+    function(column) {
+      values <- .data[[column]]
+      !(is.numeric(values) ||
+        is.logical(values) ||
+        is.factor(values) ||
+        is.character(values))
+    },
+    logical(1)
+  )]
+  if (length(unsupported_covariates) > 0) {
+    abort(
+      c(
+        "{.arg .covariates} must select numeric, logical, factor, or character columns.",
+        x = "{.val {unsupported_covariates}} {?is/are} another type.",
+        i = "Convert date or other ordered columns to numeric first."
+      ),
+      error_class = "positively_type_error"
+    )
+  }
   validate_finite_columns(.data, covariate_names, ".covariates")
 
   covariates <- .data[covariate_pos]

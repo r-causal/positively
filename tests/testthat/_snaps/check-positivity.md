@@ -1,3 +1,13 @@
+# duplicate args names are rejected
+
+    Code
+      check_positivity(data, exposure, c(x1, x2), diagnostics = "port", args = list(
+        port = list(alpha = 0.2), port = list(alpha = 0.4)))
+    Condition
+      Error in `check_positivity()`:
+      ! `args` must not repeat a diagnostic name.
+      x Duplicated: "port".
+
 # the container print method is stable
 
     Code

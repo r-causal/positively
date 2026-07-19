@@ -155,6 +155,12 @@ check_port <- function(
 
   exposure_name <- select_single_exposure(rlang::enquo(.exposure), .data)
   exposure_vec <- .data[[exposure_name]]
+  if (anyNA(exposure_vec)) {
+    abort(
+      "{.arg .exposure} must not contain missing values.",
+      error_class = "positively_missing_error"
+    )
+  }
   validate_two_level_exposure(exposure_vec)
 
   resolved_type <- match_exposure_type(exposure_type, exposure_vec)

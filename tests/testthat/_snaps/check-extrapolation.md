@@ -1,3 +1,13 @@
+# check_extrapolation() rejects a Date covariate
+
+    Code
+      check_extrapolation(data, exposure, c(x1, d), hull = FALSE)
+    Condition
+      Error in `check_extrapolation()`:
+      ! `.covariates` must select numeric, logical, factor, or character columns.
+      x "d" is another type.
+      i Convert date or other ordered columns to numeric first.
+
 # the binary-only abort messages are stable
 
     Code

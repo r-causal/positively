@@ -1,3 +1,21 @@
+# thresholds that collapse to one statistic label are rejected
+
+    Code
+      check_density_ratios(c(0.5, 1, 2), thresholds = c(1e-09, 2e-09))
+    Condition
+      Error in `check_density_ratios()`:
+      ! `thresholds` must be distinct to eight decimal places.
+      x "prop_gt_0" would name more than one statistic.
+
+# probs that collapse to one quantile label are rejected
+
+    Code
+      check_density_ratios(c(0.5, 1, 2), probs = c(0.5, 0.5 + 1e-11))
+    Condition
+      Error in `check_density_ratios()`:
+      ! `probs` must be distinct to eight decimal places of the percent scale.
+      x "quantile_50" would name more than one statistic.
+
 # the print method is stable
 
     Code

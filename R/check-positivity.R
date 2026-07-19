@@ -485,6 +485,18 @@ validate_composed_args <- function(
     )
   }
 
+  if (anyDuplicated(arg_names) > 0) {
+    duplicated_names <- unique(arg_names[duplicated(arg_names)])
+    abort(
+      c(
+        "{.arg args} must not repeat a diagnostic name.",
+        x = "Duplicated: {.val {duplicated_names}}."
+      ),
+      error_class = "positively_args_error",
+      call = call
+    )
+  }
+
   is_option_list <- vapply(args, is.list, logical(1))
   if (!all(is_option_list)) {
     bad <- arg_names[!is_option_list]
