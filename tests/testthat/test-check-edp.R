@@ -820,6 +820,22 @@ test_that("the estimator scatter view is a ggplot and aborts for the data varian
   )
 })
 
+test_that("the scatter view-gate abort names the autoplot method", {
+  local_quiet()
+  data <- sim_edp_gaussian(150)
+  plain <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = 0,
+    exposure_type = "continuous"
+  )
+  expect_snapshot(
+    ggplot2::autoplot(plain, type = "scatter"),
+    error = TRUE
+  )
+})
+
 test_that("the scatter view separates infinite ideal weights into their own layer", {
   local_quiet()
   # Three strata under exact categorical matching: two treated at different rates
@@ -1020,6 +1036,55 @@ test_that("check_edp() warns when a supplied bandwidth reaches no continuous dim
   expect_warning(
     check_edp(categorical, exposure, s, bw_covariates = 0.5),
     class = "positively_warning"
+  )
+})
+
+test_that("the data variant warns when estimator covariates are supplied", {
+  local_quiet()
+  data <- sim_edp_gaussian(60)
+  data$x2 <- rev(data$x1)
+
+  expect_warning(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      .outcome_covariates = c(x1, x2),
+      values = 0,
+      exposure_type = "continuous"
+    ),
+    class = "positively_unused_arg_warning"
+  )
+  expect_warning(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      .treatment_covariates = c(x1, x2),
+      values = 0,
+      exposure_type = "continuous"
+    ),
+    class = "positively_unused_arg_warning"
+  )
+})
+
+test_that("the estimator variant does not warn on its estimator covariates", {
+  local_quiet()
+  data <- sim_edp_gaussian(60)
+  data$x2 <- rev(data$x1)
+
+  expect_no_warning(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      .outcome_covariates = c(x1, x2),
+      .treatment_covariates = c(x1, x2),
+      variant = "estimator",
+      values = 0,
+      exposure_type = "continuous"
+    ),
+    class = "positively_unused_arg_warning"
   )
 })
 

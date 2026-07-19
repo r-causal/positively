@@ -919,6 +919,35 @@ test_that("the hull-view abort without a hull run is stable", {
   expect_snapshot(ggplot2::autoplot(res, type = "hull"), error = TRUE)
 })
 
+test_that("the hull-view abort points to the numeric-covariate precondition when hull was skipped", {
+  local_quiet()
+  data <- withr::with_seed(1, {
+    tibble::tibble(
+      exposure = rep(0:1, each = 40),
+      g1 = factor(sample(c("a", "b"), 80, replace = TRUE)),
+      g2 = factor(sample(c("x", "y"), 80, replace = TRUE))
+    )
+  })
+  # With no numeric covariate the hull test cannot run even though hull = TRUE
+  # was requested, so it is skipped with a warning and hull_run stays FALSE.
+  expect_warning(
+    check_extrapolation(data, exposure, c(g1, g2), hull = TRUE),
+    class = "positively_hull_covariate_warning"
+  )
+  res <- suppressWarnings(
+    check_extrapolation(data, exposure, c(g1, g2), hull = TRUE)
+  )
+  expect_false(res@hull_run)
+
+  # Rerunning with hull = TRUE would change nothing; the abort must name the
+  # numeric-covariate precondition rather than repeat the request.
+  expect_error(
+    ggplot2::autoplot(res, type = "hull"),
+    regexp = "numeric covariate"
+  )
+  expect_snapshot(ggplot2::autoplot(res, type = "hull"), error = TRUE)
+})
+
 test_that("the high-dimensional hull messages are stable", {
   withr::local_options(warn = 0)
   data <- sim_extrap_gaussian(60, p = 13, sep = 0, seed = 1)

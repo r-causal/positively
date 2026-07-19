@@ -367,6 +367,36 @@ test_that("sPoRT censoring autoplot renders by type", {
   )
 })
 
+test_that("the censoring run carries a family-neutral prevalence axis label", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring()
+
+  censoring <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    cp = 0.01
+  )
+  # The censoring run pools exposure and censoring subgroups into one plot, so
+  # the axis label must not claim exposure prevalence for every bar.
+  expect_identical(
+    ggplot2::autoplot(censoring)$labels$x,
+    "Prevalence in subgroup"
+  )
+
+  exposure_only <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    cp = 0.01
+  )
+  expect_identical(
+    ggplot2::autoplot(exposure_only)$labels$x,
+    "Exposure prevalence in subgroup"
+  )
+})
+
 # ---- Degenerate risk sets (finding 5) -------------------------------------
 
 # Collect and muffle the risk-set warnings, since more than one wave may skip.
