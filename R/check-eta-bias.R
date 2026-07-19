@@ -183,6 +183,21 @@ check_eta_bias <- function(
   outcome_name <- names(outcome_pos)
   covariate_names <- names(covariate_pos)
 
+  # The treatment model would separate perfectly on the exposure and the outcome
+  # model would absorb the whole treatment effect, so neither may appear among
+  # the covariates.
+  overlap <- intersect(covariate_pos, c(exposure_pos, outcome_pos))
+  if (length(overlap) > 0) {
+    overlapping <- names(.data)[overlap]
+    abort(
+      c(
+        "{.arg .covariates} must not include the exposure or outcome column.",
+        x = "{.val {overlapping}} {?is/are} also selected by {.arg .exposure} or {.arg .outcome}."
+      ),
+      error_class = "positively_selection_error"
+    )
+  }
+
   validate_eta_covariates(.data, covariate_names)
   validate_numeric_columns(.data, outcome_name, ".outcome")
 

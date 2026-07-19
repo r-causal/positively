@@ -143,6 +143,15 @@
       Error in `check_hdr()`:
       ! `.data` must have at least two observations, not 1.
 
+---
+
+    Code
+      check_hdr(data, exposure, c(exposure, l))
+    Condition
+      Error in `check_hdr()`:
+      ! `.covariates` must not include the exposure column.
+      x "exposure" is also selected by `.exposure`.
+
 # check_hdr_seq() argument validation messages are stable
 
     Code
@@ -187,4 +196,33 @@
       Error in `check_hdr_seq()`:
       ! `check_hdr_seq()` supports continuous exposures only.
       x "a2" is not continuous.
+
+---
+
+    Code
+      check_hdr_seq(data, c(a1, a2), list(c(l0, a1), l1), values = 0)
+    Condition
+      Error in `check_hdr_seq()`:
+      ! `.covariates` and `.baseline` must not include an exposure at its own time point.
+      x "a1" conditions its own model at time 1.
+
+---
+
+    Code
+      check_hdr_seq(data, c(a1, a2, a3), list(l0, l1, l2), .baseline = a2, values = 0)
+    Condition
+      Error in `check_hdr_seq()`:
+      ! `.covariates` and `.baseline` must not include an exposure at its own time point.
+      x "a2" conditions its own model at time 2.
+
+---
+
+    Code
+      check_hdr_seq(data, c(a1, a2, a3), list(tidyselect::starts_with("zzz")),
+      values = 0)
+    Condition
+      Error in `check_hdr_seq()`:
+      ! Every time point must have at least one conditioning column.
+      x The conditioning set at time 1 is empty.
+      i Supply time-varying covariates in `.covariates` or baseline covariates in `.baseline`.
 

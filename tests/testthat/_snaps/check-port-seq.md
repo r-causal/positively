@@ -98,6 +98,16 @@
 ---
 
     Code
+      check_port_seq(data, c(a1, a2), list(tidyselect::starts_with("zzz")))
+    Condition
+      Error in `check_port_seq()`:
+      ! Every time point must have at least one conditioning column.
+      x The conditioning set at time 1 is empty.
+      i Supply time-varying covariates in `.covariates` or baseline covariates in `.baseline`.
+
+---
+
+    Code
       check_port_seq(data, c(a1, a2, a3), list(c1), lag = -1)
     Condition
       Error in `check_port_seq()`:

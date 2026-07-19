@@ -189,6 +189,24 @@ check_port_seq <- function(
   )
   baseline_names <- eval_optional_selection(rlang::enquo(.baseline), .data)
 
+  # Assemble the exposure-tree conditioning sets and reject a time point left
+  # with nothing to condition on after baseline covariates and lagged history
+  # are folded in. Prior exposures at earlier times remain valid columns.
+  conditioning_sets <- lapply(seq_len(n_times), function(t) {
+    conditioning_set(
+      time = t,
+      covariate_sets = covariate_sets,
+      exposure_names = exposure_names,
+      baseline_names = baseline_names,
+      lag = lag
+    )
+  })
+  validate_conditioning_sets(
+    conditioning_sets,
+    exposure_names,
+    call = rlang::current_env()
+  )
+
   if (strategy == "pooled") {
     abort(
       c(

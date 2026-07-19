@@ -129,6 +129,17 @@ check_hdr <- function(
   validate_column_selection(covariate_pos, ".covariates")
   covariate_names <- names(covariate_pos)
 
+  # Conditioning the exposure on itself makes the overlap check degenerate.
+  if (exposure_name %in% covariate_names) {
+    abort(
+      c(
+        "{.arg .covariates} must not include the exposure column.",
+        x = "{.val {exposure_name}} is also selected by {.arg .exposure}."
+      ),
+      error_class = "positively_selection_error"
+    )
+  }
+
   validate_numeric_columns(.data, exposure_name, ".exposure")
   validate_numeric_columns(.data, covariate_names, ".covariates")
 
@@ -481,15 +492,27 @@ check_hdr_seq <- function(
   pooled_exposure <- as.double(unlist(.data[exposure_names], use.names = FALSE))
   targets <- resolve_targets(values, pooled_exposure)
 
-  seq_call <- rlang::current_env()
-  per_time <- purrr::map(seq_len(n_times), function(t) {
-    conditioning <- conditioning_set(
+  # Assemble the per-time conditioning sets outside the mapping loop so that a
+  # selection error is reported against check_hdr_seq() rather than wrapped in
+  # purrr's indexed context.
+  conditioning_sets <- lapply(seq_len(n_times), function(t) {
+    conditioning_set(
       time = t,
       covariate_sets = covariate_sets,
       exposure_names = exposure_names,
       baseline_names = baseline_names,
       lag = lag
     )
+  })
+  validate_conditioning_sets(
+    conditioning_sets,
+    exposure_names,
+    call = rlang::current_env()
+  )
+
+  seq_call <- rlang::current_env()
+  per_time <- purrr::map(seq_len(n_times), function(t) {
+    conditioning <- conditioning_sets[[t]]
     exposure_name <- exposure_names[[t]]
     analysis <- .data[c(exposure_name, conditioning)]
     nonoverlap <- hdr_nonoverlap(
@@ -619,6 +642,52 @@ conditioning_set <- function(
     character(0)
   }
   unique(c(baseline_names, covariate_names, prior_exposures))
+}
+
+#' Validate the assembled per-time conditioning sets
+#'
+#' Rejects a conditioning set that contains the exposure at its own time point
+#' (which would model the response on itself) and a conditioning set left empty
+#' after baseline covariates and lagged history are folded in. Prior exposures
+#' at earlier times remain legitimate conditioning columns.
+#'
+#' @param conditioning_sets The per-time conditioning-set name list.
+#' @param exposure_names The exposure column names, time-ordered.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `conditioning_sets`, invisibly, when every set is valid.
+#' @keywords internal
+#' @noRd
+validate_conditioning_sets <- function(
+  conditioning_sets,
+  exposure_names,
+  call = rlang::caller_env()
+) {
+  for (t in seq_along(conditioning_sets)) {
+    own_exposure <- exposure_names[[t]]
+    if (own_exposure %in% conditioning_sets[[t]]) {
+      abort(
+        c(
+          "{.arg .covariates} and {.arg .baseline} must not include an exposure at its own time point.",
+          x = "{.val {own_exposure}} conditions its own model at time {t}."
+        ),
+        error_class = "positively_selection_error",
+        call = call
+      )
+    }
+    if (length(conditioning_sets[[t]]) == 0) {
+      abort(
+        c(
+          "Every time point must have at least one conditioning column.",
+          x = "The conditioning set at time {t} is empty.",
+          i = "Supply time-varying covariates in {.arg .covariates} or baseline covariates in {.arg .baseline}."
+        ),
+        error_class = "positively_empty_error",
+        call = call
+      )
+    }
+  }
+  invisible(conditioning_sets)
 }
 
 # ---- Methods --------------------------------------------------------------

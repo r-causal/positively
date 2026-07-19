@@ -80,7 +80,8 @@ default_diagnostics <- function(exposure_type) {
 #' @param .data A data frame.
 #' @param .exposure The exposure column, selected with data-masking.
 #' @param .covariates The covariate columns, selected with tidyselect. Required,
-#'   with no default, so that outcome columns are not swept in by accident.
+#'   with no default, so that outcome columns are not swept in by accident. The
+#'   exposure column must not be selected.
 #' @param diagnostics The diagnostics to run. `NULL` (the default) selects the
 #'   applicable set for the exposure type; otherwise a subset of `"edp"`,
 #'   `"port"`, `"hat_values"`, `"hdr"`, and `"extrapolation"`, run in the order
@@ -147,6 +148,16 @@ check_positivity <- function(
   covariate_pos <- tidyselect::eval_select(rlang::enquo(.covariates), .data)
   validate_column_selection(covariate_pos, ".covariates")
   covariate_names <- names(covariate_pos)
+
+  if (exposure_name %in% covariate_names) {
+    abort(
+      c(
+        "{.arg .covariates} must not include the exposure column {.val {exposure_name}}.",
+        i = "Exclude it from the selection, for example {.code c(everything(), -{exposure_name})}."
+      ),
+      error_class = "positively_selection_error"
+    )
+  }
 
   # Resolve the exposure type once, before children run. When the type is auto it
   # is detected and announced here; when it is explicit the data are still

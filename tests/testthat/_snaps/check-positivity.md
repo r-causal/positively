@@ -136,6 +136,15 @@
 ---
 
     Code
+      check_positivity(data, exposure, tidyselect::everything())
+    Condition
+      Error in `check_positivity()`:
+      ! `.covariates` must not include the exposure column "exposure".
+      i Exclude it from the selection, for example `c(everything(), -exposure)`.
+
+---
+
+    Code
       generics::tidy(res, diagnostic = "nonexistent")
     Condition
       Error in `generics::tidy()`:

@@ -107,6 +107,15 @@
       ! `.outcome` must contain only 0 and 1 when `outcome_type` is "binary".
       x Found other values, including -0.610598594863679, 1.13292680079015, -1.8162050739754, 1.50564523292254, and 0.370473934516183.
 
+---
+
+    Code
+      check_eta_bias(good, a, y, c(a, x1, x2), n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `.covariates` must not include the exposure or outcome column.
+      x "a" is also selected by `.exposure` or `.outcome`.
+
 # the truncation and n_boot validation messages are stable
 
     Code

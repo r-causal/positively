@@ -19,7 +19,8 @@ check_positivity(
 \item{.exposure}{The exposure column, selected with data-masking.}
 
 \item{.covariates}{The covariate columns, selected with tidyselect. Required,
-with no default, so that outcome columns are not swept in by accident.}
+with no default, so that outcome columns are not swept in by accident. The
+exposure column must not be selected.}
 
 \item{diagnostics}{The diagnostics to run. \code{NULL} (the default) selects the
 applicable set for the exposure type; otherwise a subset of \code{"edp"},
