@@ -240,3 +240,23 @@
       Error in `check_density_ratios()`:
       ! `ratios` must be numeric, not a <matrix>.
 
+---
+
+    Code
+      check_density_ratios(c(1, Inf, 2))
+    Condition
+      Error in `check_density_ratios()`:
+      ! `ratios` must be finite.
+      x An infinite ratio means the observed treatment density was estimated as zero.
+      i Inspect the density estimates before summarizing the ratios.
+
+---
+
+    Code
+      check_density_ratios(matrix(c(1, 2, Inf, 3), nrow = 2))
+    Condition
+      Error in `check_density_ratios()`:
+      ! `ratios` must be finite.
+      x An infinite ratio means the observed treatment density was estimated as zero.
+      i Inspect the density estimates before summarizing the ratios.
+

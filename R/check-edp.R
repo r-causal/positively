@@ -177,10 +177,14 @@ check_edp <- function(
   )
 
   validate_complete_columns(.data, exposure_name, ".exposure")
+  validate_finite_columns(.data, exposure_name, ".exposure")
   validate_complete_columns(.data, covariate_names, ".covariates")
+  validate_finite_columns(.data, covariate_names, ".covariates")
   if (variant == "estimator") {
     validate_complete_columns(.data, outcome_names, ".outcome_covariates")
+    validate_finite_columns(.data, outcome_names, ".outcome_covariates")
     validate_complete_columns(.data, treatment_names, ".treatment_covariates")
+    validate_finite_columns(.data, treatment_names, ".treatment_covariates")
   }
 
   n <- nrow(.data)

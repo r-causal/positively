@@ -209,6 +209,7 @@ check_extrapolation <- function(
       error_class = "positively_missing_error"
     )
   }
+  validate_finite_columns(.data, covariate_names, ".covariates")
 
   covariates <- .data[covariate_pos]
   gv <- geometric_variability(gower_total_distance(covariates), n)

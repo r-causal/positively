@@ -294,6 +294,47 @@ validate_numeric_columns <- function(
   invisible(.data)
 }
 
+#' Validate that selected numeric columns contain no non-finite values
+#'
+#' Non-finite exposure or covariate values poison every kernel they enter: the
+#' default standard-deviation half-distance becomes `NaN`, and even under a
+#' supplied half-distance the self-difference `Inf - Inf` evaluates to `NaN`.
+#' Non-numeric columns are skipped.
+#'
+#' @param .data The data frame.
+#' @param columns A character vector of column names to check.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `.data`, invisibly, when every numeric column named is finite.
+#' @keywords internal
+#' @noRd
+validate_finite_columns <- function(
+  .data,
+  columns,
+  arg_name,
+  call = rlang::caller_env()
+) {
+  non_finite_columns <- columns[vapply(
+    columns,
+    function(column) {
+      is.numeric(.data[[column]]) && !all(is.finite(.data[[column]]))
+    },
+    logical(1)
+  )]
+  if (length(non_finite_columns) > 0) {
+    abort(
+      c(
+        "{.arg {arg_name}} must not contain non-finite values.",
+        x = "Non-finite values in {.val {non_finite_columns}}."
+      ),
+      error_class = "positively_range_error",
+      call = call
+    )
+  }
+  invisible(.data)
+}
+
 #' Validate a single truncation bound
 #'
 #' A truncation bound is a length-two numeric vector `c(lower, upper)`, with both

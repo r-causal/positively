@@ -245,6 +245,19 @@ numeric_hdr_thresholds <- function(estimator, state, newdata, mass, exposure) {
     function(a) estimator@density(state, a, newdata),
     numeric(nrow(newdata))
   )
+  row_totals <- rowSums(grid_densities)
+  bad <- !is.finite(row_totals) | row_totals <= 0
+  n_bad <- sum(bad)
+  if (n_bad > 0) {
+    abort(
+      c(
+        "The numeric-grid HDR cutoff is undefined for {n_bad} observation{?s}.",
+        x = "The estimator's conditional density is zero or non-finite at every grid value for {cli::qty(n_bad)}{?that observation/those observations}.",
+        i = "Supply a closed-form `hdr_threshold` to `new_hdr_density()`, or use a density whose mass falls inside the padded exposure range."
+      ),
+      error_class = "positively_range_error"
+    )
+  }
   apply(grid_densities, 1L, hdr_cutoff_from_grid, mass = mass)
 }
 

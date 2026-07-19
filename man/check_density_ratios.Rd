@@ -27,8 +27,8 @@ check_density_ratios(ratios, ...)
 \link[propensity:psw]{propensity::psw} object is accepted and read through
 \code{\link[vctrs:vec_data]{vctrs::vec_data()}}), an n-by-T numeric matrix whose columns are time
 points for a time-varying treatment, or a fitted \pkg{lmtp} object whose
-density-ratio component is read out. Ratios must be non-negative and free
-of missing values.}
+density-ratio component is read out. Ratios must be non-negative, finite,
+and free of missing values.}
 
 \item{...}{Passed to methods.}
 

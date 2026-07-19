@@ -111,6 +111,14 @@
 ---
 
     Code
+      check_hdr(data, exposure, l, values = c(0, Inf))
+    Condition
+      Error in `check_hdr()`:
+      ! `values` must be finite.
+
+---
+
+    Code
       check_hdr(data, exposure, l, density_estimator = "not an estimator")
     Condition
       Error in `check_hdr()`:

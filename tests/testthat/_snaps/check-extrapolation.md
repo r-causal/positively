@@ -82,6 +82,15 @@
       Error in `check_extrapolation()`:
       ! `.data` must have at least two observations, not 1.
 
+---
+
+    Code
+      check_extrapolation(non_finite, exposure, c(x1, x2), hull = FALSE)
+    Condition
+      Error in `check_extrapolation()`:
+      ! `.covariates` must not contain non-finite values.
+      x Non-finite values in "x1".
+
 # the hull warning and error messages are stable
 
     Code

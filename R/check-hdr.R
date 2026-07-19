@@ -296,6 +296,13 @@ resolve_targets <- function(values, exposure, call = rlang::caller_env()) {
       call = call
     )
   }
+  if (!all(is.finite(values))) {
+    abort(
+      "{.arg values} must be finite.",
+      error_class = "positively_range_error",
+      call = call
+    )
+  }
   as.double(values)
 }
 

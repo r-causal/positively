@@ -79,8 +79,8 @@ density_ratios_result <- new_class(
 #'   [propensity::psw] object is accepted and read through
 #'   [vctrs::vec_data()]), an n-by-T numeric matrix whose columns are time
 #'   points for a time-varying treatment, or a fitted \pkg{lmtp} object whose
-#'   density-ratio component is read out. Ratios must be non-negative and free
-#'   of missing values.
+#'   density-ratio component is read out. Ratios must be non-negative, finite,
+#'   and free of missing values.
 #' @param probs A numeric vector of quantile probabilities in `[0, 1]`. Defaults
 #'   to `c(0.5, 0.9, 0.95, 0.99, 1)`; the `1` quantile is reported as the
 #'   maximum.
@@ -406,11 +406,18 @@ quantile_statistic_names <- function(probs) {
 #' @keywords internal
 #' @noRd
 kish_ess <- function(weights) {
-  total <- sum(weights)
-  if (total == 0) {
+  if (length(weights) == 0) {
     return(0)
   }
-  total^2 / sum(weights^2)
+  peak <- max(weights)
+  if (peak == 0) {
+    return(0)
+  }
+  # Scaling by the maximum keeps the sums representable when the squared weights
+  # would otherwise overflow or underflow double precision; the ratio itself is
+  # scale invariant.
+  scaled <- weights / peak
+  sum(scaled)^2 / sum(scaled^2)
 }
 
 #' Validate a set of density ratios
@@ -418,8 +425,8 @@ kish_ess <- function(weights) {
 #' @param ratios A numeric vector or matrix of density ratios.
 #' @param call The calling environment, used to build the error's call.
 #'
-#' @return `ratios`, invisibly, when it is numeric, non-empty, complete, and
-#'   non-negative.
+#' @return `ratios`, invisibly, when it is numeric, non-empty, complete,
+#'   non-negative, and finite.
 #' @keywords internal
 #' @noRd
 validate_ratios <- function(ratios, call = rlang::caller_env()) {
@@ -451,6 +458,17 @@ validate_ratios <- function(ratios, call = rlang::caller_env()) {
       c(
         "{.arg ratios} must be non-negative.",
         x = "Density ratios are Radon-Nikodym derivatives and cannot be negative."
+      ),
+      error_class = "positively_range_error",
+      call = call
+    )
+  }
+  if (any(is.infinite(values))) {
+    abort(
+      c(
+        "{.arg ratios} must be finite.",
+        x = "An infinite ratio means the observed treatment density was estimated as zero.",
+        i = "Inspect the density estimates before summarizing the ratios."
       ),
       error_class = "positively_range_error",
       call = call
