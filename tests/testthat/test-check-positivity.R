@@ -204,8 +204,16 @@ test_that("a child informational alert survives the entry point", {
   # The chunked-Gower notice comes from within check_extrapolation(); it must
   # still reach the user even though the repeated detection message is muffled.
   expect_message(
-    check_positivity(data, exposure, c(x1, x2), diagnostics = "extrapolation"),
-    "row chunks"
+    expect_message(
+      check_positivity(
+        data,
+        exposure,
+        c(x1, x2),
+        diagnostics = "extrapolation"
+      ),
+      "row chunks"
+    ),
+    "Treating `.exposure` as binary"
   )
 })
 

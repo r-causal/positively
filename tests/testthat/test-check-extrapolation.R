@@ -591,13 +591,16 @@ test_that("a large sample emits a chunking alert", {
   withr::local_options(positively.gower_chunk_threshold = 25)
   data <- sim_extrap_gaussian(60, p = 2, sep = 0, seed = 1)
   expect_message(
-    check_extrapolation(
-      data,
-      exposure,
-      tidyselect::starts_with("x"),
-      hull = FALSE
+    expect_message(
+      check_extrapolation(
+        data,
+        exposure,
+        tidyselect::starts_with("x"),
+        hull = FALSE
+      ),
+      "row chunks"
     ),
-    "row chunks"
+    "Treating `.exposure` as binary"
   )
 })
 
@@ -722,6 +725,7 @@ test_that("the missing-value and sample-size abort messages are stable", {
 
 test_that("the hull warning and error messages are stable", {
   local_quiet()
+  withr::local_options(warn = 0)
   mixed <- sim_extrap_mixed(200, scenario = "overlap", seed = 1)
   expect_snapshot(res <- check_extrapolation(mixed, exposure, g, hull = TRUE))
 
@@ -754,6 +758,7 @@ test_that("the hull-view abort without a hull run is stable", {
 })
 
 test_that("the high-dimensional hull messages are stable", {
+  withr::local_options(warn = 0)
   data <- sim_extrap_gaussian(60, p = 13, sep = 0, seed = 1)
 
   expect_snapshot(

@@ -1050,6 +1050,7 @@ test_that("the value and estimator-selection error messages are stable", {
 
 test_that("the unused-bandwidth warnings are stable", {
   local_quiet()
+  withr::local_options(warn = 0)
 
   binary <- dgp_good_positivity(n = 60, seed = 1)
   expect_snapshot(
