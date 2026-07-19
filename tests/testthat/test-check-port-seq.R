@@ -812,3 +812,88 @@ test_that("check_port_seq() argument validation messages are stable", {
     error = TRUE
   )
 })
+
+# ---- Missing covariates ----------------------------------------------------
+
+test_that("check_port_seq() aborts on a missing covariate in a risk set", {
+  local_quiet()
+  data <- sim_port_seq(n = 300, seed = 1)
+  data$c1[1] <- NA
+  # The missing value sits in the time-1 risk set, where every subject is a
+  # follower, so rpart would silently drop or surrogate it and the reported
+  # subgroup sizes would no longer sum to the risk set.
+  expect_error(
+    check_port_seq(data, c(a1, a2, a3), list(c1)),
+    class = "positively_missing_error"
+  )
+})
+
+test_that("a censored subject may carry NA in later covariates without aborting", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring()
+  # A subject censored at time 1 has no observed time-2 or time-3 covariates, so
+  # its later covariate values are missing. Because it leaves every later risk
+  # set, those missing values never enter a tree and the run proceeds.
+  data$l1[data$c1 == 1] <- NA
+  data$l2[data$c1 == 1 | data$c2 == 1] <- NA
+
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    cp = 0.01
+  )
+  expect_true(S7::S7_inherits(res, positivity_diagnostic))
+  expect_true("type" %in% names(res@results))
+})
+
+test_that("check_port_seq() missing-covariate message names the column and time", {
+  local_quiet()
+  data <- sim_port_seq(n = 300, seed = 1)
+  data$c1[1] <- NA
+  expect_snapshot(check_port_seq(data, c(a1, a2, a3), list(c1)), error = TRUE)
+})
+
+# ---- Degenerate pooled exposure -------------------------------------------
+
+test_that("an identically constant pooled exposure is rejected", {
+  local_quiet()
+  data <- sim_port_seq(n = 300, seed = 1)
+  data$a1 <- 0L
+  data$a2 <- 0L
+  # A single distinct value across every time point leaves the reading rule with
+  # no exposed level to contrast against the unexposed.
+  expect_error(
+    check_port_seq(data, c(a1, a2), list(c1)),
+    class = "positively_error"
+  )
+})
+
+test_that("an all-missing pooled exposure is rejected", {
+  local_quiet()
+  data <- sim_port_seq(n = 300, seed = 1)
+  data$a1 <- NA_integer_
+  data$a2 <- NA_integer_
+  expect_error(
+    check_port_seq(data, c(a1, a2), list(c1)),
+    class = "positively_error"
+  )
+})
+
+test_that("check_port_seq() degenerate pooled-exposure messages are stable", {
+  local_quiet()
+  data <- sim_port_seq(n = 300, seed = 1)
+  constant <- data
+  constant$a1 <- 0L
+  constant$a2 <- 0L
+  all_missing <- data
+  all_missing$a1 <- NA_integer_
+  all_missing$a2 <- NA_integer_
+
+  expect_snapshot(check_port_seq(constant, c(a1, a2), list(c1)), error = TRUE)
+  expect_snapshot(
+    check_port_seq(all_missing, c(a1, a2), list(c1)),
+    error = TRUE
+  )
+})

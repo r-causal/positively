@@ -693,3 +693,30 @@ test_that("the classed errors are stable", {
     error = TRUE
   )
 })
+
+# ---- Missing exposure ------------------------------------------------------
+
+test_that("a missing exposure value aborts before any diagnostic runs", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200, seed = 1)
+  data$exposure[1] <- NA
+  # Under auto detection the missing value would otherwise surface only when a
+  # child fails, wrapped as a composition error.
+  expect_error(
+    check_positivity(data, exposure, c(x1, x2)),
+    class = "positively_missing_error"
+  )
+  # An explicit binary type must reach the same missing-value guard rather than
+  # misdetecting the column as categorical off the extra NA level.
+  expect_error(
+    check_positivity(data, exposure, c(x1, x2), exposure_type = "binary"),
+    class = "positively_missing_error"
+  )
+})
+
+test_that("the missing-exposure message is stable", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200, seed = 1)
+  data$exposure[1] <- NA
+  expect_snapshot(check_positivity(data, exposure, c(x1, x2)), error = TRUE)
+})

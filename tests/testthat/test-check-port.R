@@ -899,3 +899,184 @@ test_that("check_port() argument validation messages are stable", {
     error = TRUE
   )
 })
+
+# ---- Degenerate breaks and quantile collapse ------------------------------
+
+# The Pair 2 fixtures share one seeded continuous exposure on [0, 6].
+port_binning_data <- function() {
+  withr::with_seed(
+    4,
+    tibble::tibble(exposure = stats::runif(300, 0, 6), x1 = stats::rnorm(300))
+  )
+}
+
+# A zero-inflated exposure: 280 of 300 observations at zero, so the requested
+# quantile cut points coincide and three bins collapse to one.
+port_zero_inflated_data <- function() {
+  withr::with_seed(
+    4,
+    tibble::tibble(
+      exposure = c(rep(0, 280), stats::runif(20, 1, 6)),
+      x1 = stats::rnorm(300)
+    )
+  )
+}
+
+test_that("a single break point is rejected rather than read as an interval count", {
+  local_quiet()
+  # A length-one breaks vector defines no interval; cut() would otherwise read
+  # it as a count of equally spaced intervals.
+  expect_error(
+    check_port(
+      port_binning_data(),
+      exposure,
+      x1,
+      breaks = 4,
+      exposure_type = "continuous"
+    ),
+    class = "positively_range_error"
+  )
+})
+
+test_that("breaks defining a single interval are rejected", {
+  local_quiet()
+  # Two cut points bound one interval, so every observation shares one exposure
+  # level and the reading rule has nothing to contrast.
+  expect_error(
+    check_port(
+      port_binning_data(),
+      exposure,
+      x1,
+      breaks = c(0, 6),
+      exposure_type = "continuous"
+    ),
+    class = "positively_range_error"
+  )
+})
+
+test_that("missing values in breaks are rejected", {
+  local_quiet()
+  expect_error(
+    check_port(
+      port_binning_data(),
+      exposure,
+      x1,
+      breaks = c(0, NA, 6),
+      exposure_type = "continuous"
+    ),
+    class = "positively_missing_error"
+  )
+})
+
+test_that("a zero-inflated exposure whose quantile bins collapse is rejected", {
+  local_quiet()
+  expect_error(
+    check_port(
+      port_zero_inflated_data(),
+      exposure,
+      x1,
+      n_bins = 3,
+      exposure_type = "continuous"
+    ),
+    class = "positively_binning_error"
+  )
+})
+
+test_that("well-separated explicit breaks yield one exposure level per interval", {
+  local_quiet()
+  res <- check_port(
+    port_binning_data(),
+    exposure,
+    x1,
+    breaks = c(0, 2, 4, 6),
+    exposure_type = "continuous"
+  )
+  expect_identical(res@exposure_type, "continuous")
+  expect_length(unique(res@results$exposure_level), 3L)
+})
+
+# ---- Missing covariates ---------------------------------------------------
+
+test_that("check_port() aborts on a missing covariate value", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 300, seed = 1)
+  data$x1[1] <- NA
+  # rpart would silently drop or surrogate the missing row, so the reported
+  # subgroup sizes would no longer sum to the sample.
+  expect_error(
+    check_port(data, exposure, c(x1, x2)),
+    class = "positively_missing_error"
+  )
+})
+
+# ---- Response-name collision ----------------------------------------------
+
+# A covariate named .port_response collides with the internal response column
+# rpart is handed, degenerating the fit; the covariate must be read like any
+# other.
+test_that("a covariate named .port_response is handled like any other", {
+  local_quiet()
+  data <- withr::with_seed(1, {
+    v <- stats::runif(800, 0, 2)
+    exposure <- stats::rbinom(800, 1L, 0.5)
+    exposure[v > 1] <- 0L
+    data.frame(exposure = exposure, .port_response = v, check.names = FALSE)
+  })
+  res <- check_port(data, exposure, tidyselect::all_of(".port_response"))
+
+  flagged <- flagged_rows(res)
+  expect_true(any(grepl(".port_response", flagged$description, fixed = TRUE)))
+})
+
+# ---- Degenerate binning snapshots -----------------------------------------
+
+test_that("check_port() degenerate binning messages are stable", {
+  local_quiet()
+  expect_snapshot(
+    check_port(
+      port_binning_data(),
+      exposure,
+      x1,
+      breaks = 4,
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_port(
+      port_binning_data(),
+      exposure,
+      x1,
+      breaks = c(0, 6),
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_port(
+      port_binning_data(),
+      exposure,
+      x1,
+      breaks = c(0, NA, 6),
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_port(
+      port_zero_inflated_data(),
+      exposure,
+      x1,
+      n_bins = 3,
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+})
+
+test_that("check_port() missing-covariate message is stable", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 300, seed = 1)
+  data$x1[1] <- NA
+  expect_snapshot(check_port(data, exposure, c(x1, x2)), error = TRUE)
+})
