@@ -190,6 +190,12 @@ method(`[[`, positivity_check) <- function(x, i, ...) {
     }
     return(x@checks[[idx]])
   }
+  if (!is.numeric(i) || is.na(i) || i != trunc(i)) {
+    abort(
+      "{.arg i} must be a diagnostic name or a whole-number position.",
+      error_class = "positively_diagnostic_error"
+    )
+  }
   if (i < 1 || i > length(x@checks)) {
     abort(
       c(

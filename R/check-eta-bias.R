@@ -166,7 +166,7 @@ check_eta_bias <- function(
   estimator <- rlang::arg_match(estimator)
   outcome_type <- rlang::arg_match(outcome_type)
   error_dist <- rlang::arg_match(error_dist)
-  validate_count(n_boot, arg_name = "n_boot")
+  validate_count(n_boot, arg_name = "n_boot", min = 2)
 
   levels <- resolve_truncation_levels(
     truncation,
@@ -683,14 +683,16 @@ eta_fitters_matrix <- function(x_cov, q_family) {
   }
   fit_q <- function(x_cov_rows, exposure, response) {
     design <- cbind(intercept, exposure, x_cov_rows)
-    coef <- suppressWarnings(
-      stats::glm.fit(design, response, family = q_family)$coefficients
+    fit <- suppressWarnings(
+      stats::glm.fit(design, response, family = q_family)
     )
+    coef <- fit$coefficients
     coef[is.na(coef)] <- 0
     design1 <- cbind(intercept, 1, x_cov_rows)
     design0 <- cbind(intercept, 0, x_cov_rows)
     list(
       coef = coef,
+      rank = fit$rank,
       q1 = q_family$linkinv(drop(design1 %*% coef)),
       q0 = q_family$linkinv(drop(design0 %*% coef))
     )
@@ -701,7 +703,10 @@ eta_fitters_matrix <- function(x_cov, q_family) {
     q <- fit_q(x_cov, a, y)
     fitted_y <- q_family$linkinv(drop(cbind(intercept, a, x_cov) %*% q$coef))
     residuals <- y - fitted_y
-    df_residual <- n - length(q$coef)
+    # Residual degrees of freedom count estimated parameters only. An aliased
+    # column contributes no estimated parameter, so it does not deflate sigma,
+    # matching the residual standard deviation on the formula path.
+    df_residual <- n - q$rank
     list(
       ps = ps,
       q1 = q$q1,

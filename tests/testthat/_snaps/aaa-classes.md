@@ -1,3 +1,11 @@
+# the invalid-index message is stable
+
+    Code
+      res[[1.9]]
+    Condition
+      Error in `res[[1.9]]`:
+      ! `i` must be a diagnostic name or a whole-number position.
+
 # printing a diagnostic is stable
 
     Code

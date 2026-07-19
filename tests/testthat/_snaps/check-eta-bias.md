@@ -1,3 +1,12 @@
+# the n_boot floor message is stable
+
+    Code
+      check_eta_bias(data, a, y, x1, n_boot = 1)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `n_boot` must be a single whole number of at least 2.
+      x Found 1.
+
 # check_eta_bias() rejects an unsupported covariate type
 
     Code
@@ -165,6 +174,6 @@
       check_eta_bias(data, a, y, c(x1, x2), n_boot = 2.5)
     Condition
       Error in `check_eta_bias()`:
-      ! `n_boot` must be a single whole number of at least 1.
+      ! `n_boot` must be a single whole number of at least 2.
       x Found 2.5.
 
