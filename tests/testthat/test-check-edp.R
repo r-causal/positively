@@ -791,6 +791,50 @@ test_that("the estimator scatter view is a ggplot and aborts for the data varian
   )
 })
 
+test_that("the scatter view separates infinite ideal weights into their own layer", {
+  local_quiet()
+  # Three strata under exact categorical matching: two treated at different rates
+  # give distinct finite ideal weights, and a never-treated stratum has zero
+  # outcome support, so its ideal weight is infinite. The finite rows drive the
+  # continuous colour gradient; the infinite rows need a fixed distinguishable
+  # aesthetic in a separate layer.
+  data <- data.frame(
+    exposure = c(
+      rep(c(0L, 1L), c(4L, 4L)),
+      rep(c(0L, 1L), c(4L, 2L)),
+      rep(0L, 5L)
+    ),
+    s = factor(rep(c("a", "b", "c"), c(8L, 6L, 5L)))
+  )
+  res <- check_edp(
+    data,
+    exposure,
+    s,
+    variant = "estimator",
+    values = 1,
+    categorical_similarity = 0
+  )
+  weights <- res@results$ideal_weight
+  n_finite <- sum(is.finite(weights))
+  n_infinite <- sum(is.infinite(weights))
+  # The fixture must exercise both the gradient and the fixed layer.
+  expect_gt(length(unique(weights[is.finite(weights)])), 1)
+  expect_gt(n_infinite, 0)
+
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(res, type = "scatter"))
+  layer_rows <- vapply(built$data, nrow, integer(1))
+  expect_length(built$data, 2)
+  expect_setequal(layer_rows, c(n_finite, n_infinite))
+
+  finite_layer <- built$data[[which(layer_rows == n_finite)]]
+  infinite_layer <- built$data[[which(layer_rows == n_infinite)]]
+  # The finite rows keep the continuous colour mapping.
+  expect_gt(length(unique(finite_layer$colour)), 1)
+  # The infinite rows carry a single fixed shape distinct from the finite layer.
+  expect_length(unique(infinite_layer$shape), 1)
+  expect_false(unique(infinite_layer$shape) %in% unique(finite_layer$shape))
+})
+
 test_that("EDP autoplot views render as expected", {
   data <- sim_edp_gaussian(150)
   res <- check_edp(

@@ -729,6 +729,40 @@ test_that("autoplot() returns a ggplot for the sequential diagnostic", {
   expect_s3_class(ggplot2::autoplot(res), "ggplot")
 })
 
+test_that("the point view marks each result with a point", {
+  local_quiet()
+  # A single target value per group draws no polyline, so a point layer is what
+  # keeps the result visible.
+  data <- sim_hdr_linear(300, beta = 1, seed = 1)
+  res <- check_hdr(data, exposure, l, values = 0)
+
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(res))
+  geoms <- vapply(
+    built$plot$layers,
+    function(ly) class(ly$geom)[1],
+    character(1)
+  )
+  point_index <- which(geoms == "GeomPoint")
+  expect_length(point_index, 1)
+  expect_identical(nrow(built$data[[point_index]]), nrow(res@results))
+})
+
+test_that("the sequential view marks each result with a point", {
+  local_quiet()
+  data <- dgp_longitudinal(n = 300, seed = 5)
+  res <- check_hdr_seq(data, c(a1, a2, a3), list(l0, l1, l2), values = 0)
+
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(res))
+  geoms <- vapply(
+    built$plot$layers,
+    function(ly) class(ly$geom)[1],
+    character(1)
+  )
+  point_index <- which(geoms == "GeomPoint")
+  expect_length(point_index, 1)
+  expect_identical(nrow(built$data[[point_index]]), nrow(res@results))
+})
+
 test_that("plot() draws the HDR view and returns the result invisibly", {
   local_quiet()
   local_null_device()

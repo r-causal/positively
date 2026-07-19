@@ -412,6 +412,37 @@ test_that("a single-follower risk set is skipped under the Gruber bound", {
   expect_false(any(caught$value@results$time == 2))
 })
 
+test_that("autoplot builds when every time point is skipped", {
+  local_quiet()
+  # A tiny risk set puts every wave's resolved Gruber bound at or above 0.5, so
+  # each wave is skipped and @results is the empty sequential tibble. Faceting an
+  # empty frame aborts the build, so the empty result must render unfaceted.
+  make_data <- function() {
+    withr::local_seed(1)
+    n <- 12
+    d <- tibble::tibble(id = seq_len(n), c1 = rnorm(n), a1 = rbinom(n, 1L, 0.3))
+    followers2 <- d$a1 == 0
+    d$a2 <- d$a1
+    d$a2[followers2] <- rbinom(sum(followers2), 1L, 0.4)
+    followers3 <- d$a2 == 0
+    d$a3 <- d$a2
+    d$a3[followers3] <- rbinom(sum(followers3), 1L, 0.4)
+    d
+  }
+  data <- make_data()
+
+  caught <- collect_risk_set_warnings(
+    check_port_seq(data, c(a1, a2, a3), list(c1), beta = "gruber")
+  )
+  res <- caught$value
+  expect_identical(nrow(res@results), 0L)
+  expect_true(all(is.na(res@beta)))
+
+  expect_no_error(ggplot2::ggplot_build(ggplot2::autoplot(res)))
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(res))
+  expect_identical(nrow(built$layout$layout), 1L)
+})
+
 test_that("the untreated level is resolved globally, not per wave", {
   local_quiet()
   data <- sim_port_seq(n = 1000, seed = 1)
