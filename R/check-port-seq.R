@@ -601,7 +601,14 @@ resolve_untreated_level <- function(pooled_exposure, exposure_type) {
   if (exposure_type != "binary") {
     return(NA)
   }
-  min(unique(pooled_exposure[!is.na(pooled_exposure)]))
+  present <- sort(unique(pooled_exposure[!is.na(pooled_exposure)]))
+  if (is.factor(present)) {
+    # A factor has no min(); its first sorted level is the reference level, and
+    # returning its label keeps the later follower comparison against a factor
+    # column safe when level attributes differ.
+    return(as.character(present[[1]]))
+  }
+  present[[1]]
 }
 
 #' The risk-set row indices for one sPoRT time point
