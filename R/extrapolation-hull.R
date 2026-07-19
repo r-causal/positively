@@ -47,6 +47,19 @@ in_convex_hull <- function(query, reference) {
 #' @noRd
 hull_membership <- function(numeric_covariates, group) {
   n <- nrow(numeric_covariates)
+  # Hull membership is invariant under a per-column affine rescaling, but the LP
+  # feasibility tolerance is absolute, so columns are rescaled to [0, 1] to keep
+  # large covariate offsets from misreporting membership.
+  for (j in seq_len(ncol(numeric_covariates))) {
+    column <- numeric_covariates[, j]
+    column_min <- min(column)
+    column_range <- max(column) - column_min
+    numeric_covariates[, j] <- if (column_range == 0) {
+      0
+    } else {
+      (column - column_min) / column_range
+    }
+  }
   in_hull <- logical(n)
   for (i in seq_len(n)) {
     opposite <- group != group[i]

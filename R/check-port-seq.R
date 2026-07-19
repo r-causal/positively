@@ -15,11 +15,14 @@
 #' per time point. Under `strategy = "stratified"` the risk set at time \eqn{t}
 #' is the set of subjects still following the rule. For a monotone binary
 #' treatment this is the subjects not yet initiated, that is, those whose
-#' immediately preceding treatment is the untreated level; every subject is in
-#' the risk set at the first time point. Restricting to these followers is what
+#' immediately preceding treatment is the untreated level; every subject with an
+#' observed time-1 exposure is in the risk set at the first time point.
+#' Restricting to these followers is what
 #' reveals a violation that pooling over already-treated subjects would mask,
 #' because the already-treated carry their treatment forward and inflate the
-#' subgroup prevalence.
+#' subgroup prevalence. A subject whose time-\eqn{t} exposure is missing is
+#' excluded from the time-\eqn{t} risk set, so \eqn{n_t} is always the size of
+#' the sample the tree is fitted on.
 #'
 #' At each time point the diagnostic runs [check_port()] with the time-\eqn{t}
 #' exposure as the response and a conditioning set of the baseline covariates,
@@ -95,8 +98,8 @@
 #'   length and every indicator must be binary; monotonicity is not required of
 #'   the data, since a subject censored at a time point is dropped from later
 #'   censoring risk sets. An indicator that is `NA` at a time point is read as
-#'   unknown censoring status and also drops that subject from every later
-#'   censoring risk set. Supplying `.censoring` also restricts each exposure risk
+#'   unknown censoring status and drops that subject from that time point's
+#'   censoring risk set and every later one. Supplying `.censoring` also restricts each exposure risk
 #'   set to the followers uncensored so far. Censoring is available under the
 #'   stratified strategy, the only strategy currently implemented. Defaults to
 #'   `NULL`, which runs the exposure trees alone.
@@ -461,6 +464,11 @@ port_seq_censoring_time <- function(
   control
 ) {
   indices <- censoring_risk_set_indices(.data, censoring_names, time)
+  # A subject with a missing time-t censoring status cannot enter the time-t
+  # tree, so it is excluded up front; otherwise n_t would count subjects the fit
+  # drops.
+  current <- .data[[censoring_names[[time]]]]
+  indices <- indices[!is.na(current[indices])]
   risk_set <- .data[indices, , drop = FALSE]
   n_t <- nrow(risk_set)
   beta_value <- resolve_beta_scalar(beta_spec, n_t)
@@ -712,11 +720,15 @@ risk_set_indices <- function(
     prior <- .data[[exposure_names[[time - 1L]]]]
     which(prior == untreated_level)
   }
+  # A subject with a missing time-t exposure cannot enter the time-t tree, so it
+  # is excluded up front; otherwise n_t would count subjects the fit drops.
+  observed <- which(!is.na(.data[[exposure_names[[time]]]]))
+  eligible <- intersect(followers, observed)
   if (is.null(censoring_names)) {
-    return(followers)
+    return(eligible)
   }
   uncensored <- censoring_risk_set_indices(.data, censoring_names, time)
-  intersect(followers, uncensored)
+  intersect(eligible, uncensored)
 }
 
 #' Assemble exposure and censoring rows into the sequential results tibble

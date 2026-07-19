@@ -67,7 +67,11 @@ eta_bias_result <- new_class(
 #' the candidate estimator, bounding the fitted propensity into the truncation
 #' interval where the estimator uses it. `ETA.Bias` is the mean of the bootstrap
 #' estimates minus `truth`, and its Monte Carlo standard error is the standard
-#' deviation of the bootstrap estimates divided by the square root of `n_boot`.
+#' deviation of the bootstrap estimates divided by the square root of the number
+#' of retained draws. A bootstrap draw whose estimate is non-finite, which can
+#' happen when a resampled exposure lands in a single arm or a refit propensity
+#' reaches exactly 0 or 1, is dropped with a warning before the summaries are
+#' formed.
 #'
 #' The three estimators behave differently under positivity violations.
 #' G-computation ignores the propensity entirely, so its ETA.Bias is Monte Carlo
@@ -258,14 +262,15 @@ check_eta_bias <- function(
     error_dist = error_dist,
     levels = levels,
     n_boot = n_boot,
-    formulas = formulas
+    formulas = formulas,
+    call = rlang::current_env()
   )
 
   results <- tibble::tibble(
     truncation_lower = levels$lower,
     truncation_upper = levels$upper,
     bias = run$boot_mean - run$truth,
-    mc_se = run$boot_sd / sqrt(n_boot),
+    mc_se = run$boot_sd / sqrt(run$n_valid),
     boot_mean = run$boot_mean
   )
 
@@ -514,7 +519,9 @@ resolve_eta_formulas <- function(
 #' @param formulas The resolved model formulas and default flag.
 #'
 #' @return A list with `truth` (a scalar), `boot_mean` and `boot_sd` (one entry
-#'   per level), and `boot_estimates` (a list of per-level estimate vectors).
+#'   per level), `boot_estimates` (a list of per-level estimate vectors with
+#'   non-finite draws removed), and `n_valid` (the number of retained draws per
+#'   level).
 #' @keywords internal
 #' @noRd
 eta_bias_bootstrap <- function(
@@ -528,7 +535,8 @@ eta_bias_bootstrap <- function(
   error_dist,
   levels,
   n_boot,
-  formulas
+  formulas,
+  call = rlang::caller_env()
 ) {
   q_family <- if (outcome_type == "binary") {
     stats::binomial()
@@ -583,14 +591,31 @@ eta_bias_bootstrap <- function(
     }
   }
 
+  # A bootstrap exposure that lands in a single arm, or a refit propensity of
+  # exactly 0 or 1, yields a non-finite estimate; such draws carry no
+  # information and are dropped per truncation level before summarizing.
   boot_estimates <- lapply(seq_len(n_levels), function(level) {
-    estimates[, level]
+    column <- estimates[, level]
+    column[is.finite(column)]
   })
+  n_valid <- lengths(boot_estimates)
+  n_dropped <- max(n_boot - n_valid)
+  if (n_dropped > 0) {
+    warn(
+      c(
+        "Dropped {n_dropped} of {n_boot} bootstrap draws with a non-finite estimate.",
+        i = "Such draws arise when a bootstrap exposure lands in a single arm or a refit propensity reaches exactly 0 or 1."
+      ),
+      warning_class = "positively_degenerate_boot_warning",
+      call = call
+    )
+  }
   list(
     truth = observed$truth,
     boot_mean = vapply(boot_estimates, mean, numeric(1)),
     boot_sd = vapply(boot_estimates, stats::sd, numeric(1)),
-    boot_estimates = boot_estimates
+    boot_estimates = boot_estimates,
+    n_valid = n_valid
   )
 }
 

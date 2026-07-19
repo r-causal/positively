@@ -175,7 +175,8 @@ check_hat_values <- function(
 
   design <- cbind(1, dose, covariates)
   p <- ncol(design)
-  if (qr(design)$rank < p) {
+  design_qr <- qr(design)
+  if (design_qr$rank < p) {
     abort(
       c(
         "The design matrix formed from {.arg .exposure} and {.arg .covariates} is not full rank.",
@@ -184,7 +185,7 @@ check_hat_values <- function(
       error_class = "positively_rank_error"
     )
   }
-  gram_inverse <- solve(crossprod(design))
+  gram_inverse <- gram_inverse_from_qr(design_qr, p)
   cutoff <- threshold * p / n
 
   candidate_values <- stats::quantile(
@@ -239,6 +240,25 @@ check_hat_values <- function(
     exceeds_null = phi_hat > null_quantile,
     p = as.integer(p)
   )
+}
+
+#' Invert a design cross-product from its QR decomposition
+#'
+#' Forms \eqn{(M^\top M)^{-1}} from the QR decomposition of \eqn{M} as
+#' \eqn{(R^\top R)^{-1}}, undoing the column pivoting so the result is in the
+#' original column order. Working from \eqn{R} keeps the effective condition
+#' number at that of \eqn{M} rather than its square.
+#'
+#' @param design_qr The QR decomposition of the design matrix.
+#' @param p The number of design columns.
+#'
+#' @return The `p` by `p` inverse cross-product matrix.
+#' @noRd
+gram_inverse_from_qr <- function(design_qr, p) {
+  pivoted_inverse <- chol2inv(qr.R(design_qr))
+  gram_inverse <- matrix(0, p, p)
+  gram_inverse[design_qr$pivot, design_qr$pivot] <- pivoted_inverse
+  gram_inverse
 }
 
 #' Leverage of every candidate point against a fitted design
@@ -304,7 +324,10 @@ null_phi_distribution <- function(
     seq_len(null_reps),
     function(rep) {
       null_design <- cbind(1, draw_null_dose(), covariates)
-      null_gram_inverse <- solve(crossprod(null_design))
+      null_gram_inverse <- gram_inverse_from_qr(
+        qr(null_design),
+        ncol(null_design)
+      )
       null_hat_values <- candidate_hat_values(
         null_gram_inverse,
         candidate_values,

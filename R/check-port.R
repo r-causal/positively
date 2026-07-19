@@ -166,6 +166,19 @@ check_port <- function(
 
   n <- nrow(.data)
   beta_value <- resolve_beta_scalar(beta_spec, n)
+  if (
+    identical(beta_spec, "gruber") &&
+      (!is.finite(beta_value) || beta_value >= 0.5)
+  ) {
+    abort(
+      c(
+        "The {.val gruber} prevalence threshold resolved to {.val {beta_value}} at {.arg n} = {n}.",
+        i = "The reading rule needs a threshold below 0.5, but the sample-size-adaptive bound reaches 0.5 or more at small sample sizes.",
+        i = "Supply a numeric {.arg beta} below 0.5 for a sample this small."
+      ),
+      error_class = "positively_range_error"
+    )
+  }
 
   level_pairs <- port_level_responses(
     exposure_vec,

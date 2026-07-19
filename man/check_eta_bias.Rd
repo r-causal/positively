@@ -109,7 +109,11 @@ Third, it refits both nuisance models on each bootstrap dataset and applies
 the candidate estimator, bounding the fitted propensity into the truncation
 interval where the estimator uses it. \code{ETA.Bias} is the mean of the bootstrap
 estimates minus \code{truth}, and its Monte Carlo standard error is the standard
-deviation of the bootstrap estimates divided by the square root of \code{n_boot}.
+deviation of the bootstrap estimates divided by the square root of the number
+of retained draws. A bootstrap draw whose estimate is non-finite, which can
+happen when a resampled exposure lands in a single arm or a refit propensity
+reaches exactly 0 or 1, is dropped with a warning before the summaries are
+formed.
 
 The three estimators behave differently under positivity violations.
 G-computation ignores the propensity entirely, so its ETA.Bias is Monte Carlo

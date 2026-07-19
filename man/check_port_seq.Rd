@@ -40,8 +40,8 @@ addition to the exposure trees. The selection must match \code{.exposures} in
 length and every indicator must be binary; monotonicity is not required of
 the data, since a subject censored at a time point is dropped from later
 censoring risk sets. An indicator that is \code{NA} at a time point is read as
-unknown censoring status and also drops that subject from every later
-censoring risk set. Supplying \code{.censoring} also restricts each exposure risk
+unknown censoring status and drops that subject from that time point's
+censoring risk set and every later one. Supplying \code{.censoring} also restricts each exposure risk
 set to the followers uncensored so far. Censoring is available under the
 stratified strategy, the only strategy currently implemented. Defaults to
 \code{NULL}, which runs the exposure trees alone.}
@@ -82,11 +82,14 @@ Data are supplied in wide form, one row per subject with one exposure column
 per time point. Under \code{strategy = "stratified"} the risk set at time \eqn{t}
 is the set of subjects still following the rule. For a monotone binary
 treatment this is the subjects not yet initiated, that is, those whose
-immediately preceding treatment is the untreated level; every subject is in
-the risk set at the first time point. Restricting to these followers is what
+immediately preceding treatment is the untreated level; every subject with an
+observed time-1 exposure is in the risk set at the first time point.
+Restricting to these followers is what
 reveals a violation that pooling over already-treated subjects would mask,
 because the already-treated carry their treatment forward and inflate the
-subgroup prevalence.
+subgroup prevalence. A subject whose time-\eqn{t} exposure is missing is
+excluded from the time-\eqn{t} risk set, so \eqn{n_t} is always the size of
+the sample the tree is fitted on.
 
 At each time point the diagnostic runs \code{\link[=check_port]{check_port()}} with the time-\eqn{t}
 exposure as the response and a conditioning set of the baseline covariates,
