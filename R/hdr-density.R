@@ -202,15 +202,30 @@ hdr_density_normal <- function() {
 #' @param newdata The covariate rows to evaluate at.
 #' @param mass The HDR probability mass.
 #' @param exposure The observed exposure vector, used to place the numeric grid.
+#' @param call The calling environment, used to build the error's call.
 #'
 #' @return A numeric vector of cutoffs, one per row of `newdata`.
 #' @keywords internal
 #' @noRd
-hdr_thresholds <- function(estimator, state, newdata, mass, exposure) {
+hdr_thresholds <- function(
+  estimator,
+  state,
+  newdata,
+  mass,
+  exposure,
+  call = rlang::caller_env()
+) {
   if (!is.null(estimator@hdr_threshold)) {
     estimator@hdr_threshold(state, newdata, mass)
   } else {
-    numeric_hdr_thresholds(estimator, state, newdata, mass, exposure)
+    numeric_hdr_thresholds(
+      estimator,
+      state,
+      newdata,
+      mass,
+      exposure,
+      call = call
+    )
   }
 }
 
@@ -227,7 +242,14 @@ hdr_thresholds <- function(estimator, state, newdata, mass, exposure) {
 #' @return A numeric vector of cutoffs, one per row of `newdata`.
 #' @keywords internal
 #' @noRd
-numeric_hdr_thresholds <- function(estimator, state, newdata, mass, exposure) {
+numeric_hdr_thresholds <- function(
+  estimator,
+  state,
+  newdata,
+  mass,
+  exposure,
+  call = rlang::caller_env()
+) {
   n_grid <- 1024L
   span <- diff(range(exposure))
   if (span == 0) {
@@ -255,7 +277,8 @@ numeric_hdr_thresholds <- function(estimator, state, newdata, mass, exposure) {
         x = "The estimator's conditional density is zero or non-finite at every grid value for {cli::qty(n_bad)}{?that observation/those observations}.",
         i = "Supply a closed-form `hdr_threshold` to `new_hdr_density()`, or use a density whose mass falls inside the padded exposure range."
       ),
-      error_class = "positively_range_error"
+      error_class = "positively_range_error",
+      call = call
     )
   }
   apply(grid_densities, 1L, hdr_cutoff_from_grid, mass = mass)

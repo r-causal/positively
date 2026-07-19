@@ -3,7 +3,7 @@
     Code
       check_hdr(df, exposure, l, values = c(0, 1), density_estimator = est)
     Condition
-      Error in `numeric_hdr_thresholds()`:
+      Error in `check_hdr()`:
       ! The numeric-grid HDR cutoff is undefined for 100 observations.
       x The estimator's conditional density is zero or non-finite at every grid value for those observations.
       i Supply a closed-form `hdr_threshold` to `new_hdr_density()`, or use a density whose mass falls inside the padded exposure range.

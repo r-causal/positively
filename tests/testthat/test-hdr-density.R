@@ -213,6 +213,18 @@ test_that("check_hdr() aborts when the numeric-grid cutoff is undefined", {
     check_hdr(df, exposure, l, values = c(0, 1), density_estimator = est),
     class = "positively_range_error"
   )
+
+  seq_data <- dgp_longitudinal(n = 100, seed = 1)
+  expect_error(
+    check_hdr_seq(
+      seq_data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      values = 0,
+      density_estimator = est
+    ),
+    class = "positively_range_error"
+  )
 })
 
 # ---- Snapshots ------------------------------------------------------------

@@ -319,6 +319,7 @@ resolve_targets <- function(values, exposure, call = rlang::caller_env()) {
 #' @param exposure The observed exposure vector as a double.
 #' @param mass The HDR probability mass.
 #' @param targets The target exposure values.
+#' @param call The calling environment, used to build the error's call.
 #'
 #' @return A numeric vector of non-overlap ratios, one per target value.
 #' @keywords internal
@@ -330,7 +331,8 @@ hdr_nonoverlap <- function(
   analysis,
   exposure,
   mass,
-  targets
+  targets,
+  call = rlang::caller_env()
 ) {
   formula <- stats::reformulate(covariate_names, response = exposure_name)
   state <- density_estimator@fit(formula, analysis)
@@ -339,7 +341,8 @@ hdr_nonoverlap <- function(
     state = state,
     newdata = analysis,
     mass = mass,
-    exposure = exposure
+    exposure = exposure,
+    call = call
   )
   vapply(
     targets,
@@ -478,6 +481,7 @@ check_hdr_seq <- function(
   pooled_exposure <- as.double(unlist(.data[exposure_names], use.names = FALSE))
   targets <- resolve_targets(values, pooled_exposure)
 
+  seq_call <- rlang::current_env()
   per_time <- purrr::map(seq_len(n_times), function(t) {
     conditioning <- conditioning_set(
       time = t,
@@ -495,7 +499,8 @@ check_hdr_seq <- function(
       analysis = analysis,
       exposure = as.double(.data[[exposure_name]]),
       mass = mass,
-      targets = targets
+      targets = targets,
+      call = seq_call
     )
     tibble::tibble(
       time = rep(t, length(targets)),
