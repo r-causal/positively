@@ -294,6 +294,40 @@ validate_numeric_columns <- function(
   invisible(.data)
 }
 
+#' Validate that selected columns contain no missing values
+#'
+#' @param .data The data frame.
+#' @param columns A character vector of column names to check.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `.data`, invisibly, when every named column is complete.
+#' @keywords internal
+#' @noRd
+validate_complete_columns <- function(
+  .data,
+  columns,
+  arg_name,
+  call = rlang::caller_env()
+) {
+  missing_columns <- columns[vapply(
+    columns,
+    function(column) anyNA(.data[[column]]),
+    logical(1)
+  )]
+  if (length(missing_columns) > 0) {
+    abort(
+      c(
+        "{.arg {arg_name}} must not contain missing values.",
+        x = "Missing values in {.val {missing_columns}}."
+      ),
+      error_class = "positively_missing_error",
+      call = call
+    )
+  }
+  invisible(.data)
+}
+
 #' Validate that selected numeric columns contain no non-finite values
 #'
 #' Non-finite exposure or covariate values poison every kernel they enter: the

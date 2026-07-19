@@ -228,6 +228,7 @@ check_port_seq <- function(
 
   pooled_exposure <- unlist(.data[exposure_names], use.names = FALSE)
   pooled_exposure <- pooled_exposure[!is.na(pooled_exposure)]
+  validate_two_level_exposure(pooled_exposure, arg = ".exposures")
   resolved_type <- detect_exposure_type(pooled_exposure)
   untreated_level <- resolve_untreated_level(pooled_exposure, resolved_type)
 
@@ -391,6 +392,7 @@ port_seq_time <- function(
     baseline_names = baseline_names,
     lag = lag
   )
+  validate_risk_set_complete(risk_set, conditioning, time)
 
   exposure_vec <- risk_set[[exposure_names[[time]]]]
   level_pairs <- port_level_responses(
@@ -489,6 +491,7 @@ port_seq_censoring_time <- function(
     ),
     exposure_names[[time]]
   ))
+  validate_risk_set_complete(risk_set, conditioning, time)
 
   level_pairs <- port_level_responses(
     response_vec,
@@ -599,6 +602,47 @@ validate_censoring_indicators <- function(
     )
   }
   invisible(censoring_names)
+}
+
+#' Validate that a time point's conditioning columns are complete in its risk set
+#'
+#' Checks the conditioning columns only within the rows of this time point's risk
+#' set, so that a subject censored before this time point may legitimately carry
+#' `NA` in later-wave covariates without aborting the run: such a subject never
+#' enters this risk set. A missing value among the followers, on the other hand,
+#' would be silently dropped or surrogated by `rpart`, so the reported subgroup
+#' sizes would no longer sum to the risk set.
+#'
+#' @param risk_set The time point's risk-set rows.
+#' @param conditioning The conditioning column names for this time point.
+#' @param time The current time point index.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `risk_set`, invisibly, when every conditioning column is complete.
+#' @keywords internal
+#' @noRd
+validate_risk_set_complete <- function(
+  risk_set,
+  conditioning,
+  time,
+  call = rlang::caller_env()
+) {
+  missing_columns <- conditioning[vapply(
+    conditioning,
+    function(column) anyNA(risk_set[[column]]),
+    logical(1)
+  )]
+  if (length(missing_columns) > 0) {
+    abort(
+      c(
+        "{.arg .covariates} must not contain missing values in a risk set.",
+        x = "Missing values in {.val {missing_columns}} at time point {time}."
+      ),
+      error_class = "positively_missing_error",
+      call = call
+    )
+  }
+  invisible(risk_set)
 }
 
 #' The regime's untreated level

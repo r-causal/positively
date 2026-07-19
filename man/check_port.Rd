@@ -42,8 +42,8 @@ which the exposure is categorized. A whole number of at least two, \code{3} by
 default; a single bin would place every observation at one exposure level
 and flag every subgroup. Ignored for binary and categorical exposures.}
 
-\item{breaks}{For a continuous exposure, explicit numeric cut points that
-override \code{n_bins}. \code{NULL} (the default) uses quantile bins.}
+\item{breaks}{For a continuous exposure, at least three distinct numeric cut
+points that override \code{n_bins}. \code{NULL} (the default) uses quantile bins.}
 
 \item{exposure_type}{One of \code{"auto"} (detect from the data, the default),
 \code{"binary"}, \code{"categorical"}, or \code{"continuous"}.}

@@ -145,6 +145,13 @@ check_positivity <- function(
   exposure_name <- names(exposure_pos)
   exposure_vec <- .data[[exposure_pos]]
 
+  if (anyNA(exposure_vec)) {
+    abort(
+      "{.arg .exposure} must not contain missing values.",
+      error_class = "positively_missing_error"
+    )
+  }
+
   covariate_pos <- tidyselect::eval_select(rlang::enquo(.covariates), .data)
   validate_column_selection(covariate_pos, ".covariates")
   covariate_names <- names(covariate_pos)

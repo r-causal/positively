@@ -96,8 +96,8 @@ port_result <- new_class(
 #'   which the exposure is categorized. A whole number of at least two, `3` by
 #'   default; a single bin would place every observation at one exposure level
 #'   and flag every subgroup. Ignored for binary and categorical exposures.
-#' @param breaks For a continuous exposure, explicit numeric cut points that
-#'   override `n_bins`. `NULL` (the default) uses quantile bins.
+#' @param breaks For a continuous exposure, at least three distinct numeric cut
+#'   points that override `n_bins`. `NULL` (the default) uses quantile bins.
 #' @param exposure_type One of `"auto"` (detect from the data, the default),
 #'   `"binary"`, `"categorical"`, or `"continuous"`.
 #' @param ... Passed to [rpart::rpart.control()], for example `cp`.
@@ -162,6 +162,7 @@ check_port <- function(
   covariate_pos <- tidyselect::eval_select(rlang::enquo(.covariates), .data)
   validate_column_selection(covariate_pos, ".covariates")
   covariate_names <- names(covariate_pos)
+  validate_complete_columns(.data, covariate_names, ".covariates")
 
   n <- nrow(.data)
   beta_value <- resolve_beta_scalar(beta_spec, n)
@@ -260,11 +261,33 @@ validate_beta <- function(beta, call = rlang::caller_env()) {
 #' @keywords internal
 #' @noRd
 validate_breaks <- function(breaks, call = rlang::caller_env()) {
-  if (!is.null(breaks) && !is.numeric(breaks)) {
+  if (is.null(breaks)) {
+    return(invisible(breaks))
+  }
+  if (!is.numeric(breaks)) {
     breaks_class <- class(breaks)[1]
     abort(
       "{.arg breaks} must be numeric or {.code NULL}, not a {.cls {breaks_class}}.",
       error_class = "positively_type_error",
+      call = call
+    )
+  }
+  if (anyNA(breaks)) {
+    abort(
+      "{.arg breaks} must not contain missing values.",
+      error_class = "positively_missing_error",
+      call = call
+    )
+  }
+  n_distinct <- length(unique(breaks))
+  if (n_distinct < 3) {
+    abort(
+      c(
+        "{.arg breaks} must contain at least three distinct cut points.",
+        i = "The cut points bound the exposure bins, so three points define the minimum of two bins; a single bin would place every observation at one exposure level and flag every subgroup.",
+        x = "Found {n_distinct} distinct cut point{?s}."
+      ),
+      error_class = "positively_range_error",
       call = call
     )
   }
@@ -274,6 +297,7 @@ validate_breaks <- function(breaks, call = rlang::caller_env()) {
 #' Validate that an exposure has at least two distinct values
 #'
 #' @param exposure The exposure vector.
+#' @param arg The argument name used in error messages.
 #' @param call The calling environment, used to build the error's call.
 #'
 #' @return `exposure`, invisibly, when it has at least two distinct values.
@@ -281,13 +305,14 @@ validate_breaks <- function(breaks, call = rlang::caller_env()) {
 #' @noRd
 validate_two_level_exposure <- function(
   exposure,
+  arg = ".exposure",
   call = rlang::caller_env()
 ) {
   n_levels <- length(unique(exposure[!is.na(exposure)]))
   if (n_levels < 2) {
     abort(
       c(
-        "{.arg .exposure} must have at least two distinct values.",
+        "{.arg {arg}} must have at least two distinct values.",
         x = "Found {n_levels}."
       ),
       error_class = "positively_exposure_error",
@@ -416,6 +441,17 @@ bin_continuous_exposure <- function(exposure, n_bins, breaks) {
     probs <- seq(0, 1, length.out = n_bins + 1)
     unique(stats::quantile(exposure, probs = probs, na.rm = TRUE, type = 7))
   }
+  if (length(cut_points) < 3) {
+    abort(
+      c(
+        "The exposure quantiles define fewer than two bins.",
+        i = "Ties in the exposure collapse the quantile cut points, so the requested bins reduce to one.",
+        i = "Supply explicit {.arg breaks} that separate the tied values."
+      ),
+      error_class = "positively_binning_error",
+      call = NULL
+    )
+  }
   cut(exposure, breaks = cut_points, include.lowest = TRUE)
 }
 
@@ -529,10 +565,15 @@ port_search <- function(
 #' @keywords internal
 #' @noRd
 fit_port_tree <- function(response, covariate_data, control) {
+  # The response column name must not collide with a covariate: rpart segfaults
+  # on a formula whose response term also appears as a predictor.
+  response_name <- make.unique(
+    c(names(covariate_data), ".port_response")
+  )[[ncol(covariate_data) + 1L]]
   tree_data <- covariate_data
-  tree_data[[".port_response"]] <- response
+  tree_data[[response_name]] <- response
   rpart::rpart(
-    stats::reformulate(names(covariate_data), response = ".port_response"),
+    stats::reformulate(names(covariate_data), response = response_name),
     data = tree_data,
     method = "anova",
     control = control

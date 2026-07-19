@@ -155,3 +155,51 @@
       Error in `check_port()`:
       ! `breaks` must be numeric or `NULL`, not a <character>.
 
+# check_port() degenerate binning messages are stable
+
+    Code
+      check_port(port_binning_data(), exposure, x1, breaks = 4, exposure_type = "continuous")
+    Condition
+      Error in `check_port()`:
+      ! `breaks` must contain at least three distinct cut points.
+      i The cut points bound the exposure bins, so three points define the minimum of two bins; a single bin would place every observation at one exposure level and flag every subgroup.
+      x Found 1 distinct cut point.
+
+---
+
+    Code
+      check_port(port_binning_data(), exposure, x1, breaks = c(0, 6), exposure_type = "continuous")
+    Condition
+      Error in `check_port()`:
+      ! `breaks` must contain at least three distinct cut points.
+      i The cut points bound the exposure bins, so three points define the minimum of two bins; a single bin would place every observation at one exposure level and flag every subgroup.
+      x Found 2 distinct cut points.
+
+---
+
+    Code
+      check_port(port_binning_data(), exposure, x1, breaks = c(0, NA, 6),
+      exposure_type = "continuous")
+    Condition
+      Error in `check_port()`:
+      ! `breaks` must not contain missing values.
+
+---
+
+    Code
+      check_port(port_zero_inflated_data(), exposure, x1, n_bins = 3, exposure_type = "continuous")
+    Condition
+      Error:
+      ! The exposure quantiles define fewer than two bins.
+      i Ties in the exposure collapse the quantile cut points, so the requested bins reduce to one.
+      i Supply explicit `breaks` that separate the tied values.
+
+# check_port() missing-covariate message is stable
+
+    Code
+      check_port(data, exposure, c(x1, x2))
+    Condition
+      Error in `check_port()`:
+      ! `.covariates` must not contain missing values.
+      x Missing values in "x1".
+

@@ -178,3 +178,11 @@
       ! `i` must select a single diagnostic.
       x You supplied 2 values.
 
+# the missing-exposure message is stable
+
+    Code
+      check_positivity(data, exposure, c(x1, x2))
+    Condition
+      Error in `check_positivity()`:
+      ! `.exposure` must not contain missing values.
+

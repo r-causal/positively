@@ -178,3 +178,32 @@
       ! `strategy` "pooled" is not yet implemented.
       i Use "stratified", the default.
 
+# check_port_seq() missing-covariate message names the column and time
+
+    Code
+      check_port_seq(data, c(a1, a2, a3), list(c1))
+    Condition
+      Error in `purrr::map()`:
+      i In index: 1.
+      Caused by error in `port_seq_time()`:
+      ! `.covariates` must not contain missing values in a risk set.
+      x Missing values in "c1" at time point 1.
+
+# check_port_seq() degenerate pooled-exposure messages are stable
+
+    Code
+      check_port_seq(constant, c(a1, a2), list(c1))
+    Condition
+      Error in `check_port_seq()`:
+      ! `.exposures` must have at least two distinct values.
+      x Found 1.
+
+---
+
+    Code
+      check_port_seq(all_missing, c(a1, a2), list(c1))
+    Condition
+      Error in `check_port_seq()`:
+      ! `.exposures` must have at least two distinct values.
+      x Found 0.
+
