@@ -78,9 +78,11 @@ eta_data$y <- with(
 )
 ```
 
-The covariates passed to `check_eta_bias()` must be numeric, so we supply `x1`
-and `x2`. The steep dependence of the exposure on `x1` is the source of the
-extreme propensities that inverse probability weighting reacts to. We diagnose
+`check_eta_bias()` accepts numeric, logical, factor, and character covariates;
+its fitted models expand factor and character covariates into indicator terms.
+Here we supply the numeric covariates `x1` and `x2`. The steep dependence of the
+exposure on `x1` is the source of the extreme propensities that inverse
+probability weighting reacts to. We diagnose
 the inverse-probability-weighting estimator, which divides by the fitted
 propensity and is therefore the estimator most exposed to a positivity
 violation.

@@ -209,9 +209,12 @@ The `lag` argument sets how far back the covariate and exposure history reaches
 into each conditioning set. The default `Inf` uses the full history. A finite
 `lag` restricts each conditioning set to the most recent time points, which
 produces smaller conditioning sets and can drop rules that depend on distant
-history. Setting `lag = 1` here conditions each time point only on the
-immediately preceding covariates and exposure, so the time-3 rules that referred
-to the time-1 exposure and covariate no longer appear.
+history. Setting `lag = 1` here keeps each time point's own covariates plus the
+covariates and exposure of the one preceding time point, so the time-3 trees
+condition on `l2`, `l1`, and `a2` alone. The time-1 covariate `l0` and exposure
+`a1` leave the time-3 conditioning set, so flagged rules that referred to `a1`
+can no longer appear, and the trees, refit on the smaller pool, flag a different
+set of subgroups.
 
 ```{r lag}
 sport_lag <- check_port_seq(

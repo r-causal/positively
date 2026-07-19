@@ -67,9 +67,9 @@ intervened-on point. The result runs from zero, meaning no observed support, up 
 the sample size.
 
 For a continuous exposure the default candidate values are the deciles of the
-observed exposure, which by construction avoid an unobserved gap. To probe the
-suspected hole, supply candidate values that span the range, including one inside
-the gap.
+observed exposure, which follow the observed mass and here all fall outside the
+gap. To probe the suspected hole, supply candidate values that span the range,
+including one inside the gap.
 
 ```{r edp}
 edp <- check_edp(pos_violations_long, a2, c(l0, l1), values = c(1, 3, 5))
