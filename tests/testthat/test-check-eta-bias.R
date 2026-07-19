@@ -592,6 +592,47 @@ test_that("the numeric matrix path is unchanged under a fixed seed (regression)"
   expect_equal(res@results$boot_mean[[1]], 1.2383665971651121)
 })
 
+# ---- Degenerate bootstrap draws -------------------------------------------
+
+test_that("non-finite bootstrap draws are dropped with a classed warning", {
+  local_quiet()
+  # A severe practical violation at small n drives some inverse-probability
+  # refits to a zero weight sum, so a handful of bootstrap draws are non-finite.
+  data <- withr::with_seed(4, {
+    n <- 25
+    x1 <- stats::rnorm(n)
+    a <- stats::rbinom(n, 1L, stats::plogis(2 + 2 * x1))
+    y <- a + x1 + stats::rnorm(n)
+    tibble::tibble(a = a, y = y, x1 = x1)
+  })
+
+  expect_warning(
+    res <- withr::with_seed(
+      1,
+      check_eta_bias(data, a, y, x1, estimator = "ipw", n_boot = 50)
+    ),
+    class = "positively_degenerate_boot_warning"
+  )
+
+  # The summaries recover to finite values once the non-finite draws are dropped.
+  expect_true(is.finite(res@results$bias[[1]]))
+  expect_true(is.finite(res@results$mc_se[[1]]))
+  expect_true(is.finite(res@results$boot_mean[[1]]))
+  # Two of the fifty draws are non-finite, so forty-eight are retained.
+  expect_length(res@boot_estimates[[1]], 48L)
+})
+
+test_that("a healthy run keeps every bootstrap draw and warns for none", {
+  local_quiet()
+  data <- sim_eta_good(n = 300, seed = 1)
+  res <- expect_no_condition(
+    fit_eta(data, "ipw", n_boot = 50),
+    class = "positively_degenerate_boot_warning"
+  )
+  expect_length(res@boot_estimates[[1]], 50L)
+  expect_true(is.finite(bias_of(res)))
+})
+
 # ---- Result class and properties ------------------------------------------
 
 test_that("check_eta_bias() returns an eta_bias_result diagnostic", {

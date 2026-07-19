@@ -191,6 +191,38 @@ test_that("check_hat_values() aborts on a rank-deficient design", {
   )
 })
 
+test_that("a large constant offset in a covariate does not break the leverage", {
+  local_quiet()
+  # A covariate that is nearly collinear with the intercept, because it carries a
+  # large constant offset, leaves the design full rank but severely
+  # ill-conditioned. Leverage is invariant to an affine shift of a covariate, so
+  # the offset fit must reproduce the centered fit rather than fail to invert the
+  # cross-product.
+  base_dose <- withr::with_seed(1, {
+    n <- 200
+    base <- stats::rnorm(n)
+    dose <- stats::rnorm(n, mean = base)
+    tibble::tibble(dose = dose, base = base)
+  })
+  centered <- base_dose
+  centered$z <- base_dose$base
+  offset <- base_dose
+  offset$z <- base_dose$base + 1e5
+
+  centered_res <- check_hat_values(centered, dose, z, null_reps = 2)
+  offset_res <- expect_no_error(
+    check_hat_values(offset, dose, z, null_reps = 2)
+  )
+
+  # The high-leverage flags are a threshold comparison, so they match exactly;
+  # phi_hat matches within a numerical tolerance.
+  expect_identical(
+    offset_res@results$high_leverage,
+    centered_res@results$high_leverage
+  )
+  expect_equal(offset_res@phi_hat, centered_res@phi_hat, tolerance = 1e-6)
+})
+
 # ---- Result class and properties ------------------------------------------
 
 test_that("check_hat_values() returns a hat_values_result diagnostic", {

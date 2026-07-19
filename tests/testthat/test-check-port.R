@@ -595,6 +595,50 @@ test_that("the Gruber bound scales with n", {
   expect_equal(res4000@beta, 5 / (sqrt(4000) * log(4000)), tolerance = 1e-8)
 })
 
+# ---- Degenerate resolved Gruber bound -------------------------------------
+
+# A small sample pushes the Gruber bound to or above 0.5, where the reading rule
+# flags every subgroup because a prevalence below beta and above 1 - beta no
+# longer bracket a gap. A resolved bound of 0.5 or more is a hard error, just as
+# a numeric beta of 0.5 or more is rejected up front.
+port_gruber_data <- function(n, zeros) {
+  withr::with_seed(
+    3,
+    tibble::tibble(
+      exposure = c(rep(0L, zeros), rep(1L, n - zeros)),
+      x1 = stats::rnorm(n)
+    )
+  )
+}
+
+test_that("a resolved Gruber bound of 0.5 or more is rejected", {
+  local_quiet()
+  # n = 12 resolves the Gruber bound to about 0.581, at or above the 0.5 limit.
+  data <- port_gruber_data(n = 12, zeros = 7)
+  expect_error(
+    check_port(data, exposure, x1, beta = "gruber"),
+    class = "positively_range_error"
+  )
+})
+
+test_that("the degenerate Gruber bound message pins the bound and sample size", {
+  local_quiet()
+  data <- port_gruber_data(n = 12, zeros = 7)
+  expect_snapshot(
+    check_port(data, exposure, x1, beta = "gruber"),
+    error = TRUE
+  )
+})
+
+test_that("a Gruber bound below 0.5 still runs", {
+  local_quiet()
+  # n = 15 resolves the Gruber bound to about 0.477, below the 0.5 limit.
+  data <- port_gruber_data(n = 15, zeros = 9)
+  res <- check_port(data, exposure, x1, beta = "gruber")
+  expect_identical(S7::S7_class(res)@name, "port_result")
+  expect_equal(res@beta, 5 / (sqrt(15) * log(15)), tolerance = 1e-8)
+})
+
 # ---- Practical and structural flagged identically (expectation 8) ---------
 
 test_that("a low-prevalence subgroup is flagged like an empty one", {

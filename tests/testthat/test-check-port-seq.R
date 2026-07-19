@@ -855,6 +855,83 @@ test_that("check_port_seq() missing-covariate message names the column and time"
   expect_snapshot(check_port_seq(data, c(a1, a2, a3), list(c1)), error = TRUE)
 })
 
+# ---- Missing time-t exposure and censoring status -------------------------
+
+# A missing time-t exposure marks a subject with no observed treatment at that
+# time, distinct from a missing conditioning covariate. It must leave the
+# exposure risk set for that time point rather than enter the tree as an NA
+# response, so the risk-set size and its resolved Gruber threshold count only the
+# subjects with an observed exposure.
+test_that("a missing time-t exposure leaves that time's exposure risk set", {
+  local_quiet()
+  data <- withr::with_seed(2, {
+    n <- 800
+    c1 <- stats::rnorm(n)
+    a1 <- stats::rbinom(n, 1L, 0.3)
+    a2 <- a1
+    f <- a1 == 0
+    a2[f] <- stats::rbinom(sum(f), 1L, 0.4)
+    drop <- f & stats::rbinom(n, 1L, 0.5) == 1
+    a2[drop] <- NA
+    tibble::tibble(id = seq_len(n), c1 = c1, a1 = a1, a2 = a2)
+  })
+  # The conditioning covariate c1 is complete, so the missingness is confined to
+  # the time-2 exposure column and never trips the risk-set completeness check.
+  expect_false(anyNA(data$c1))
+  k <- sum(data$a1 == 0 & !is.na(data$a2))
+
+  res <- check_port_seq(
+    data,
+    c(a1, a2),
+    list(c1),
+    beta = "gruber",
+    cp = 0.01
+  )
+
+  time2 <- res@results[res@results$time == 2, , drop = FALSE]
+  # The largest reported subgroup at time 2 is the whole risk set, so its size is
+  # the count of followers with an observed exposure and its proportion is one.
+  expect_identical(as.integer(max(time2$n)), as.integer(k))
+  expect_equal(max(time2$proportion), 1)
+  # The Gruber bound resolves from the observed-exposure risk-set size.
+  expect_equal(res@beta[[2]], 5 / (sqrt(k) * log(k)), tolerance = 1e-8)
+})
+
+test_that("a missing time-t censoring status leaves that censoring risk set", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring()
+  # Set the time-2 censoring status to unknown for a slice of the subjects
+  # uncensored through time 1, the time-2 censoring risk set.
+  in_risk <- which(data$c1 == 0)
+  data$c2[in_risk[seq_len(300)]] <- NA
+  k2 <- sum(data$c1 == 0 & !is.na(data$c2))
+  t3_risk <- sum(data$c1 == 0 & data$c2 == 0, na.rm = TRUE)
+
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    beta = "gruber",
+    cp = 0.01
+  )
+
+  # The time-2 censoring threshold resolves from the observed-status count, not
+  # from the full uncensored-through-time-1 cohort.
+  expect_equal(
+    res@censoring_beta[[2]],
+    5 / (sqrt(k2) * log(k2)),
+    tolerance = 1e-8
+  )
+
+  # A subject with an unknown time-2 status is absent from the time-3 censoring
+  # risk set, so the largest reported time-3 censoring subgroup is the
+  # observed-uncensored cohort.
+  censoring <- res@results[res@results$type == "censoring", , drop = FALSE]
+  time3 <- censoring[censoring$time == 3, , drop = FALSE]
+  expect_identical(as.integer(max(time3$n)), as.integer(t3_risk))
+})
+
 # ---- Degenerate pooled exposure -------------------------------------------
 
 test_that("an identically constant pooled exposure is rejected", {

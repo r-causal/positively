@@ -446,6 +446,50 @@ test_that("hull membership is exact on a hand-built square reference", {
   expect_false(in_hull[4]) # exterior
 })
 
+test_that("hull membership is exact on the square reference under a large offset", {
+  local_quiet()
+  skip_if_not_installed("lpSolve")
+  # The same square reference and treated queries, translated by 1e6 on both
+  # axes. Membership is invariant to translation, so the four verdicts must not
+  # change when the coordinates carry a large constant offset.
+  data <- tibble::tibble(
+    exposure = c(0L, 0L, 0L, 0L, 1L, 1L, 1L, 1L),
+    x1 = c(0, 2, 0, 2, 1, 0, 1, 5) + 1e6,
+    x2 = c(0, 0, 2, 2, 1, 0, 0, 5) + 1e6
+  )
+  res <- check_extrapolation(data, exposure, c(x1, x2), hull = TRUE)
+
+  in_hull <- res@results$in_hull[match(5:8, res@results$.id)]
+  expect_true(in_hull[1]) # interior
+  expect_true(in_hull[2]) # coincident vertex
+  expect_true(in_hull[3]) # edge midpoint
+  expect_false(in_hull[4]) # exterior
+})
+
+test_that("hull membership is invariant to a large offset on a Gaussian design", {
+  local_quiet()
+  skip_if_not_installed("lpSolve")
+  data <- sim_extrap_gaussian(100, p = 2, sep = 0, seed = 1)
+  base <- check_extrapolation(
+    data,
+    exposure,
+    tidyselect::starts_with("x"),
+    hull = TRUE
+  )
+
+  shifted <- data
+  shifted$x1 <- shifted$x1 + 1e6
+  shifted$x2 <- shifted$x2 + 1e6
+  offset <- check_extrapolation(
+    shifted,
+    exposure,
+    tidyselect::starts_with("x"),
+    hull = TRUE
+  )
+
+  expect_identical(offset@results$in_hull, base@results$in_hull)
+})
+
 test_that("the in-hull fraction collapses monotonically with dimension", {
   local_quiet()
   ps <- c(2, 3, 5, 15)
