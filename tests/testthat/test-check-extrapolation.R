@@ -345,6 +345,31 @@ test_that("frac_nearby falls and gower_min rises as the gap grows", {
   expect_true(all(diff(gmin) > 0))
 })
 
+test_that("frac_nearby grows with the nearby radius", {
+  local_quiet()
+  # A wider nearby radius counts more opposite-group neighbors as support, so the
+  # mean frac_nearby rises with it. The Gower distances themselves do not depend
+  # on the radius, so gower_min and gower_mean are identical across the sweep.
+  data <- sim_extrap_gaussian(100, p = 2, sep = 0, seed = 1)
+  results <- lapply(c(0.5, 1, 2), function(nb) {
+    check_extrapolation(
+      data,
+      exposure,
+      tidyselect::starts_with("x"),
+      nearby = nb,
+      hull = FALSE
+    )@results
+  })
+
+  fracs <- vapply(results, function(r) mean(r$frac_nearby), numeric(1))
+  expect_true(all(diff(fracs) > 0))
+
+  expect_identical(results[[2]]$gower_min, results[[1]]$gower_min)
+  expect_identical(results[[3]]$gower_min, results[[1]]$gower_min)
+  expect_identical(results[[2]]$gower_mean, results[[1]]$gower_mean)
+  expect_identical(results[[3]]$gower_mean, results[[1]]$gower_mean)
+})
+
 test_that("frac_nearby is stable across n under overlap", {
   local_quiet()
   ns <- c(200, 800, 3200)
@@ -692,6 +717,19 @@ test_that("autoplot() returns a ggplot for each type", {
 
   expect_s3_class(ggplot2::autoplot(res, type = "distribution"), "ggplot")
   expect_s3_class(ggplot2::autoplot(res, type = "hull"), "ggplot")
+})
+
+test_that("plot() draws the view and returns the result invisibly", {
+  local_quiet()
+  local_null_device()
+  data <- sim_extrap_gaussian(100, p = 4, sep = 0, seed = 1)
+  res <- check_extrapolation(
+    data,
+    exposure,
+    tidyselect::starts_with("x"),
+    hull = FALSE
+  )
+  expect_identical(plot(res), res)
 })
 
 test_that("extrapolation autoplot views render as expected", {

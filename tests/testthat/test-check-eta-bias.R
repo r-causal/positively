@@ -914,6 +914,20 @@ test_that("ETA bias autoplot views render as expected", {
   )
 })
 
+test_that("plot() draws the view and returns the result invisibly", {
+  local_quiet()
+  local_null_device()
+  data <- sim_eta_violation(n = 500, seed = 1)
+  swept <- fit_eta(
+    data,
+    "ipw",
+    truncation_grid = c(0, 0.025, 0.05, 0.1),
+    n_boot = 100
+  )
+  # The type argument reaches the plot method through the dots.
+  expect_identical(plot(swept, type = "sweep"), swept)
+})
+
 test_that("the sweep view aborts on a single-run result", {
   local_quiet()
   data <- sim_eta_violation(n = 500, seed = 1)

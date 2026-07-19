@@ -121,8 +121,11 @@ dgp_longitudinal_binary <- function(n = 2000, seed = 6) {
 }
 
 # Longitudinal wide-format data over three time points with monotone binary
-# exposures and monotone binary censoring indicators c1, c2, c3, coded 1 when
-# censored and 0 otherwise. It plants a censoring violation at t = 2: among the
+# exposures and per-wave censoring events c1, c2, c3. Each is coded 1 when the
+# subject is censored at that wave among those still uncensored going in, and 0
+# otherwise; a subject censored at an earlier wave carries 0 at every later wave
+# because it has already left the risk set. It plants a censoring violation at
+# t = 2: among the
 # subjects uncensored through t = 1, censoring is near-certain where the baseline
 # covariate l0 is above 1, while it is light everywhere else and at the first and
 # last time points. Because censoring is analyzed on the uncensored-so-far risk

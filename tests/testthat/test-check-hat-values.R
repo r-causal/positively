@@ -296,6 +296,34 @@ test_that("hat_values_result has the fixed results columns", {
   expect_true(all(res@results$hat_value > 0))
 })
 
+# ---- Exact leverage against stats::hatvalues ------------------------------
+
+test_that("a candidate at an observed design point reproduces the lm hat value", {
+  local_quiet()
+  # A type-7 quantile at prob (i - 1) / (n - 1) is exactly the i-th sorted dose,
+  # so that candidate coincides with an observed design point. Hat values depend
+  # only on the design matrix, so the leverage there equals the ordinary lm hat
+  # value for that observation regardless of the response.
+  data <- sim_hat_linear(50, beta = 1, seed = 1)
+  ord <- order(data$dose)
+  i_sorted <- 10L
+  res <- check_hat_values(
+    data,
+    dose,
+    x1,
+    probs = (i_sorted - 1) / (nrow(data) - 1),
+    null_reps = 2
+  )
+
+  lm_hat <- unname(stats::hatvalues(
+    stats::lm(seq_len(nrow(data)) ~ dose + x1, data = data)
+  ))
+  expect_equal(
+    res@results$hat_value[res@results$.id == ord[i_sorted]],
+    lm_hat[ord[i_sorted]]
+  )
+})
+
 # ---- Results shape and structure (exact, non-stochastic) ------------------
 
 test_that("nrow(results) equals length(probs) times n (expectation 7)", {
@@ -633,6 +661,14 @@ test_that("autoplot() returns a ggplot for each type", {
 
   expect_s3_class(ggplot2::autoplot(res, type = "null"), "ggplot")
   expect_s3_class(ggplot2::autoplot(res, type = "profile"), "ggplot")
+})
+
+test_that("plot() draws the view and returns the result invisibly", {
+  local_quiet()
+  local_null_device()
+  data <- sim_hat_linear(150, beta = 1, seed = 1)
+  res <- check_hat_values(data, dose, x1, null_reps = 2)
+  expect_identical(plot(res), res)
 })
 
 test_that("hat-value autoplot views render as expected", {

@@ -725,6 +725,42 @@ test_that("explicit breaks bin a continuous exposure", {
   )
   expect_identical(res@exposure_type, "continuous")
   expect_gte(nrow(res@results), 1L)
+
+  # The lowest exposure bin "[0,2]" carries a covariate subgroup on x1 whose
+  # exposure prevalence falls below beta, so it flags with an x1 description.
+  low_flag <- flagged_rows(res)
+  low_flag <- low_flag[low_flag$exposure_level == "[0,2]", , drop = FALSE]
+  expect_gte(nrow(low_flag), 1L)
+  expect_true(any(grepl("x1", low_flag$description)))
+})
+
+test_that("quantile bins recover the continuous support gap", {
+  local_quiet()
+  # Default quantile binning cuts the exposure into three levels. The support
+  # gap plants a covariate region of high x1 that only ever sees the lowest
+  # exposure bin, so a low-bin subgroup flags on a high x1 lower bound.
+  data <- dgp_continuous_support_gap(n = 1000, seed = 4)
+  res <- check_port(data, exposure, x1, exposure_type = "continuous")
+
+  flagged <- flagged_rows(res)
+  expect_identical(nrow(flagged), 2L)
+  # Every flagged subgroup sits below beta.
+  expect_true(all(flagged$prevalence < res@beta))
+
+  # An interval label like "[0.00102,1.27]" whose bounds both fall in [0, 2] is a
+  # low exposure bin. At least one flagged low bin carries a high x1 lower bound.
+  bounds <- lapply(
+    flagged$exposure_level,
+    function(level) {
+      as.numeric(regmatches(
+        level,
+        gregexpr("-?[0-9]+\\.?[0-9]*", level)
+      )[[1]])
+    }
+  )
+  low_bin <- vapply(bounds, function(b) all(b >= 0 & b <= 2), logical(1))
+  high_x1 <- grepl("x1>=", flagged$description, fixed = TRUE)
+  expect_true(any(low_bin & high_x1))
 })
 
 # ---- Autoplot contract -----------------------------------------------------

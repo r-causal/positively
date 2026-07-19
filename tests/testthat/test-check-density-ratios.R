@@ -217,6 +217,35 @@ test_that("tidy() and glance() follow the shared diagnostic contract", {
   expect_identical(nrow(glanced), 1L)
 })
 
+test_that("glance() headline values are the final-time cumulative summaries", {
+  # For a matrix the headline effective sample size and maximum are the
+  # cumulative-product summaries at the last time point, and n_times counts the
+  # columns.
+  m <- matrix(gen_lognormal_ratios(300, k = 1, seed = 1), nrow = 100, ncol = 3)
+  res <- check_density_ratios(m)
+  glanced <- generics::glance(res)
+  summ <- generics::tidy(res)
+
+  expect_equal(
+    glanced$ess_fraction,
+    stat_value(summ, "cumulative_ess_fraction", time = 3)
+  )
+  expect_equal(glanced$max, stat_value(summ, "cumulative_max", time = 3))
+  expect_identical(glanced$n_times, 3L)
+})
+
+test_that("glance() headline values match the point-treatment summaries", {
+  # A point treatment is a single time point, so the headline maximum is the
+  # maximum ratio and the headline ESS fraction is the per-time ESS fraction.
+  ratios <- gen_lognormal_ratios(200, k = 1, seed = 2)
+  res <- check_density_ratios(ratios)
+  glanced <- generics::glance(res)
+  summ <- generics::tidy(res)
+
+  expect_equal(glanced$max, max(ratios))
+  expect_equal(glanced$ess_fraction, stat_value(summ, "ess_fraction"))
+})
+
 test_that("glance() stays one row when probs omits the maximum", {
   res <- check_density_ratios(
     gen_lognormal_ratios(200, k = 1),
@@ -457,6 +486,12 @@ test_that("density-ratio autoplot views render as expected", {
     "Density ratios cumulative quantiles",
     ggplot2::autoplot(res_matrix, type = "cumulative")
   )
+})
+
+test_that("plot() draws the view and returns the result invisibly", {
+  local_null_device()
+  res <- check_density_ratios(gen_lognormal_ratios(50, k = 1))
+  expect_identical(plot(res), res)
 })
 
 # ---- Print method ----------------------------------------------------------

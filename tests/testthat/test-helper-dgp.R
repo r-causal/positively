@@ -87,6 +87,10 @@ test_that("dgp_longitudinal_binary_censoring() plants near-certain t-2 censoring
     sum(data$c1 == 0 & data$c2 == 0)
   )
   expect_true(all(diff(risk_sets) < 0))
+  # A subject censored at an earlier wave carries 0 at every later wave, having
+  # left the risk set.
+  expect_true(all(data$c2[data$c1 == 1] == 0))
+  expect_true(all(data$c3[data$c2 == 1] == 0))
 })
 
 test_that("each data-generating process is deterministic given its seed", {

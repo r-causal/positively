@@ -449,6 +449,22 @@ test_that("edp is bounded in [0, n] for arbitrary input", {
   expect_true(all(res@results$edp <= res@n))
 })
 
+# ---- Default rule-of-thumb bandwidths -------------------------------------
+
+test_that("default bandwidths follow the paper rule of thumb", {
+  # The paper's rule of thumb sets the exposure half-distance to 0.5 * sd of the
+  # exposure and each numeric covariate half-distance to 1 * sd of that
+  # covariate.
+  data <- sim_edp_gaussian(120, seed = 1)
+  res <- check_edp(data, exposure, x1, values = 0, exposure_type = "continuous")
+
+  expect_equal(res@bandwidths$exposure, 0.5 * stats::sd(data$exposure))
+  expect_equal(
+    res@bandwidths$covariates,
+    c(x1 = stats::sd(data$x1))
+  )
+})
+
 # ---- Bandwidth limits and monotonicity ------------------------------------
 
 test_that("a very large bandwidth drives edp to n", {
@@ -764,6 +780,19 @@ test_that("autoplot() returns a ggplot for each data-variant type", {
 
   expect_s3_class(ggplot2::autoplot(res, type = "histogram"), "ggplot")
   expect_s3_class(ggplot2::autoplot(res, type = "ecdf"), "ggplot")
+})
+
+test_that("plot() draws the view and returns the result invisibly", {
+  local_null_device()
+  data <- sim_edp_gaussian(150)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+  expect_identical(plot(res), res)
 })
 
 test_that("the estimator scatter view is a ggplot and aborts for the data variant", {
