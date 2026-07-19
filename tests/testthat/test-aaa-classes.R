@@ -135,6 +135,33 @@ test_that("positivity_check rejects a checks/diagnostics length mismatch", {
   )
 })
 
+test_that("`[[` rejects invalid non-character indices", {
+  res <- positivity_check(
+    checks = list(make_test_diagnostic(), make_test_diagnostic()),
+    diagnostics = c("edp", "port")
+  )
+  expect_error(res[[NA]], class = "positively_error")
+  expect_error(res[[TRUE]], class = "positively_error")
+  expect_error(res[[1.9]], class = "positively_error")
+})
+
+test_that("`[[` still extracts a diagnostic by name and by whole-number position", {
+  res <- positivity_check(
+    checks = list(make_test_diagnostic(), make_test_diagnostic()),
+    diagnostics = c("edp", "port")
+  )
+  expect_true(S7::S7_inherits(res[[2]], positivity_diagnostic))
+  expect_identical(res[[2]], res[["port"]])
+})
+
+test_that("the invalid-index message is stable", {
+  res <- positivity_check(
+    checks = list(make_test_diagnostic(), make_test_diagnostic()),
+    diagnostics = c("edp", "port")
+  )
+  expect_snapshot(res[[1.9]], error = TRUE)
+})
+
 test_that("printing a diagnostic is stable", {
   expect_snapshot(print(make_test_diagnostic()))
 })

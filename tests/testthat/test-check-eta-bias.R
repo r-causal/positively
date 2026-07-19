@@ -355,6 +355,26 @@ test_that("check_eta_bias() rejects a non-whole or non-positive n_boot", {
   )
 })
 
+test_that("check_eta_bias() requires at least two bootstrap draws", {
+  local_quiet()
+  data <- sim_eta_good(n = 80, seed = 1)
+  # A single bootstrap draw leaves the Monte Carlo standard error undefined, so
+  # n_boot must be at least two.
+  expect_error(
+    check_eta_bias(data, a, y, x1, n_boot = 1),
+    class = "positively_range_error"
+  )
+})
+
+test_that("the n_boot floor message is stable", {
+  local_quiet()
+  data <- sim_eta_good(n = 80, seed = 1)
+  expect_snapshot(
+    check_eta_bias(data, a, y, x1, n_boot = 1),
+    error = TRUE
+  )
+})
+
 test_that("check_eta_bias() accepts explicit model formula overrides", {
   local_quiet()
   data <- sim_eta_violation(n = 400, seed = 1)
@@ -486,6 +506,40 @@ test_that("check_eta_bias() runs with a constant covariate", {
   # path and the explicit formula path agree. The tolerance absorbs the tiny
   # numerical differences between glm.fit and glm accumulated over the refits.
   expect_equal(bias_of(matrix_path), bias_of(formula_path), tolerance = 1e-2)
+})
+
+test_that("the matrix and formula paths agree tightly on an aliased design", {
+  local_quiet()
+  data <- sim_eta_violation(n = 300, seed = 1)
+  data$x3 <- 1
+
+  matrix_path <- withr::with_seed(
+    2024,
+    check_eta_bias(data, a, y, c(x1, x2, x3), estimator = "aipw", n_boot = 50)
+  )
+  formula_path <- withr::with_seed(
+    2024,
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2, x3),
+      estimator = "aipw",
+      exposure_formula = a ~ x1 + x2 + x3,
+      outcome_formula = y ~ a + x1 + x2 + x3,
+      n_boot = 50
+    )
+  )
+
+  # The constant covariate x3 is aliased against the intercept. The observed
+  # G-computation estimate does not depend on how the aliased column is handled,
+  # so truth already matches to machine precision. The bias does depend on it:
+  # it inherits the residual standard deviation, which divides the residual sum
+  # of squares by the residual degrees of freedom. The formula path uses
+  # n - rank; the matrix path must match it rather than counting the aliased
+  # column, or the two sigmas and therefore the two biases disagree.
+  expect_equal(matrix_path@truth, formula_path@truth, tolerance = 1e-8)
+  expect_equal(bias_of(matrix_path), bias_of(formula_path), tolerance = 1e-8)
 })
 
 test_that("check_eta_bias() accepts a factor covariate and returns finite estimates", {
