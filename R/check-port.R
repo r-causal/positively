@@ -375,11 +375,26 @@ resolve_beta_scalar <- function(beta_spec, n) {
 #' Build the `rpart` control following the PoRT paper
 #'
 #' @param ... Overrides passed to [rpart::rpart.control()].
+#' @param call The calling environment, used to build the error's call.
 #'
 #' @return An `rpart.control` list.
 #' @keywords internal
 #' @noRd
-port_control <- function(...) {
+port_control <- function(..., call = rlang::caller_env()) {
+  overrides <- list(...)
+  known <- setdiff(names(formals(rpart::rpart.control)), "...")
+  unknown <- setdiff(rlang::names2(overrides), c(known, ""))
+  if (any(rlang::names2(overrides) == "") || length(unknown) > 0) {
+    abort(
+      c(
+        "{.arg ...} must name {.fn rpart::rpart.control} options only.",
+        x = if (length(unknown) > 0) "Unknown option{?s}: {.val {unknown}}.",
+        i = "Valid options are {.val {known}}."
+      ),
+      error_class = "positively_args_error",
+      call = call
+    )
+  }
   defaults <- list(
     minsplit = 20L,
     minbucket = 6L,
@@ -387,7 +402,7 @@ port_control <- function(...) {
     cp = 0,
     xval = 0L
   )
-  do.call(rpart::rpart.control, utils::modifyList(defaults, list(...)))
+  do.call(rpart::rpart.control, utils::modifyList(defaults, overrides))
 }
 
 # ---- Exposure-level responses ---------------------------------------------

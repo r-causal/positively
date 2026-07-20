@@ -8,6 +8,16 @@
       i The reading rule needs a threshold below 0.5, but the sample-size-adaptive bound reaches 0.5 or more at small sample sizes.
       i Supply a numeric `beta` below 0.5 for a sample this small.
 
+# check_port() rejects a dot that is not an rpart.control option
+
+    Code
+      check_port(data, exposure, c(x3, x1), alpa = 0.4)
+    Condition
+      Error in `check_port()`:
+      ! `...` must name `rpart::rpart.control()` options only.
+      x Unknown option: "alpa".
+      i Valid options are "minsplit", "minbucket", "cp", "maxcompete", "maxsurrogate", "usesurrogate", "xval", "surrogatestyle", and "maxdepth".
+
 # the point print method is stable
 
     Code
