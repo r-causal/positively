@@ -561,6 +561,23 @@ test_that("covariates overlapping the exposure are rejected", {
   expect_true(S7::S7_inherits(res, positivity_check))
 })
 
+test_that("a renamed exposure inside the covariate selection is rejected", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  # Renaming the exposure column inside the selection hides it from a name-based
+  # overlap check, so the guard must compare resolved positions like
+  # check_eta_bias() does. Otherwise the renamed column slips through and the
+  # failure surfaces later, deep inside a composed child, as a confusing missing
+  # column. The top-level condition, not merely something in its parent chain,
+  # must be the overlap selection error raised before any child runs.
+  cnd <- rlang::catch_cnd(
+    check_positivity(data, exposure, c(foo = exposure, x1)),
+    classes = "error"
+  )
+  expect_s3_class(cnd, "positively_selection_error")
+  expect_false(inherits(cnd, "positively_composition_error"))
+})
+
 test_that("hat_values is invalid for a binary exposure", {
   local_quiet()
   data <- dgp_good_positivity(n = 200)

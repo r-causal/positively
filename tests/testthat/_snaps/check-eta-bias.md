@@ -16,6 +16,16 @@
       ! `.covariates` must select numeric, logical, factor, or character columns.
       x "bad" is of an unsupported type.
 
+# the degenerate bootstrap warning wording is stable
+
+    Code
+      res <- withr::with_seed(1, check_eta_bias(data, a, y, x1, estimator = "ipw",
+        n_boot = 50))
+    Condition
+      Warning in `check_eta_bias()`:
+      Dropped 2 of 50 bootstrap draws with a non-finite estimate.
+      i Such draws arise when a bootstrap exposure lands in a single arm or a refit propensity reaches exactly 0 or 1.
+
 # the sweep view aborts on a single-run result
 
     Code

@@ -126,6 +126,24 @@ test_that("check_port_seq() rejects an unknown strategy", {
   )
 })
 
+test_that("the pooled strategy is rejected ahead of an empty conditioning set", {
+  local_quiet()
+  data <- sim_port_seq(n = 300, seed = 1)
+  # An empty covariate selection leaves the first time point with nothing to
+  # condition on, but the pooled strategy is the more fundamental obstruction:
+  # it is not implemented at all, so it must be reported first rather than the
+  # downstream empty-conditioning error.
+  expect_error(
+    check_port_seq(
+      data,
+      c(a1, a2),
+      list(tidyselect::starts_with("zzz")),
+      strategy = "pooled"
+    ),
+    class = "positively_strategy_error"
+  )
+})
+
 # ---- Result class and structure -------------------------------------------
 
 test_that("check_port_seq() returns a port_result with a time column", {

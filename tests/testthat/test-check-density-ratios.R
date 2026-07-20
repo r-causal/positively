@@ -446,6 +446,26 @@ test_that("the cumulative product collapses ESS while per-time ESS stays flat", 
   expect_gt(cum_max[times], cum_max[1])
 })
 
+# ---- Cumulative product overflow ------------------------------------------
+
+test_that("a cumulative product that overflows to Inf aborts with a range error", {
+  # Two finite time points of 1e200 for the first row overflow the cumulative
+  # product to 1e400, which is Inf in double precision, even though every
+  # per-time ratio validate_ratios sees is finite. The overflow poisons the
+  # cumulative ess (NaN) and quantiles (Inf) downstream, so the diagnostic must
+  # abort at the point where the time-point product leaves double range.
+  m <- matrix(c(1e200, 1, 1e200, 1), nrow = 2)
+  expect_error(
+    check_density_ratios(m),
+    class = "positively_range_error"
+  )
+})
+
+test_that("the cumulative-product overflow message is stable", {
+  m <- matrix(c(1e200, 1, 1e200, 1), nrow = 2)
+  expect_snapshot(check_density_ratios(m), error = TRUE)
+})
+
 # ---- lmtp accessor ---------------------------------------------------------
 
 test_that("an lmtp fit is a pass-through to the matrix summaries", {

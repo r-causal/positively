@@ -47,6 +47,15 @@ test_that("validate_* failures produce stable messages", {
   expect_snapshot(validate_prob("a"), error = TRUE)
 })
 
+test_that("a selection error names the calling check in its message", {
+  local_quiet()
+  df <- dgp_good_positivity(n = 80, seed = 1)
+  # The classed selection error carries the caller's call, so the rendered
+  # message attributes the failure to check_port() rather than to the internal
+  # selection helper.
+  expect_snapshot(check_port(df, nope, x1), error = TRUE)
+})
+
 # A misspelled column must surface as a classed positively_selection_error from
 # every selecting argument, so the package speaks with one voice instead of
 # leaking a raw vctrs subscript condition. check_eta_bias() already classes its

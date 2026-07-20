@@ -123,6 +123,19 @@ test_that("check_hdr() requires a single exposure column", {
   )
 })
 
+test_that("a renamed exposure inside the covariate selection is rejected", {
+  local_quiet()
+  data <- sim_hdr_linear(80, seed = 1)
+  # Renaming the exposure column inside the selection hides it from a name-based
+  # overlap check, so the guard must compare resolved positions. Otherwise the
+  # renamed column conditions the density on the exposure itself and the failure
+  # surfaces later as a confusing missing-column error.
+  expect_error(
+    check_hdr(data, exposure, c(foo = exposure, l)),
+    class = "positively_selection_error"
+  )
+})
+
 test_that("check_hdr() rejects a mass outside the open unit interval", {
   local_quiet()
   data <- sim_hdr_linear(80, seed = 1)

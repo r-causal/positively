@@ -1274,6 +1274,23 @@ test_that("the unused-bandwidth warnings are stable", {
   )
 })
 
+test_that("the data-variant unused estimator-covariate warning is stable", {
+  local_quiet()
+  withr::local_options(warn = 0)
+  data <- sim_edp_gaussian(60)
+  data$x2 <- rev(data$x1)
+  expect_snapshot(
+    res <- check_edp(
+      data,
+      exposure,
+      x1,
+      .outcome_covariates = c(x1, x2),
+      values = 0,
+      exposure_type = "continuous"
+    )
+  )
+})
+
 test_that("the print method is stable", {
   local_quiet()
 

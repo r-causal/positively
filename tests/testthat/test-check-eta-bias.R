@@ -607,6 +607,29 @@ test_that("a rare factor level survives the bootstrap for every estimator", {
   }
 })
 
+test_that("the rare-level gcomp bootstrap pins a reference bias, mc_se, and truth", {
+  local_quiet()
+  # A numerical pin on the aliased-design refit path: the rare second level can
+  # drop out of a resample, leaving a rank-deficient design whose aliased column
+  # is zeroed. The reference values come from a live run under this exact seed
+  # and must reproduce to machine precision.
+  data <- sim_eta_rare_level(seed = 2)
+  res <- withr::with_seed(
+    9,
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2, region),
+      estimator = "gcomp",
+      n_boot = 50
+    )
+  )
+  expect_equal(res@results$bias[[1]], 0.014950150587088373, tolerance = 1e-12)
+  expect_equal(res@results$mc_se[[1]], 0.026229325116211968, tolerance = 1e-12)
+  expect_equal(res@truth, 0.91311162635432241, tolerance = 1e-12)
+})
+
 test_that("a rare character level survives the bootstrap for every estimator", {
   local_quiet()
   data <- sim_eta_rare_level(seed = 2, character = TRUE)
@@ -716,6 +739,28 @@ test_that("non-finite bootstrap draws are dropped with a classed warning", {
   expect_true(is.finite(res@results$boot_mean[[1]]))
   # Two of the fifty draws are non-finite, so forty-eight are retained.
   expect_length(res@boot_estimates[[1]], 48L)
+})
+
+test_that("the degenerate bootstrap warning wording is stable", {
+  local_quiet()
+  # The same severe practical violation the class-only test above uses. This
+  # snapshot pins the exact warning wording so that the count of dropped draws
+  # is reported in terms that stay meaningful across truncation levels, rather
+  # than as the single per-level maximum.
+  data <- withr::with_seed(4, {
+    n <- 25
+    x1 <- stats::rnorm(n)
+    a <- stats::rbinom(n, 1L, stats::plogis(2 + 2 * x1))
+    y <- a + x1 + stats::rnorm(n)
+    tibble::tibble(a = a, y = y, x1 = x1)
+  })
+  withr::local_options(warn = 0)
+  expect_snapshot(
+    res <- withr::with_seed(
+      1,
+      check_eta_bias(data, a, y, x1, estimator = "ipw", n_boot = 50)
+    )
+  )
 })
 
 test_that("a healthy run keeps every bootstrap draw and warns for none", {

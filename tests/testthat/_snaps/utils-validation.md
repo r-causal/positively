@@ -31,3 +31,14 @@
       Error:
       ! `probs` must be numeric, not a <character>.
 
+# a selection error names the calling check in its message
+
+    Code
+      check_port(df, nope, x1)
+    Condition
+      Error in `check_port()`:
+      ! `.exposure` must select a column that exists in `.data`.
+      Caused by error in `eval_select_column()`:
+      ! Can't select columns that don't exist.
+      x Column `nope` doesn't exist.
+

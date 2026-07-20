@@ -176,6 +176,16 @@
       `bw_covariates` was supplied but no covariate is numeric.
       i The half-distance is ignored when every covariate is categorical.
 
+# the data-variant unused estimator-covariate warning is stable
+
+    Code
+      res <- check_edp(data, exposure, x1, .outcome_covariates = c(x1, x2), values = 0,
+      exposure_type = "continuous")
+    Condition
+      Warning in `check_edp()`:
+      `.outcome_covariates` applies only to the estimator variant.
+      i The selection is ignored when `variant` is "data".
+
 # the print method is stable
 
     Code
