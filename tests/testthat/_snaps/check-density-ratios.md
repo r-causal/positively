@@ -16,6 +16,16 @@
       ! `probs` must be distinct to eight decimal places of the percent scale.
       x "quantile_50" would name more than one statistic.
 
+# the cumulative-product overflow message is stable
+
+    Code
+      check_density_ratios(m)
+    Condition
+      Error in `check_density_ratios()`:
+      ! The cumulative product of the density ratios left double range.
+      x The time-point product overflowed to a non-finite value at time point 2.
+      i Rescale or inspect the ratios before summarizing the cumulative weights.
+
 # the print method is stable
 
     Code

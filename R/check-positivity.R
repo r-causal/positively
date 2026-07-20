@@ -158,7 +158,7 @@ check_positivity <- function(
   validate_column_selection(covariate_pos, ".covariates")
   covariate_names <- names(covariate_pos)
 
-  if (exposure_name %in% covariate_names) {
+  if (length(intersect(covariate_pos, exposure_pos)) > 0) {
     abort(
       c(
         "{.arg .covariates} must not include the exposure column {.val {exposure_name}}.",

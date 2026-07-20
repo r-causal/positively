@@ -136,6 +136,15 @@
       ! The convex-hull view needs the hull test to have run.
       i The hull test needs at least one numeric covariate.
 
+# the hull-view abort names the numeric precondition when hull was left unset
+
+    Code
+      ggplot2::autoplot(res, type = "hull")
+    Condition
+      Error in `autoplot.positively::extrapolation_result`:
+      ! The convex-hull view needs the hull test to have run.
+      i The hull test needs at least one numeric covariate.
+
 # the high-dimensional hull messages are stable
 
     Code

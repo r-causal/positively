@@ -163,6 +163,20 @@ check_density_ratios.matrix <- function(
   ratios <- matrix(as.double(ratios), nrow = nrow(ratios), ncol = ncol(ratios))
   n_times <- ncol(ratios)
   cumulative <- cumulative_products(ratios)
+  overflow <- which(apply(cumulative, 2, function(column) {
+    !all(is.finite(column))
+  }))
+  if (length(overflow) > 0) {
+    points <- as.character(overflow)
+    abort(
+      c(
+        "The cumulative product of the density ratios left double range.",
+        x = "The time-point product overflowed to a non-finite value at {cli::qty(points)}time point{?s} {points}.",
+        i = "Rescale or inspect the ratios before summarizing the cumulative weights."
+      ),
+      error_class = "positively_range_error"
+    )
+  }
 
   per_time <- purrr::map(
     seq_len(n_times),

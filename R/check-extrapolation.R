@@ -271,7 +271,7 @@ check_extrapolation <- function(
     exposure = exposure_name,
     exposure_type = exposure_type,
     n = as.integer(n),
-    params = list(nearby = nearby, hull = hull),
+    params = list(nearby = nearby, hull = hull, n_numeric = n_numeric),
     call = rlang::current_call(),
     geometric_variability = gv,
     hull_run = hull_run

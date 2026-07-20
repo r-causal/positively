@@ -84,12 +84,12 @@ autoplot_extrapolation_distribution <- function(object) {
 #' @noRd
 autoplot_extrapolation_hull <- function(object, call = rlang::caller_env()) {
   if (!object@hull_run) {
-    # A skipped hull with hull = TRUE requested can only mean no numeric
-    # covariate was available, so rerunning with hull = TRUE would not help.
-    advice <- if (isTRUE(object@params$hull)) {
-      "The hull test needs at least one numeric covariate."
-    } else {
+    # A rerun with hull = TRUE only helps when numeric covariates were present;
+    # without any, the missing precondition is what to report instead.
+    advice <- if (isTRUE(object@params$n_numeric > 0)) {
       "Rerun {.fn check_extrapolation} with {.code hull = TRUE}."
+    } else {
+      "The hull test needs at least one numeric covariate."
     }
     abort(
       c(

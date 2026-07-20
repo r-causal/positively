@@ -43,7 +43,10 @@ the covariates.}
 
 \item{outcome_formula}{An optional model formula for the outcome regression.
 \code{NULL} (the default) fits a main-effects model of the outcome on the
-exposure and covariates.}
+exposure and covariates. Terms that recompute a data-dependent basis from
+the exposure column (for example \code{poly()} of the exposure) are not
+supported, because the counterfactual predictions rebuild the design with
+the exposure set to 0 or 1.}
 
 \item{outcome_type}{One of \code{"auto"} (detect from the outcome, the default),
 \code{"continuous"}, or \code{"binary"}.}
@@ -56,7 +59,8 @@ applies no truncation.}
 \verb{[0, 0.5)}. Each becomes a swept truncation level \code{c(lower, 1 - lower)}, and
 all levels share one set of bootstrap draws. Overrides \code{truncation}.}
 
-\item{n_boot}{The number of bootstrap datasets. Defaults to \code{500}.}
+\item{n_boot}{The number of bootstrap datasets. Defaults to \code{500}. Must be at
+least 2, since the Monte Carlo standard error needs two draws.}
 
 \item{error_dist}{The bootstrap error model for continuous outcomes, one of
 \code{"normal"} (add Gaussian noise matched to the residual standard deviation,

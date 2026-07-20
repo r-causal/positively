@@ -4,7 +4,7 @@
       check_port(data, exposure, x1, beta = "gruber")
     Condition
       Error in `check_port()`:
-      ! The "gruber" prevalence threshold resolved to 0.580857101049332 at `n` = 12.
+      ! The "gruber" prevalence threshold resolved to 0.580857101049332 at n = 12.
       i The reading rule needs a threshold below 0.5, but the sample-size-adaptive bound reaches 0.5 or more at small sample sizes.
       i Supply a numeric `beta` below 0.5 for a sample this small.
 

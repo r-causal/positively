@@ -133,8 +133,11 @@ check_hdr <- function(
   validate_column_selection(covariate_pos, ".covariates")
   covariate_names <- names(covariate_pos)
 
-  # Conditioning the exposure on itself makes the overlap check degenerate.
-  if (exposure_name %in% covariate_names) {
+  # Conditioning the exposure on itself makes the overlap check degenerate. The
+  # comparison is by position so a renamed exposure inside the selection is also
+  # caught.
+  exposure_pos <- match(exposure_name, names(.data))
+  if (length(intersect(covariate_pos, exposure_pos)) > 0) {
     abort(
       c(
         "{.arg .covariates} must not include the exposure column.",

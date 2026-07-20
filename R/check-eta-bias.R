@@ -107,7 +107,10 @@ eta_bias_result <- new_class(
 #'   the covariates.
 #' @param outcome_formula An optional model formula for the outcome regression.
 #'   `NULL` (the default) fits a main-effects model of the outcome on the
-#'   exposure and covariates.
+#'   exposure and covariates. Terms that recompute a data-dependent basis from
+#'   the exposure column (for example `poly()` of the exposure) are not
+#'   supported, because the counterfactual predictions rebuild the design with
+#'   the exposure set to 0 or 1.
 #' @param outcome_type One of `"auto"` (detect from the outcome, the default),
 #'   `"continuous"`, or `"binary"`.
 #' @param truncation An optional length-two numeric vector `c(lower, upper)`
@@ -116,7 +119,8 @@ eta_bias_result <- new_class(
 #' @param truncation_grid An optional numeric vector of lower bounds, each in
 #'   `[0, 0.5)`. Each becomes a swept truncation level `c(lower, 1 - lower)`, and
 #'   all levels share one set of bootstrap draws. Overrides `truncation`.
-#' @param n_boot The number of bootstrap datasets. Defaults to `500`.
+#' @param n_boot The number of bootstrap datasets. Defaults to `500`. Must be at
+#'   least 2, since the Monte Carlo standard error needs two draws.
 #' @param error_dist The bootstrap error model for continuous outcomes, one of
 #'   `"normal"` (add Gaussian noise matched to the residual standard deviation,
 #'   the default) or `"empirical"` (resample residuals). Ignored for binary

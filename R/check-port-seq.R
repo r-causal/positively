@@ -179,6 +179,15 @@ check_port_seq <- function(
   validate_breaks(breaks)
   validate_lag(lag)
   strategy <- rlang::arg_match(strategy)
+  if (strategy == "pooled") {
+    abort(
+      c(
+        "{.arg strategy} {.val pooled} is not yet implemented.",
+        i = "Use {.val stratified}, the default."
+      ),
+      error_class = "positively_strategy_error"
+    )
+  }
 
   exposure_pos <- eval_select_columns(
     rlang::enquo(.exposures),
@@ -213,16 +222,6 @@ check_port_seq <- function(
     exposure_names,
     call = rlang::current_env()
   )
-
-  if (strategy == "pooled") {
-    abort(
-      c(
-        "{.arg strategy} {.val pooled} is not yet implemented.",
-        i = "Use {.val stratified}, the default."
-      ),
-      error_class = "positively_strategy_error"
-    )
-  }
 
   censoring_quo <- rlang::enquo(.censoring)
   has_censoring <- !rlang::quo_is_null(censoring_quo)
@@ -675,7 +674,7 @@ resolve_untreated_level <- function(pooled_exposure, exposure_type) {
   if (exposure_type != "binary") {
     return(NA)
   }
-  present <- sort(unique(pooled_exposure[!is.na(pooled_exposure)]))
+  present <- sort(unique(pooled_exposure))
   if (is.factor(present)) {
     # A factor has no min(); its first sorted level is the reference level, and
     # returning its label keeps the later follower comparison against a factor

@@ -182,7 +182,7 @@ check_port <- function(
   ) {
     abort(
       c(
-        "The {.val gruber} prevalence threshold resolved to {.val {beta_value}} at {.arg n} = {n}.",
+        "The {.val gruber} prevalence threshold resolved to {.val {beta_value}} at n = {n}.",
         i = "The reading rule needs a threshold below 0.5, but the sample-size-adaptive bound reaches 0.5 or more at small sample sizes.",
         i = "Supply a numeric {.arg beta} below 0.5 for a sample this small."
       ),
