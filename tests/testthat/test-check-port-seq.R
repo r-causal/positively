@@ -46,6 +46,15 @@ test_that("check_port_seq() rejects non-data-frame input", {
   )
 })
 
+test_that("check_port_seq() rejects a dot that is not an rpart.control option", {
+  local_quiet()
+  data <- sim_port_seq(n = 300, seed = 1)
+  expect_error(
+    check_port_seq(data, c(a1, a2, a3), list(c1), alpa = 0.4),
+    class = "positively_args_error"
+  )
+})
+
 test_that("check_port_seq() rejects a covariate list of the wrong length", {
   local_quiet()
   data <- sim_port_seq(n = 300, seed = 1)

@@ -850,6 +850,19 @@ test_that("the dots reach rpart.control", {
   expect_false(identical(default@trees, pruned@trees))
 })
 
+test_that("check_port() rejects a dot that is not an rpart.control option", {
+  local_quiet()
+  data <- sim_port_structural(n = 500, seed = 1)
+  expect_error(
+    check_port(data, exposure, c(x3, x1), alpa = 0.4),
+    class = "positively_args_error"
+  )
+  expect_snapshot(
+    check_port(data, exposure, c(x3, x1), alpa = 0.4),
+    error = TRUE
+  )
+})
+
 test_that("correlated covariates surface a flagged subgroup for each near-copy", {
   local_quiet()
   withr::local_seed(1)

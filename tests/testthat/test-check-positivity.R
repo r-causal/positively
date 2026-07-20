@@ -254,6 +254,25 @@ test_that("a failing child aborts with a classed error naming the diagnostic", {
   expect_false(inherits(err, "purrr_error_indexed"))
 })
 
+test_that("a misspelled port control option surfaces as a classed error", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  # A typo in an rpart.control option threaded through args must not be silently
+  # dropped; check_port() aborts and check_positivity() rethrows it wrapped.
+  err <- expect_error(
+    check_positivity(
+      data,
+      exposure,
+      c(x1, x2),
+      diagnostics = "port",
+      args = list(port = list(alpa = 0.4))
+    ),
+    class = "positively_error"
+  )
+  expect_s3_class(err, "positively_composition_error")
+  expect_s3_class(err$parent, "positively_args_error")
+})
+
 # ---- Duplicate and malformed arguments ------------------------------------
 
 test_that("duplicate diagnostics are rejected", {
