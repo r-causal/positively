@@ -940,6 +940,12 @@ test_that("the scatter view builds without a colour label when every weight is i
 
 test_that("EDP autoplot views render as expected", {
   local_quiet()
+  announce_doppelganger(
+    "EDP histogram by intervention value",
+    "EDP ECDF by intervention value",
+    "EDP estimator scatter",
+    "EDP estimator scatter with infinite weights"
+  )
   data <- sim_edp_gaussian(150)
   res <- check_edp(
     data,

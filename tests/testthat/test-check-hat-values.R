@@ -748,6 +748,10 @@ test_that("plot() draws the view and returns the result invisibly", {
 
 test_that("hat-value autoplot views render as expected", {
   local_quiet()
+  announce_doppelganger(
+    "Hat values null distribution",
+    "Hat values leverage profile"
+  )
   data <- sim_hat_linear(150, beta = 1, seed = 1)
   # Seed the null draw so the null quantile reference line is reproducible.
   res <- withr::with_seed(

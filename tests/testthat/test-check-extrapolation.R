@@ -390,6 +390,7 @@ test_that("extrapolation_result carries the geometric_variability and hull_run p
 
 test_that("extrapolation_result has the fixed results columns", {
   local_quiet()
+  skip_if_not_installed("lpSolve")
   data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
   res <- check_extrapolation(
     data,
@@ -627,6 +628,7 @@ test_that("a categorical-only gap is detected with numeric axes overlapping", {
 
 test_that("hull membership is exact on a hand-built square reference", {
   local_quiet()
+  skip_if_not_installed("lpSolve")
   # Controls (.id 1 to 4) are the corners of the square [0, 2] x [0, 2]. The
   # treated queries are an interior point, a coincident vertex, an edge
   # midpoint, and an exterior point.
@@ -690,6 +692,7 @@ test_that("hull membership is invariant to a large offset on a Gaussian design",
 
 test_that("the in-hull fraction collapses monotonically with dimension", {
   local_quiet()
+  skip_if_not_installed("lpSolve")
   ps <- c(2, 3, 5, 15)
   props <- vapply(
     ps,
@@ -713,6 +716,7 @@ test_that("the in-hull fraction collapses monotonically with dimension", {
 
 test_that("hull runs automatically for low p and reports membership", {
   local_quiet()
+  skip_if_not_installed("lpSolve")
   data <- sim_extrap_gaussian(100, p = 4, sep = 0, seed = 1)
   res <- check_extrapolation(data, exposure, tidyselect::starts_with("x"))
 
@@ -745,6 +749,7 @@ test_that("forcing hull off yields NA membership and hull_run FALSE", {
 
 test_that("forcing hull on at high p warns but still runs", {
   local_quiet()
+  skip_if_not_installed("lpSolve")
   data <- sim_extrap_gaussian(60, p = 13, sep = 0, seed = 1)
   expect_warning(
     check_extrapolation(
@@ -880,6 +885,7 @@ test_that("autoplot(type = \"hull\") aborts when the hull did not run", {
 
 test_that("autoplot() returns a ggplot for each type", {
   local_quiet()
+  skip_if_not_installed("lpSolve")
   data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
   res <- check_extrapolation(
     data,
@@ -905,8 +911,28 @@ test_that("plot() draws the view and returns the result invisibly", {
   expect_identical(plot(res), res)
 })
 
-test_that("extrapolation autoplot views render as expected", {
+test_that("the extrapolation distribution view renders as expected", {
   local_quiet()
+  # The distribution view reads only `frac_nearby` and `exposure`, so it renders
+  # identically whether or not the hull ran, and this half needs no lpSolve.
+  data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
+  res <- check_extrapolation(
+    data,
+    exposure,
+    tidyselect::starts_with("x"),
+    hull = FALSE
+  )
+
+  expect_doppelganger(
+    "Extrapolation frac nearby distribution",
+    ggplot2::autoplot(res, type = "distribution")
+  )
+})
+
+test_that("the extrapolation hull view renders as expected", {
+  local_quiet()
+  announce_doppelganger("Extrapolation convex hull membership")
+  skip_if_not_installed("lpSolve")
   data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
   res <- check_extrapolation(
     data,
@@ -915,10 +941,6 @@ test_that("extrapolation autoplot views render as expected", {
     hull = TRUE
   )
 
-  expect_doppelganger(
-    "Extrapolation frac nearby distribution",
-    ggplot2::autoplot(res, type = "distribution")
-  )
   expect_doppelganger(
     "Extrapolation convex hull membership",
     ggplot2::autoplot(res, type = "hull")
@@ -1095,6 +1117,7 @@ test_that("the hull-view abort names the numeric precondition when hull was left
 
 test_that("the high-dimensional hull messages are stable", {
   withr::local_options(warn = 0)
+  skip_if_not_installed("lpSolve")
   data <- sim_extrap_gaussian(60, p = 13, sep = 0, seed = 1)
 
   expect_snapshot(
@@ -1112,6 +1135,7 @@ test_that("the high-dimensional hull messages are stable", {
 
 test_that("the print method is stable", {
   local_quiet()
+  skip_if_not_installed("lpSolve")
   data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
   res <- check_extrapolation(
     data,

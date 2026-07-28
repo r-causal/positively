@@ -924,6 +924,7 @@ test_that("quiet mode suppresses the detection message", {
 
 test_that("the container print method is stable", {
   local_quiet()
+  skip_if_not_installed("lpSolve")
   data <- dgp_good_positivity(n = 200)
   res <- check_positivity(
     data,

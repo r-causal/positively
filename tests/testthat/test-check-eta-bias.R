@@ -1137,6 +1137,10 @@ test_that("autoplot() returns a ggplot for each type", {
 
 test_that("ETA bias autoplot views render as expected", {
   local_quiet()
+  announce_doppelganger(
+    "ETA bias bootstrap distribution",
+    "ETA bias truncation sweep"
+  )
   data <- sim_eta_violation(n = 500, seed = 1)
   single <- fit_eta(data, "ipw", n_boot = 100)
   swept <- fit_eta(

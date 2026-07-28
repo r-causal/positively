@@ -991,6 +991,10 @@ test_that("plot() draws the HDR view and returns the result invisibly", {
 
 test_that("HDR autoplot views render as expected", {
   local_quiet()
+  announce_doppelganger(
+    "HDR non-overlap point curve",
+    "HDR non-overlap sequential curves"
+  )
   data <- sim_hdr_linear(300, beta = 1, seed = 1)
   res_point <- check_hdr(data, exposure, l)
   expect_doppelganger(

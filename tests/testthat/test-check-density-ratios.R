@@ -517,6 +517,11 @@ test_that("the cumulative view is a ggplot for a matrix and aborts for a point",
 })
 
 test_that("density-ratio autoplot views render as expected", {
+  announce_doppelganger(
+    "Density ratios point histogram",
+    "Density ratios time boxplot",
+    "Density ratios cumulative quantiles"
+  )
   res_point <- check_density_ratios(gen_lognormal_ratios(200, k = 1))
   expect_doppelganger(
     "Density ratios point histogram",
