@@ -17,6 +17,7 @@ check_port_seq(
   gamma = 2,
   n_bins = 3,
   breaks = NULL,
+  exposure_type = c("auto", "binary", "categorical", "continuous"),
   ...
 )
 }
@@ -56,6 +57,10 @@ the full history.}
 
 \item{alpha, beta, gamma, n_bins, breaks}{As in \code{\link[=check_port]{check_port()}}. \code{beta} is
 resolved per time point when it is \code{"gruber"}.}
+
+\item{exposure_type}{One of \code{"auto"} (detect from the data, the default),
+\code{"binary"}, \code{"categorical"}, or \code{"continuous"}. Resolved once from the
+exposure pooled across time points.}
 
 \item{...}{Passed to \code{\link[rpart:rpart.control]{rpart::rpart.control()}}.}
 }

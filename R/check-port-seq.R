@@ -111,6 +111,9 @@
 #'   the full history.
 #' @param alpha,beta,gamma,n_bins,breaks As in [check_port()]. `beta` is
 #'   resolved per time point when it is `"gruber"`.
+#' @param exposure_type One of `"auto"` (detect from the data, the default),
+#'   `"binary"`, `"categorical"`, or `"continuous"`. Resolved once from the
+#'   exposure pooled across time points.
 #' @param ... Passed to [rpart::rpart.control()].
 #'
 #' @return A `port_result` object, an S7 subclass of [positivity_diagnostic].
@@ -169,6 +172,7 @@ check_port_seq <- function(
   gamma = 2,
   n_bins = 3,
   breaks = NULL,
+  exposure_type = c("auto", "binary", "categorical", "continuous"),
   ...
 ) {
   validate_data_frame(.data)
@@ -235,7 +239,22 @@ check_port_seq <- function(
   pooled_exposure <- unlist(.data[exposure_names], use.names = FALSE)
   pooled_exposure <- pooled_exposure[!is.na(pooled_exposure)]
   validate_two_level_exposure(pooled_exposure, arg = ".exposures")
-  resolved_type <- detect_exposure_type(pooled_exposure)
+  # Detection here reads the pooled exposure, and is_categorical() weighs the
+  # distinct values against the non-missing observation count, which pooling
+  # multiplies by the number of time points while leaving the distinct values
+  # alone. The detected type therefore follows the number of waves rather than
+  # anything about the dose column: thirty distinct doses at 120 subjects per
+  # wave read as continuous from one wave and as categorical from two waves on,
+  # and the categorical branch takes one response per distinct dose, leaving
+  # n_bins and breaks unread. exposure_type is the escape hatch, and declaring
+  # "continuous" is what puts such a dose back on the binning path.
+  resolved_type <- resolve_exposure_type(
+    exposure_type,
+    pooled_exposure,
+    supported = c("binary", "categorical", "continuous"),
+    fn = "check_port_seq",
+    arg = ".exposures"
+  )
   untreated_level <- resolve_untreated_level(pooled_exposure, resolved_type)
 
   # Supplying censoring restricts the exposure risk sets to the followers who
