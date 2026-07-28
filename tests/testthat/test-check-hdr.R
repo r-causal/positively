@@ -71,6 +71,29 @@ sim_hdr_seq_meanshift <- function(n, seed = 1) {
   )
 }
 
+# Three waves of a continuous dose dispensed on coarse_dose_grid(), the same
+# grid dgp_coarse_dose() uses. Each wave's dose is snapped from a prescribing
+# score that tracks the current covariate, so no exposure column can hold more
+# than eight distinct values and detection reads every one of them as
+# categorical, while the central dose stays supported and the grid endpoints do
+# not.
+sim_hdr_seq_coarse <- function(n = 150, seed = 1) {
+  withr::local_seed(seed)
+  dose_grid <- coarse_dose_grid()
+  step <- dose_grid[2] - dose_grid[1]
+  center <- mean(range(dose_grid))
+  dispense <- function(score) {
+    dose_grid[pmin(pmax(round(score / step), 1L), length(dose_grid))]
+  }
+  l0 <- stats::rnorm(n)
+  a1 <- dispense(center + 2 * l0 + stats::rnorm(n, sd = 5))
+  l1 <- stats::rnorm(n, mean = 0.3 * (a1 - center))
+  a2 <- dispense(center + 2 * l1 + stats::rnorm(n, sd = 5))
+  l2 <- stats::rnorm(n, mean = 0.3 * (a2 - center))
+  a3 <- dispense(center + 2 * l2 + stats::rnorm(n, sd = 5))
+  tibble::tibble(l0 = l0, a1 = a1, l1 = l1, a2 = a2, l2 = l2, a3 = a3)
+}
+
 # The non-overlap value at a single target, matched exactly on the grid value.
 tau_at <- function(res, a) {
   res@results$nonoverlap[res@results$value == a]
@@ -230,6 +253,80 @@ test_that("check_hdr() rejects a density_estimator that is not an hdr_density", 
   expect_error(
     check_hdr(data, exposure, l, density_estimator = list()),
     class = "positively_error"
+  )
+})
+
+# ---- Declared exposure type ------------------------------------------------
+
+test_that("a declared continuous type runs the diagnostic on a coarse dose", {
+  local_quiet()
+  data <- dgp_coarse_dose(n = 150, seed = 1)
+  res <- check_hdr(data, exposure, x1, exposure_type = "continuous")
+
+  expect_true(S7::S7_inherits(res, positivity_diagnostic))
+  expect_identical(S7::S7_class(res)@name, "hdr_result")
+  expect_identical(res@exposure_type, "continuous")
+  expect_identical(res@n, 150L)
+  expect_identical(nrow(res@results), 100L)
+  expect_true(all(res@results$nonoverlap >= 0 & res@results$nonoverlap <= 1))
+
+  # The dose tracks the covariate, so the middle of the dispensing grid is well
+  # supported while both ends are not. Pinning that contrast, rather than the
+  # absence of an error, is what keeps the declared type from merely reaching
+  # degenerate arithmetic.
+  targeted <- check_hdr(
+    data,
+    exposure,
+    x1,
+    exposure_type = "continuous",
+    values = c(2.5, 11.25, 20)
+  )
+  expect_lt(tau_at(targeted, 11.25), 0.2)
+  expect_gt(tau_at(targeted, 2.5), 0.4)
+  expect_gt(tau_at(targeted, 20), 0.4)
+})
+
+test_that("the coarse dose a declaration rescues is one detection misreads", {
+  local_quiet()
+  # Paired with the test above: without this half, raising the unique-value
+  # cutoff in is_categorical() would make the fixture detect continuous and leave
+  # the declaration test passing while it covered nothing.
+  data <- dgp_coarse_dose(n = 150, seed = 1)
+  expect_identical(detect_exposure_type(data$exposure), "categorical")
+
+  err <- expect_error(
+    check_hdr(data, exposure, x1, exposure_type = "auto"),
+    class = "positively_exposure_type_error"
+  )
+  expect_match(conditionMessage(err), "categorical", fixed = TRUE)
+})
+
+test_that("a declared continuous type rejects a non-numeric exposure", {
+  local_quiet()
+  data <- dgp_coarse_dose(n = 150, seed = 1)
+  data$exposure <- factor(rep(c("low", "mid", "high"), length.out = nrow(data)))
+
+  err <- expect_error(
+    check_hdr(data, exposure, x1, exposure_type = "continuous"),
+    class = "positively_exposure_type_error"
+  )
+  # The declaration is what fails, so the error names the type the column cannot
+  # carry rather than arriving later as a generic non-numeric complaint from
+  # validate_numeric_columns().
+  expect_match(conditionMessage(err), "continuous", fixed = TRUE)
+})
+
+test_that("check_hdr() rejects a type outside its supported menu", {
+  local_quiet()
+  data <- dgp_coarse_dose(n = 150, seed = 1)
+  err <- expect_error(
+    check_hdr(data, exposure, x1, exposure_type = "binary"),
+    class = "rlang_error"
+  )
+  expect_match(
+    conditionMessage(err),
+    '`exposure_type` must be one of "auto" or "continuous", not "binary".',
+    fixed = TRUE
   )
 })
 
@@ -521,6 +618,79 @@ test_that("check_hdr_seq() carries one aggregate row per time and value", {
 
   expect_identical(nrow(res@results), 3L * 3L)
   expect_true(all(res@results$nonoverlap >= 0 & res@results$nonoverlap <= 1))
+})
+
+# ---- Sequential declared exposure type -------------------------------------
+
+test_that("a declared continuous type runs the sequential diagnostic", {
+  local_quiet()
+  data <- sim_hdr_seq_coarse(n = 150, seed = 1)
+
+  res <- check_hdr_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    exposure_type = "continuous",
+    values = c(2.5, 11.25, 20)
+  )
+
+  expect_identical(S7::S7_class(res)@name, "hdr_result")
+  expect_identical(res@exposure_type, "continuous")
+  expect_identical(nrow(res@results), 3L * 3L)
+  expect_length(sort(unique(res@results$time)), 3)
+  expect_true(all(res@results$nonoverlap >= 0 & res@results$nonoverlap <= 1))
+
+  # The central dose is supported at every wave and the grid endpoints are not,
+  # so the sequential curve carries signal rather than a flat zero.
+  central <- res@results$nonoverlap[res@results$value == 11.25]
+  ends <- res@results$nonoverlap[res@results$value != 11.25]
+  expect_true(all(central < 0.2))
+  expect_true(all(ends > 0.2))
+})
+
+test_that("the sequential doses a declaration rescues are ones detection misreads", {
+  local_quiet()
+  # Paired with the test above, as in the point diagnostics: without this half,
+  # raising the unique-value cutoff in is_categorical() would make the waves
+  # detect continuous and leave the declaration test passing while it covered
+  # nothing. Asserting the auto path by condition class rather than by snapshot
+  # also keeps the sequential gate standing when the snapshot is re-recorded.
+  data <- sim_hdr_seq_coarse(n = 150, seed = 1)
+  for (name in c("a1", "a2", "a3")) {
+    expect_identical(detect_exposure_type(data[[name]]), "categorical")
+  }
+
+  err <- expect_error(
+    check_hdr_seq(
+      data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      exposure_type = "auto",
+      values = c(2.5, 11.25, 20)
+    ),
+    class = "positively_exposure_type_error"
+  )
+  expect_match(conditionMessage(err), "categorical", fixed = TRUE)
+})
+
+test_that("a declared continuous type names a factor exposure it cannot carry", {
+  local_quiet()
+  data <- sim_hdr_seq_coarse(n = 150, seed = 1)
+  data$a2 <- factor(rep(c("low", "high"), length.out = nrow(data)))
+
+  err <- expect_error(
+    check_hdr_seq(
+      data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      exposure_type = "continuous",
+      values = 0
+    ),
+    class = "positively_exposure_type_error"
+  )
+  # The offending column is named, so a user with several exposures knows which
+  # one the declared type cannot describe.
+  expect_match(conditionMessage(err), "a2", fixed = TRUE)
 })
 
 # ---- Sequential per-time isolation (expectation 10) -----------------------

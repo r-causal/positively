@@ -223,6 +223,81 @@ test_that("a large constant offset in a covariate does not break the leverage", 
   expect_equal(offset_res@phi_hat, centered_res@phi_hat, tolerance = 1e-6)
 })
 
+# ---- Declared exposure type ------------------------------------------------
+
+test_that("a declared continuous type runs the diagnostic on a coarse dose", {
+  local_quiet()
+  data <- dgp_coarse_dose(n = 150, seed = 1)
+  res <- check_hat_values(
+    data,
+    exposure,
+    x1,
+    exposure_type = "continuous",
+    null_reps = 50
+  )
+
+  expect_true(S7::S7_inherits(res, positivity_diagnostic))
+  expect_identical(S7::S7_class(res)@name, "hat_values_result")
+  expect_identical(res@exposure_type, "continuous")
+  expect_identical(res@n, 150L)
+  # p = intercept + dose + 1 covariate; the default grid holds 19 percentiles.
+  expect_identical(res@p, 3L)
+  expect_identical(nrow(res@results), 19L * 150L)
+  expect_true(all(res@results$hat_value > 0))
+
+  # The dose tracks the covariate, so the leverage profile carries a genuine
+  # violation. Pinning that, rather than the absence of an error, is what keeps
+  # the declared type from merely reaching degenerate arithmetic. The upper
+  # bound rules out the other degenerate outcome, every point at every grid
+  # value flagged, which exceeding the null does not.
+  expect_true(res@exceeds_null)
+  expect_lt(res@phi_hat, 1)
+})
+
+test_that("the coarse dose a declaration rescues is one detection misreads", {
+  local_quiet()
+  # Paired with the test above: without this half, raising the unique-value
+  # cutoff in is_categorical() would make the fixture detect continuous and leave
+  # the declaration test passing while it covered nothing.
+  data <- dgp_coarse_dose(n = 150, seed = 1)
+  expect_identical(detect_exposure_type(data$exposure), "categorical")
+
+  err <- expect_error(
+    check_hat_values(data, exposure, x1, exposure_type = "auto"),
+    class = "positively_exposure_type_error"
+  )
+  expect_match(conditionMessage(err), "categorical", fixed = TRUE)
+})
+
+test_that("a declared continuous type rejects a non-numeric exposure", {
+  local_quiet()
+  data <- dgp_coarse_dose(n = 150, seed = 1)
+  data$exposure <- factor(rep(c("low", "mid", "high"), length.out = nrow(data)))
+
+  err <- expect_error(
+    check_hat_values(data, exposure, x1, exposure_type = "continuous"),
+    class = "positively_exposure_type_error"
+  )
+  # The declaration is what fails, so the error names the type the column cannot
+  # carry rather than arriving later as a generic non-numeric complaint from
+  # validate_numeric_columns().
+  expect_match(conditionMessage(err), "continuous", fixed = TRUE)
+})
+
+test_that("check_hat_values() rejects a type outside its supported menu", {
+  local_quiet()
+  data <- dgp_coarse_dose(n = 150, seed = 1)
+  err <- expect_error(
+    check_hat_values(data, exposure, x1, exposure_type = "binary"),
+    class = "rlang_error"
+  )
+  expect_match(
+    conditionMessage(err),
+    '`exposure_type` must be one of "auto" or "continuous", not "binary".',
+    fixed = TRUE
+  )
+})
+
 # ---- Result class and properties ------------------------------------------
 
 test_that("check_hat_values() returns a hat_values_result diagnostic", {

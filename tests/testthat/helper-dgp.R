@@ -55,6 +55,27 @@ dgp_continuous_support_gap <- function(n = 500, seed = 4) {
   tibble::tibble(exposure = exposure, x1 = x1)
 }
 
+# The eight-level milligram grid every coarse-dose fixture dispenses on, from
+# 2.5 mg to 20 mg. The point-exposure fixture below and the sequential fixture
+# in test-check-hdr.R both read it here, so the two cannot drift apart.
+coarse_dose_grid <- function() {
+  seq(2.5, 20, by = 2.5)
+}
+
+# A continuous drug dose dispensed on coarse_dose_grid(). At the default n of
+# 150 the unique-value ratio is 0.053, below the 20 percent cutoff in
+# is_categorical(), so detect_exposure_type() reads the column as categorical
+# even though the dose is continuous. The covariate tracks the dose, so extreme
+# doses are implausible at some covariate values and a diagnostic that honors a
+# declared continuous type has real structure to find.
+dgp_coarse_dose <- function(n = 150, seed = 1) {
+  withr::local_seed(seed)
+  dose_grid <- coarse_dose_grid()
+  exposure <- dose_grid[rep(seq_along(dose_grid), length.out = n)]
+  x1 <- stats::rnorm(n, mean = 0.5 * exposure, sd = 3)
+  tibble::tibble(exposure = exposure, x1 = x1)
+}
+
 # Longitudinal wide-format data over three time points with a per-time
 # violation: the time-2 exposure has a hard support gap on (2, 4), while the
 # time-1 and time-3 exposures are unconstrained.

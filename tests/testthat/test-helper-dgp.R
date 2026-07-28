@@ -35,6 +35,21 @@ test_that("dgp_continuous_support_gap() leaves the interval (2, 4) empty", {
   expect_gt(length(unique(data$exposure)), 2)
 })
 
+test_that("dgp_coarse_dose() dispenses eight levels detection misreads", {
+  data <- dgp_coarse_dose(n = 150, seed = 1)
+  expect_identical(nrow(data), 150L)
+  # The grid literal is pinned here and nowhere else, so coarse_dose_grid() has
+  # exactly one place that fixes its values.
+  expect_setequal(unique(data$exposure), seq(2.5, 20, by = 2.5))
+  # The fixture exists to be misread, so the heuristic itself is the assertion.
+  # A hard-coded ratio would keep this test green after a cutoff change that had
+  # already stopped detection from misreading the dose.
+  expect_true(is_categorical(data$exposure))
+  # The covariate tracks the dose, so a diagnostic run on the declared type has
+  # structure to find.
+  expect_gt(stats::cor(data$exposure, data$x1), 0.5)
+})
+
 test_that("dgp_longitudinal() is wide with a time-2 support gap", {
   data <- dgp_longitudinal(n = 300, seed = 5)
   expect_identical(nrow(data), 300L)
@@ -107,6 +122,7 @@ test_that("each data-generating process is deterministic given its seed", {
     dgp_continuous_support_gap(seed = 7),
     dgp_continuous_support_gap(seed = 7)
   )
+  expect_identical(dgp_coarse_dose(seed = 7), dgp_coarse_dose(seed = 7))
   expect_identical(dgp_longitudinal(seed = 7), dgp_longitudinal(seed = 7))
   expect_identical(
     dgp_longitudinal_binary(seed = 7),
