@@ -57,7 +57,7 @@ port_anchor_data <- function() {
 }
 
 # Single-covariate structural violation: never treated when x3 > 70. The planted
-# threshold is 70; recovered thresholds cluster just above it (REPORT claim 2).
+# threshold is 70; recovered thresholds cluster just above it.
 sim_port_structural <- function(n = 2000, seed = 1) {
   withr::local_seed(seed)
   x3 <- stats::runif(n, 0, 100)
@@ -416,7 +416,7 @@ test_that("tidy() returns the results tibble and glance() a one-row summary", {
   expect_identical(nrow(glanced), 1L)
 })
 
-# ---- Deterministic reading-rule anchor (expectation 3) --------------------
+# ---- Deterministic reading-rule anchor ------------------------------------
 
 test_that("the reading rule flags exactly the hand-built subgroup", {
   local_quiet()
@@ -448,7 +448,7 @@ test_that("the beta boundary gates the anchor subgroup out", {
   expect_identical(nrow(flagged_rows(res)), 0L)
 })
 
-# ---- Structural recovery (expectation 2) ----------------------------------
+# ---- Structural recovery --------------------------------------------------
 
 test_that("check_port() recovers a planted single-covariate violation", {
   local_quiet()
@@ -475,7 +475,7 @@ test_that("the recovered split threshold sits near the planted value", {
   expect_true(near_planted)
 })
 
-# ---- Quiet on good positivity (expectation 1) -----------------------------
+# ---- Quiet on good positivity ---------------------------------------------
 
 test_that("check_port() stays quiet under good positivity at n = 1000", {
   local_quiet()
@@ -501,7 +501,7 @@ test_that("average flags stay low across seeds under good positivity", {
   expect_lte(mean(counts), 0.1)
 })
 
-# ---- Direction-only n-scaling (expectation 13) ----------------------------
+# ---- Direction-only n-scaling ---------------------------------------------
 
 test_that("spurious flags are more common at small n than large n", {
   local_quiet()
@@ -522,7 +522,7 @@ test_that("spurious flags are more common at small n than large n", {
   expect_gt(mean_flags(150), mean_flags(3000))
 })
 
-# ---- alpha size gate (expectation 4) --------------------------------------
+# ---- alpha size gate ------------------------------------------------------
 
 test_that("a subgroup near 6 percent is gated by alpha", {
   local_quiet()
@@ -549,7 +549,7 @@ test_that("flag counts are non-increasing across an increasing alpha grid", {
   expect_true(all(diff(counts) <= 0))
 })
 
-# ---- beta bound (expectation 5) -------------------------------------------
+# ---- beta bound -----------------------------------------------------------
 
 test_that("a near-beta subgroup is flagged reliably at the looser bound", {
   local_quiet()
@@ -576,7 +576,7 @@ test_that("detection is non-decreasing across an increasing beta grid", {
   expect_true(all(diff(as.integer(detected)) >= 0))
 })
 
-# ---- gamma unlocks joint violations (expectation 6) -----------------------
+# ---- gamma unlocks joint violations ---------------------------------------
 
 test_that("a joint violation needs gamma = 2 to be found", {
   local_quiet()
@@ -591,7 +591,7 @@ test_that("a joint violation needs gamma = 2 to be found", {
   expect_true(uses_both(check_port(data, exposure, c(x1, x2), gamma = 2)))
 })
 
-# ---- Gruber default beta (expectation 7) ----------------------------------
+# ---- Gruber default beta --------------------------------------------------
 
 test_that("beta = \"gruber\" resolves to 5 / (sqrt(n) * log(n))", {
   local_quiet()
@@ -600,7 +600,9 @@ test_that("beta = \"gruber\" resolves to 5 / (sqrt(n) * log(n))", {
 
   expected <- 5 / (sqrt(1000) * log(1000))
   expect_equal(res@beta, expected, tolerance = 1e-8)
-  # Sanity value from the REPORT.
+  # 0.0229 is what that formula evaluates to at n = 1000. Pinning the number
+  # separately means a change to the expression above cannot pass by moving
+  # both sides of the equality together.
   expect_equal(res@beta, 0.0229, tolerance = 1e-3)
 })
 
@@ -659,7 +661,7 @@ test_that("a Gruber bound below 0.5 still runs", {
   expect_equal(res@beta, 5 / (sqrt(15) * log(15)), tolerance = 1e-8)
 })
 
-# ---- Practical and structural flagged identically (expectation 8) ---------
+# ---- Practical and structural flagged identically -------------------------
 
 test_that("a low-prevalence subgroup is flagged like an empty one", {
   local_quiet()
@@ -684,7 +686,7 @@ test_that("a subgroup above beta is not flagged", {
   expect_false(any(grepl("b", flagged_rows(res)$description)))
 })
 
-# ---- Categorical exposure per level (expectation 9) -----------------------
+# ---- Categorical exposure per level ---------------------------------------
 
 test_that("a never-assigned level in a subgroup is flagged at that level", {
   local_quiet()
@@ -709,7 +711,7 @@ test_that("both extremes of a binary exposure are flagged", {
   expect_true(any(flagged$prevalence > 1 - res@beta))
 })
 
-# ---- Threshold granularity failure mode (expectation 14) ------------------
+# ---- Threshold granularity failure mode -----------------------------------
 
 test_that("a continuous predictor recovers a threshold a coarse binning misses", {
   local_quiet()
@@ -847,7 +849,7 @@ test_that("plot() draws the PoRT view and returns the result invisibly", {
   expect_identical(plot(res), res)
 })
 
-# ---- rpart controls and passthrough (expectation, REPORT) -----------------
+# ---- rpart controls and passthrough ---------------------------------------
 
 test_that("the fitted trees pin the PoRT rpart controls", {
   local_quiet()
@@ -900,7 +902,7 @@ test_that("correlated covariates surface a flagged subgroup for each near-copy",
   expect_true(any(grepl("xb", flagged$description)))
 })
 
-# ---- Description simplification (finding 8) -------------------------------
+# ---- Description simplification -------------------------------------------
 
 test_that("descriptions collapse chained conditions to the binding bounds", {
   local_quiet()

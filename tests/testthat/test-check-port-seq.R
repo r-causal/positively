@@ -11,11 +11,11 @@ flagged_rows <- function(res) {
 }
 
 # Monotone binary treatment over three time points with a planted sequential
-# violation at t = 2 (REPORT claim 6). Region C (baseline c1 > 1) never
-# initiates at t = 2 among subjects still untreated after t = 1. Because the
-# treatment is monotone, already-initiated subjects carry a2 == 1 forward and
-# inflate the region-C prevalence on the full sample, masking the violation
-# unless the risk set is subset to followers.
+# violation at t = 2. Region C (baseline c1 > 1) never initiates at t = 2
+# among subjects still untreated after t = 1. Because the treatment is
+# monotone, already-initiated subjects carry a2 == 1 forward and inflate the
+# region-C prevalence on the full sample, masking the violation unless the
+# risk set is subset to followers.
 sim_port_seq <- function(n = 3000, seed = 1) {
   withr::local_seed(seed)
   c1 <- stats::rnorm(n)
@@ -453,7 +453,7 @@ test_that("a degenerate pooled exposure is rejected before the declared type", {
   )
 })
 
-# ---- sPoRT localization (expectation 10) ----------------------------------
+# ---- sPoRT localization ---------------------------------------------------
 
 test_that("flags localize to the time point of the planted violation", {
   local_quiet()
@@ -467,7 +467,7 @@ test_that("flags localize to the time point of the planted violation", {
   expect_true(any(grepl("c1", flagged$description[flagged$time == 2])))
 })
 
-# ---- History subsetting guard (expectation 12) ----------------------------
+# ---- History subsetting guard ---------------------------------------------
 
 test_that("stratified subsetting reveals a violation that naive pooling masks", {
   local_quiet()
@@ -486,7 +486,7 @@ test_that("stratified subsetting reveals a violation that naive pooling masks", 
   expect_false(any(grepl("c1", flagged_rows(naive)$description)))
 })
 
-# ---- Risk-set shrinkage and per-time Gruber beta (expectation 11) ---------
+# ---- Risk-set shrinkage and per-time Gruber beta --------------------------
 
 test_that("the per-time Gruber beta grows as the monotone risk set shrinks", {
   local_quiet()
@@ -664,7 +664,7 @@ test_that("the censoring run carries a family-neutral prevalence axis label", {
   )
 })
 
-# ---- Degenerate risk sets (finding 5) -------------------------------------
+# ---- Degenerate risk sets -------------------------------------------------
 
 # Collect and muffle the risk-set warnings, since more than one wave may skip.
 collect_risk_set_warnings <- function(expr) {

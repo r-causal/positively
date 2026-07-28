@@ -401,7 +401,7 @@ test_that("a candidate at an observed design point reproduces the lm hat value",
 
 # ---- Results shape and structure (exact, non-stochastic) ------------------
 
-test_that("nrow(results) equals length(probs) times n (expectation 7)", {
+test_that("nrow(results) equals length(probs) times n", {
   local_quiet()
   data <- sim_hat_linear(150, beta = 1, seed = 1)
 
@@ -435,7 +435,7 @@ test_that("the candidate dose value is constant within each prob", {
   expect_true(all(constant))
 })
 
-test_that("high_leverage equals hat_value > 2p/n with p = q + 2 (expectation 6)", {
+test_that("high_leverage equals hat_value > 2p/n with p = q + 2", {
   local_quiet()
   data <- sim_hat_linear(120, beta = 1, q = 1, seed = 2)
   res <- check_hat_values(data, dose, x1, null_reps = 2)
@@ -448,7 +448,7 @@ test_that("high_leverage equals hat_value > 2p/n with p = q + 2 (expectation 6)"
   )
 })
 
-test_that("p is q + 2 with several covariates (expectations 6 and 10)", {
+test_that("p is q + 2 with several covariates", {
   local_quiet()
   data <- sim_hat_linear(160, beta = 1, q = 3, seed = 4)
   res <- check_hat_values(data, dose, c(x1, x2, x3), null_reps = 2)
@@ -478,8 +478,8 @@ test_that("the threshold multiplier scales the leverage cutoff", {
 
 test_that("the null stays quiet when the dose is independent of x", {
   local_quiet()
-  # Expectations 1 and 4: exceeds_null is FALSE, median Pr(phi > phi0) < 0.55,
-  # and phi_hat sits within 0.10 of the null median.
+  # exceeds_null is FALSE, the median Pr(phi > phi0) stays under 0.55, and
+  # phi_hat sits within 0.10 of the null median.
   fits <- lapply(1:3, function(s) {
     check_hat_values(
       sim_hat_linear(200, beta = 0, seed = s),
@@ -499,7 +499,7 @@ test_that("the null stays quiet when the dose is independent of x", {
   expect_true(all(gaps < 0.10))
 })
 
-test_that("a strong violation exceeds the null (expectation 2)", {
+test_that("a strong violation exceeds the null", {
   local_quiet()
   data <- sim_hat_linear(200, beta = 2, seed = 3)
   res <- check_hat_values(data, dose, x1, null_reps = 100)
@@ -509,7 +509,7 @@ test_that("a strong violation exceeds the null (expectation 2)", {
   expect_gt(res@phi_hat, 3 * res@null_quantile)
 })
 
-test_that("median phi_hat increases with dependence strength (expectation 3)", {
+test_that("median phi_hat increases with dependence strength", {
   local_quiet()
   # null_reps is minimal because this test reads only phi_hat, not the null
   # distribution. Strict monotonicity plus a wide overall span is the robust
@@ -539,7 +539,7 @@ test_that("median phi_hat increases with dependence strength (expectation 3)", {
   expect_gt(med_phi[4] - med_phi[1], 0.3)
 })
 
-test_that("phi_hat is stable across n at a fixed violation (expectation 5)", {
+test_that("phi_hat is stable across n at a fixed violation", {
   local_quiet()
   # A single realization per n uses a 0.10 band around a stable phi_hat.
   ns <- c(100, 250, 500)
@@ -557,7 +557,7 @@ test_that("phi_hat is stable across n at a fixed violation (expectation 5)", {
   expect_true(all(vapply(fits, function(f) f@exceeds_null, logical(1))))
 })
 
-test_that("flags localize to where the extreme dose is unobserved (expectation 8)", {
+test_that("flags localize to where the extreme dose is unobserved", {
   local_quiet()
   data <- sim_hat_linear(300, beta = 3, seed = 11)
   res <- check_hat_values(data, dose, x1, null_reps = 2)
@@ -576,7 +576,7 @@ test_that("flags localize to where the extreme dose is unobserved (expectation 8
   expect_lt(rank_corr, -0.5)
 })
 
-test_that("the shipped null does not fabricate a violation on a skewed dose (expectation 9)", {
+test_that("the shipped null does not fabricate a violation on a skewed dose", {
   local_quiet()
   # A right-skewed dose drawn independently of the covariate must not read as a
   # violation under the default null.
@@ -595,7 +595,7 @@ test_that("the shipped null does not fabricate a violation on a skewed dose (exp
 
 # ---- Magnitude expectations (loose, wide tolerances) ----------------------
 
-test_that("a two-point {5th, 95th} grid gives a null baseline near 0.13 (expectation 11)", {
+test_that("a two-point {5th, 95th} grid gives a null baseline near 0.13", {
   local_quiet()
   # Anchored to the relative range [0.08, 0.20], never the paper's 0.29.
   med_phi <- stats::median(vapply(
@@ -617,7 +617,7 @@ test_that("a two-point {5th, 95th} grid gives a null baseline near 0.13 (expecta
   expect_lt(med_phi, 0.20)
 })
 
-test_that("the default 19-point grid gives a low null baseline and a high violation (expectation 12)", {
+test_that("the default 19-point grid gives a low null baseline and a high violation", {
   local_quiet()
   null_phi <- stats::median(vapply(
     1:3,

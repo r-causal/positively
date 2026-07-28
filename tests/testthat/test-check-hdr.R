@@ -9,10 +9,10 @@
 # a. The fixed results columns are value (a) and nonoverlap (tau_hat), plus
 # `time` for the sequential variant. Magnitude claims are anchored to the
 # closed-form oracle tau(a) = Phi((a - z*sigma)/s_mu) + 1 - Phi((a + z*sigma)/
-# s_mu) with s_mu = |beta| for the linear-Gaussian design, per the sim REPORT.
+# s_mu), which holds with s_mu = |beta| for the linear-Gaussian design below.
 #
-# Key caveat carried from the REPORT: the normal estimator detects mean-shift
-# support gaps, not multimodal gaps, and the non-overlap floor is not
+# The normal estimator bounds what those claims can be: it detects mean-shift
+# support gaps, not multimodal gaps, and its non-overlap floor is not
 # universally zero under strong covariate dependence.
 
 # ---- Scenario generators --------------------------------------------------
@@ -332,7 +332,7 @@ test_that("check_hdr() rejects a type outside its supported menu", {
 
 # ---- Closed-form oracle and curve helpers ---------------------------------
 
-# Closed-form non-overlap for the linear-Gaussian design (REPORT expectation 7):
+# Closed-form non-overlap for the linear-Gaussian design:
 # tau(a) = Phi((a - z*sigma)/s_mu) + 1 - Phi((a + z*sigma)/s_mu), s_mu = |beta|.
 tau_oracle <- function(a, beta, sigma, mass) {
   z <- stats::qnorm((1 + mass) / 2)
@@ -413,7 +413,7 @@ test_that("tidy() and glance() follow the shared diagnostic contract", {
   expect_identical(nrow(glanced), 1L)
 })
 
-# ---- Range and validity (expectation 1) -----------------------------------
+# ---- Range and validity ---------------------------------------------------
 
 test_that("every non-overlap value lies in the unit interval", {
   local_quiet()
@@ -428,7 +428,7 @@ test_that("every non-overlap value lies in the unit interval", {
   }
 })
 
-# ---- Null / quiet (expectation 2) -----------------------------------------
+# ---- Null / quiet ---------------------------------------------------------
 
 test_that("the central target is quiet under weak covariate dependence", {
   local_quiet()
@@ -438,7 +438,7 @@ test_that("the central target is quiet under weak covariate dependence", {
   expect_lt(tau_at(res, 0), 0.02)
 })
 
-# ---- Severe violation (expectation 3) -------------------------------------
+# ---- Severe violation -----------------------------------------------------
 
 test_that("a target beyond all support gives tau exactly one", {
   local_quiet()
@@ -452,7 +452,7 @@ test_that("a target beyond all support gives tau exactly one", {
   expect_equal(tau_at(res, a_extreme), 1)
 })
 
-# ---- Known-fraction magnitude (expectation 4) -----------------------------
+# ---- Known-fraction magnitude ---------------------------------------------
 
 test_that("tau recovers a planted unsupported fraction", {
   local_quiet()
@@ -462,7 +462,7 @@ test_that("tau recovers a planted unsupported fraction", {
   expect_equal(tau_at(res, 0), 0.30, tolerance = 0.02)
 })
 
-# ---- Monotonicity in the target (expectation 5) ---------------------------
+# ---- Monotonicity in the target -------------------------------------------
 
 test_that("tau is non-decreasing on a one-sided grid above the center", {
   local_quiet()
@@ -474,7 +474,7 @@ test_that("tau is non-decreasing on a one-sided grid above the center", {
   expect_true(all(diff(tau_curve(res)) >= -0.01))
 })
 
-# ---- Monotonicity in mass (expectation 6) ---------------------------------
+# ---- Monotonicity in mass -------------------------------------------------
 
 test_that("tau is non-increasing as mass widens the region", {
   local_quiet()
@@ -491,7 +491,7 @@ test_that("tau is non-increasing as mass widens the region", {
   expect_true(all(diff(taus) <= 0.01))
 })
 
-# ---- Closed-form oracle agreement (expectation 7) -------------------------
+# ---- Closed-form oracle agreement -----------------------------------------
 
 test_that("the whole tau curve matches the closed-form oracle", {
   local_quiet()
@@ -506,7 +506,7 @@ test_that("the whole tau curve matches the closed-form oracle", {
   expect_equal(tau_curve(res), oracle, tolerance = 0.03)
 })
 
-# ---- Numeric-grid threshold fallback (expectation 8) ----------------------
+# ---- Numeric-grid threshold fallback --------------------------------------
 
 test_that("the numeric-grid cutoff reproduces the closed-form normal curve", {
   local_quiet()
@@ -574,7 +574,7 @@ test_that("the default estimator carries the normal label", {
   expect_identical(res@density_estimator, "normal")
 })
 
-# ---- Bimodal misspecification (expectation 11) ----------------------------
+# ---- Bimodal misspecification ---------------------------------------------
 
 test_that("the normal estimator misses a bimodal support gap", {
   local_quiet()
@@ -727,7 +727,7 @@ test_that("check_hdr_seq() resolves every exposure without announcing", {
   )
 })
 
-# ---- Sequential per-time isolation (expectation 10) -----------------------
+# ---- Sequential per-time isolation ----------------------------------------
 
 test_that("check_hdr_seq() isolates a mean-shift gap to its time point", {
   local_quiet()

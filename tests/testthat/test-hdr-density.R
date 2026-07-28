@@ -1,6 +1,6 @@
-# The pluggable conditional-density contract (api-design section 1.4). A
-# density estimator is an internal S7 object of class `hdr_density` carrying
-# three function properties:
+# The pluggable conditional-density contract. A density estimator is an
+# internal S7 object of class `hdr_density` carrying three function
+# properties:
 #   fit(formula, data)             -> fitted state (a list)
 #   density(state, a, newdata)     -> f_hat(a | l), a recycled against newdata
 #   hdr_threshold(state, newdata, mass) -> f_alpha(l_j), the mass-capturing cutoff
@@ -111,7 +111,7 @@ test_that("hdr_density_normal() returns an hdr_density estimator", {
   expect_type(est@hdr_threshold, "closure")
 })
 
-# ---- Threshold form and membership (expectation 9) ------------------------
+# ---- Threshold form and membership ----------------------------------------
 
 test_that("the normal threshold equals dnorm(z) / sigma and is constant", {
   withr::local_seed(1)

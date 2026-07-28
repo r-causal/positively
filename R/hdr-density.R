@@ -1,7 +1,7 @@
-# The pluggable conditional-density contract for the HDR diagnostic
-# (api-design section 1.4). A density estimator is an internal S7 object of
-# class `hdr_density` carrying three function properties that check_hdr() calls
-# in turn. S7 methods here are wired up at load time by S7::methods_register().
+# The pluggable conditional-density contract for the HDR diagnostic. A density
+# estimator is an internal S7 object of class `hdr_density` carrying three
+# function properties that check_hdr() calls in turn. S7 methods here are
+# wired up at load time by S7::methods_register().
 
 #' The conditional-density estimator class for HDR non-overlap
 #'

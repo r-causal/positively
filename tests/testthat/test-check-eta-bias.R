@@ -1,13 +1,14 @@
 # ETA.Bias is a parametric bootstrap: the exact numbers depend on R's glm fits
 # and RNG, so every magnitude claim is written as a direction, ordering, or a
 # multiple of the run's own Monte Carlo error rather than a hard-coded value.
-# Each fixed-seed dataset yields one realization; thresholds sit well inside the
-# across-sample spread reported in the simulation study so a single draw stays on
-# the correct side of every inequality. n_boot is held at 200 (100 where only a
-# sign or ordering matters) because that is where the study calibrated the
-# tolerances below. The bootstrap treatment is drawn from the untruncated fitted
-# propensity, so truncation changes only the estimator; the truncation sweep
-# tests read that as increasing bias and shrinking bootstrap spread.
+# Each fixed-seed dataset yields one realization; thresholds sit well inside
+# the across-sample spread so a single draw stays on the correct side of every
+# inequality. The tolerances below are calibrated at n_boot = 200. Tests that
+# read only a sign or an ordering drop to 100; a few raise it where a tighter
+# Monte Carlo error is what the assertion rests on. The bootstrap treatment is
+# drawn from the untruncated fitted propensity, so truncation changes only the
+# estimator; the truncation sweep tests read that as increasing bias and
+# shrinking bootstrap spread.
 
 # ---- Local scenario generators --------------------------------------------
 # The shared helpers in helper-dgp.R carry no outcome, and ETA.Bias needs a
@@ -29,9 +30,9 @@ sim_eta_good <- function(n = 1000, tau = 0.5, seed = 1) {
 }
 
 # Freedman-Berk style practical violation: a steep propensity model pushes
-# fitted scores toward 0 and 1. `steepness` dials the severity; the default is
-# the study's moderate scenario, and the outcome model is linear with effect
-# tau, so `truth` is near tau.
+# fitted scores toward 0 and 1. `steepness` dials the severity; the default of
+# 2 is moderate, well short of the 3.5 the severity test reaches for, and the
+# outcome model is linear with effect tau, so `truth` is near tau.
 sim_eta_violation <- function(n = 1000, steepness = 2, tau = 1, seed = 1) {
   withr::local_seed(seed)
   x1 <- stats::rnorm(n)
@@ -956,9 +957,9 @@ test_that("a truncation grid yields one row per lower bound with upper = 1 - low
   expect_true(all(lengths(res@boot_estimates) == 100))
 })
 
-# ---- Statistical behavior (simulation REPORT expectations) ----------------
+# ---- Statistical behavior -------------------------------------------------
 
-test_that("good overlap leaves every estimator near zero (expectation 1)", {
+test_that("good overlap leaves every estimator near zero", {
   local_quiet()
   data <- sim_eta_good(n = 1000, seed = 1)
   for (estimator in c("ipw", "gcomp", "aipw")) {
@@ -967,37 +968,37 @@ test_that("good overlap leaves every estimator near zero (expectation 1)", {
   }
 })
 
-test_that("under violation gcomp stays near zero and ipw is large (expectations 2-5)", {
+test_that("under violation gcomp stays near zero and ipw is large", {
   local_quiet()
   data <- sim_eta_violation(n = 1000, seed = 1)
   ipw <- fit_eta(data, "ipw", n_boot = 500)
   gcomp <- fit_eta(data, "gcomp", n_boot = 200)
   aipw <- fit_eta(data, "aipw", n_boot = 200)
 
-  # Expectation 2: gcomp is the most robust invariant, since truth is its own
-  # point estimate; its residual bias is Monte Carlo noise.
+  # gcomp is the most robust invariant, since truth is its own point estimate;
+  # its residual bias is Monte Carlo noise.
   expect_lt(abs(bias_of(gcomp)), 3 * mc_se_of(gcomp))
   expect_lt(abs(bias_of(gcomp)), 0.03)
 
-  # Expectation 3: ipw carries substantial, clearly non-null bias. The
-  # multiple is 3 rather than the simulation REPORT's 5, and this fit uses
-  # n_boot = 500: for this DGP the expected bias-to-mc_se ratio at
-  # n_boot = 200 is about 4, so a 5-multiple holds only for lucky seeds.
-  # At n_boot = 500 the expected ratio is about 6.3 with an across-seed
-  # spread near 1, leaving a wide margin for RNG and refactor changes.
+  # ipw carries substantial, clearly non-null bias. The multiple is 3 rather
+  # than 5, and this fit uses n_boot = 500: for this DGP the expected
+  # bias-to-mc_se ratio at n_boot = 200 is about 4, so a 5-multiple holds only
+  # for lucky seeds. At n_boot = 500 the expected ratio is about 6.3 with an
+  # across-seed spread near 1, leaving a wide margin for RNG and refactor
+  # changes.
   expect_gt(bias_of(ipw), 0.05)
   expect_gt(bias_of(ipw), 3 * mc_se_of(ipw))
 
-  # Expectation 4: ipw dominates both consistent estimators by a wide margin.
+  # ipw dominates both consistent estimators by a wide margin.
   expect_gt(abs(bias_of(ipw)), 3 * abs(bias_of(aipw)))
   expect_gt(abs(bias_of(ipw)), 3 * abs(bias_of(gcomp)))
 
-  # Expectation 5: the doubly robust estimator stays near zero, though looser
-  # than gcomp because of its larger across-sample spread.
+  # The doubly robust estimator stays near zero, though looser than gcomp
+  # because of its larger across-sample spread.
   expect_lt(abs(bias_of(aipw)), 0.05)
 })
 
-test_that("truncation tightens ipw bias upward and its spread downward (expectation 6)", {
+test_that("truncation tightens ipw bias upward and its spread downward", {
   local_quiet()
   data <- sim_eta_violation(n = 1000, seed = 1)
   grid <- c(0, 0.025, 0.05, 0.1)
@@ -1024,7 +1025,7 @@ test_that("gcomp bias is flat across the truncation grid (internal consistency)"
   expect_equal(diff(res@results$bias), rep(0, length(grid) - 1))
 })
 
-test_that("ipw bias grows with violation severity (expectation 7)", {
+test_that("ipw bias grows with violation severity", {
   local_quiet()
   bias_null <- bias_of(fit_eta(
     sim_eta_good(n = 1000, seed = 1),
@@ -1046,7 +1047,7 @@ test_that("ipw bias grows with violation severity (expectation 7)", {
   expect_true(bias_moderate < bias_severe)
 })
 
-test_that("Monte Carlo error scales as one over root n_boot (expectation 8)", {
+test_that("Monte Carlo error scales as one over root n_boot", {
   local_quiet()
   data <- sim_eta_violation(n = 1000, seed = 1)
   mc_100 <- mc_se_of(fit_eta(data, "ipw", n_boot = 100))
@@ -1054,12 +1055,12 @@ test_that("Monte Carlo error scales as one over root n_boot (expectation 8)", {
 
   expect_lt(mc_400, mc_100)
   ratio <- mc_400 / mc_100
-  # Expected ratio is sqrt(100 / 400) = 0.5; allow the study's 25 percent band.
+  # Expected ratio is sqrt(100 / 400) = 0.5, allowed a 25 percent band.
   expect_gt(ratio, 0.375)
   expect_lt(ratio, 0.625)
 })
 
-test_that("binary outcomes run and preserve the estimator ordering (expectation 9)", {
+test_that("binary outcomes run and preserve the estimator ordering", {
   local_quiet()
   data <- sim_eta_binary_outcome(n = 1000, seed = 1)
   ipw <- fit_eta(data, "ipw", outcome_type = "binary", n_boot = 200)
@@ -1071,7 +1072,7 @@ test_that("binary outcomes run and preserve the estimator ordering (expectation 
   expect_lt(abs(bias_of(gcomp)), 0.02)
 })
 
-test_that("truth is a scalar equal to the gcomp estimate near tau (expectation 10)", {
+test_that("truth is a scalar equal to the gcomp estimate near tau", {
   local_quiet()
   data <- sim_eta_violation(n = 1000, tau = 1, seed = 1)
   ipw <- fit_eta(data, "ipw", n_boot = 100)
@@ -1093,7 +1094,7 @@ test_that("truth is a scalar equal to the gcomp estimate near tau (expectation 1
   expect_equal(gcomp@truth, 1, tolerance = 0.15)
 })
 
-test_that("normal and empirical error models agree under violation (expectation 6, error_dist)", {
+test_that("normal and empirical error_dist models agree under violation", {
   local_quiet()
   data <- sim_eta_violation(n = 1000, seed = 1)
   normal <- fit_eta(data, "ipw", error_dist = "normal", n_boot = 200)
