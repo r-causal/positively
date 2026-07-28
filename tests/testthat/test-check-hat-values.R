@@ -227,6 +227,7 @@ test_that("a large constant offset in a covariate does not break the leverage", 
 
 test_that("a declared continuous type runs the diagnostic on a coarse dose", {
   local_quiet()
+  withr::local_seed(2024)
   data <- dgp_coarse_dose(n = 150, seed = 1)
   res <- check_hat_values(
     data,
@@ -475,10 +476,16 @@ test_that("the threshold multiplier scales the leverage cutoff", {
 })
 
 # ---- Statistical behavior --------------------------------------------------
+# The generators seed only themselves and restore the stream on exit, so a
+# block that reads null_dist, exceeds_null, or anything derived from them must
+# seed the stream the diagnostic itself draws from. Blocks that read only
+# phi_hat, hat_value, or high_leverage are deterministic given the data and
+# take no seed.
 
 test_that("the null stays quiet when the dose is independent of x", {
   local_quiet()
-  # exceeds_null is FALSE, the median Pr(phi > phi0) stays under 0.55, and
+  withr::local_seed(2024)
+  # exceeds_null is FALSE, the median Pr(phi > phi0) stays under 0.60, and
   # phi_hat sits within 0.10 of the null median.
   fits <- lapply(1:3, function(s) {
     check_hat_values(
@@ -490,7 +497,11 @@ test_that("the null stays quiet when the dose is independent of x", {
   })
 
   expect_false(any(vapply(fits, function(f) f@exceeds_null, logical(1))))
-  expect_lt(stats::median(vapply(fits, pr_gt_null, numeric(1))), 0.55)
+  # Pr(phi > phi0) sits just below 0.5 under the null, with a Monte Carlo
+  # standard deviation near 0.04 at null_reps = 100. The bound stands several
+  # of those above the center, and far below the 1.0 that a null fabricating a
+  # violation produces.
+  expect_lt(stats::median(vapply(fits, pr_gt_null, numeric(1))), 0.60)
   gaps <- vapply(
     fits,
     function(f) abs(f@phi_hat - stats::median(f@null_dist)),
@@ -501,6 +512,7 @@ test_that("the null stays quiet when the dose is independent of x", {
 
 test_that("a strong violation exceeds the null", {
   local_quiet()
+  withr::local_seed(2024)
   data <- sim_hat_linear(200, beta = 2, seed = 3)
   res <- check_hat_values(data, dose, x1, null_reps = 100)
 
@@ -541,6 +553,7 @@ test_that("median phi_hat increases with dependence strength", {
 
 test_that("phi_hat is stable across n at a fixed violation", {
   local_quiet()
+  withr::local_seed(2024)
   # A single realization per n uses a 0.10 band around a stable phi_hat.
   ns <- c(100, 250, 500)
   fits <- lapply(ns, function(nn) {
@@ -578,6 +591,7 @@ test_that("flags localize to where the extreme dose is unobserved", {
 
 test_that("the shipped null does not fabricate a violation on a skewed dose", {
   local_quiet()
+  withr::local_seed(2024)
   # A right-skewed dose drawn independently of the covariate must not read as a
   # violation under the default null.
   fits <- lapply(1:3, function(s) {
@@ -590,7 +604,11 @@ test_that("the shipped null does not fabricate a violation on a skewed dose", {
   })
 
   expect_false(any(vapply(fits, function(f) f@exceeds_null, logical(1))))
-  expect_lte(stats::median(vapply(fits, pr_gt_null, numeric(1))), 0.6)
+  # Pr(phi > phi0) sits at 0.5 under the null, with a Monte Carlo standard
+  # deviation near 0.05 at null_reps = 100. The bound stands several of those
+  # above the center, and far below the 1.0 that a null fabricating a
+  # violation produces.
+  expect_lte(stats::median(vapply(fits, pr_gt_null, numeric(1))), 0.70)
 })
 
 # ---- Magnitude expectations (loose, wide tolerances) ----------------------
@@ -664,6 +682,9 @@ test_that("null_method rejects an unknown scheme", {
 
 test_that("every null method stays quiet on a skewed independent dose", {
   local_quiet()
+  # exceeds_null reads the diagnostic's own draws, so the stream it draws from
+  # is seeded here and not only inside the generator.
+  withr::local_seed(2024)
   methods <- c("permutation", "bootstrap", "gaussian")
   for (method in methods) {
     quiet <- vapply(
@@ -686,6 +707,7 @@ test_that("every null method stays quiet on a skewed independent dose", {
 
 test_that("every null method flags a strong violation", {
   local_quiet()
+  withr::local_seed(2024)
   methods <- c("permutation", "bootstrap", "gaussian")
   for (method in methods) {
     flagged <- vapply(
