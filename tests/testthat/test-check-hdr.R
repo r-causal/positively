@@ -693,6 +693,40 @@ test_that("a declared continuous type names a factor exposure it cannot carry", 
   expect_match(conditionMessage(err), "a2", fixed = TRUE)
 })
 
+test_that("check_hdr_seq() rejects a type outside its supported menu", {
+  local_quiet()
+  data <- sim_hdr_seq_coarse(n = 150, seed = 1)
+
+  err <- expect_error(
+    check_hdr_seq(
+      data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      exposure_type = "binary",
+      values = 0
+    ),
+    class = "rlang_error"
+  )
+  expect_match(
+    conditionMessage(err),
+    '`exposure_type` must be one of "auto" or "continuous", not "binary".',
+    fixed = TRUE
+  )
+})
+
+test_that("check_hdr_seq() resolves every exposure without announcing", {
+  withr::local_options(positively.quiet = FALSE)
+  data <- dgp_longitudinal(n = 300, seed = 5)
+
+  # Detection is run once per exposure column, and its announcement names
+  # `.exposure`, which is not an argument of this function. Resolving the
+  # sequential types silently is what keeps one call from emitting a misnamed
+  # message per time point.
+  expect_no_message(
+    check_hdr_seq(data, c(a1, a2, a3), list(l0, l1, l2), values = 0)
+  )
+})
+
 # ---- Sequential per-time isolation (expectation 10) -----------------------
 
 test_that("check_hdr_seq() isolates a mean-shift gap to its time point", {

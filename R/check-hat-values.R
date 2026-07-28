@@ -95,6 +95,8 @@ hat_values_result <- new_class(
 #'   A uniform null is deliberately not offered; see Details.
 #' @param conf_level The null quantile, strictly between 0 and 1, against which the observed
 #'   \eqn{\hat{\phi}} is compared. Defaults to `0.95`.
+#' @param exposure_type One of `"auto"` (detect from the data, the default) or
+#'   `"continuous"`.
 #'
 #' @return A `hat_values_result` object, an S7 subclass of
 #'   [positivity_diagnostic]. Its `@results` tibble has one row per candidate
@@ -132,7 +134,8 @@ check_hat_values <- function(
   threshold = 2,
   null_reps = 500,
   null_method = c("permutation", "bootstrap", "gaussian"),
-  conf_level = 0.95
+  conf_level = 0.95,
+  exposure_type = c("auto", "continuous")
 ) {
   validate_data_frame(.data)
   validate_prob(probs, arg_name = "probs")
@@ -149,16 +152,12 @@ check_hat_values <- function(
   exposure_name <- names(exposure_pos)
   exposure_vec <- .data[[exposure_pos]]
 
-  exposure_type <- detect_exposure_type(exposure_vec)
-  if (exposure_type != "continuous") {
-    abort(
-      c(
-        "{.fn check_hat_values} supports continuous exposures only.",
-        i = "{.arg .exposure} was detected as {.val {exposure_type}}."
-      ),
-      error_class = "positively_exposure_type_error"
-    )
-  }
+  exposure_type <- resolve_exposure_type(
+    exposure_type,
+    exposure_vec,
+    supported = "continuous",
+    fn = "check_hat_values"
+  )
 
   covariate_pos <- eval_select_columns(
     rlang::enquo(.covariates),

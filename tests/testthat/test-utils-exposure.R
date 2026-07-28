@@ -90,6 +90,36 @@ test_that("resolve_exposure_type() detects and announces when given 'auto'", {
   expect_identical(resolved, "binary")
 })
 
+test_that("resolve_exposure_type() suppresses the announcement on request", {
+  withr::local_options(positively.quiet = FALSE)
+  # The announcement names `.exposure`, so a caller resolving several exposure
+  # columns in one call would emit a misnamed message per column. Such callers
+  # pass announce = FALSE; the default announces.
+  dose <- seq(0, 1, length.out = 50)
+
+  expect_message(
+    announced <- resolve_exposure_type(
+      "auto",
+      dose,
+      supported = "continuous",
+      fn = "check_hdr_seq"
+    ),
+    "Treating"
+  )
+  expect_identical(announced, "continuous")
+
+  silent <- expect_silent(
+    resolve_exposure_type(
+      "auto",
+      dose,
+      supported = "continuous",
+      fn = "check_hdr_seq",
+      announce = FALSE
+    )
+  )
+  expect_identical(silent, "continuous")
+})
+
 test_that("resolve_exposure_type() honors an explicit type without announcing", {
   withr::local_options(positively.quiet = FALSE)
   resolved <- expect_silent(

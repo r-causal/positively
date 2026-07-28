@@ -161,6 +161,9 @@ validate_exposure_structure <- function(
 #' @param supported The exposure types the calling diagnostic can compute.
 #' @param fn The name of the calling diagnostic, used in error messages.
 #' @param arg The argument name used in error messages.
+#' @param announce Whether a detected type is announced through `alert_info()`.
+#'   Defaults to `TRUE`; callers that resolve several exposures at once pass
+#'   `FALSE` to stay silent.
 #' @param call The calling environment, used to build the error's call.
 #'
 #' @return A single string: `"binary"`, `"categorical"`, or `"continuous"`.
@@ -172,6 +175,7 @@ resolve_exposure_type <- function(
   supported,
   fn,
   arg = ".exposure",
+  announce = TRUE,
   call = rlang::caller_env()
 ) {
   exposure_type <- rlang::arg_match(
@@ -182,7 +186,7 @@ resolve_exposure_type <- function(
   )
 
   if (exposure_type == "auto") {
-    exposure_type <- detect_exposure_type(.exposure)
+    exposure_type <- detect_exposure_type(.exposure, announce = announce)
     if (!exposure_type %in% supported) {
       type_code <- paste0("exposure_type = \"", supported, "\"")
       abort(

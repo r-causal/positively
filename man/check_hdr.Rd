@@ -10,7 +10,8 @@ check_hdr(
   .covariates,
   mass = 0.95,
   values = NULL,
-  density_estimator = hdr_density_normal()
+  density_estimator = hdr_density_normal(),
+  exposure_type = c("auto", "continuous")
 )
 }
 \arguments{
@@ -30,6 +31,9 @@ the observed exposure range.}
 
 \item{density_estimator}{An \code{hdr_density} conditional-density estimator, built
 with \code{\link[=hdr_density_normal]{hdr_density_normal()}} (the default) or \code{\link[=new_hdr_density]{new_hdr_density()}}.}
+
+\item{exposure_type}{One of \code{"auto"} (detect from the data, the default) or
+\code{"continuous"}.}
 }
 \value{
 An \code{hdr_result} object, an S7 subclass of \link{positivity_diagnostic}.

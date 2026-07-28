@@ -41,6 +41,7 @@
       Error in `check_hdr()`:
       ! `check_hdr()` supports continuous exposures only.
       i `.exposure` was detected as "binary".
+      i If `.exposure` is continuous, set `exposure_type = "continuous"`.
 
 ---
 
@@ -195,7 +196,8 @@
     Condition
       Error in `check_hdr_seq()`:
       ! `check_hdr_seq()` supports continuous exposures only.
-      x "a2" is not continuous.
+      i `a2` was detected as "binary".
+      i If `a2` is continuous, set `exposure_type = "continuous"`.
 
 ---
 

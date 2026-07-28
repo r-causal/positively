@@ -6,6 +6,7 @@
       Error in `check_hat_values()`:
       ! `check_hat_values()` supports continuous exposures only.
       i `.exposure` was detected as "binary".
+      i If `.exposure` is continuous, set `exposure_type = "continuous"`.
 
 ---
 
@@ -15,6 +16,7 @@
       Error in `check_hat_values()`:
       ! `check_hat_values()` supports continuous exposures only.
       i `.exposure` was detected as "categorical".
+      i If `.exposure` is continuous, set `exposure_type = "continuous"`.
 
 # the argument validation messages are stable
 

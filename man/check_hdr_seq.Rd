@@ -12,7 +12,8 @@ check_hdr_seq(
   mass = 0.95,
   values = NULL,
   density_estimator = hdr_density_normal(),
-  lag = Inf
+  lag = Inf,
+  exposure_type = c("auto", "continuous")
 )
 }
 \arguments{
@@ -41,6 +42,9 @@ with \code{\link[=hdr_density_normal]{hdr_density_normal()}} (the default) or \c
 \item{lag}{The history window: the number of earlier time points whose
 covariates and exposures enter each conditioning set. Defaults to \code{Inf}, the
 full history.}
+
+\item{exposure_type}{One of \code{"auto"} (detect from the data, the default) or
+\code{"continuous"}.}
 }
 \value{
 An \code{hdr_result} object, an S7 subclass of \link{positivity_diagnostic}.

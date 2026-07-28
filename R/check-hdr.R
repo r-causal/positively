@@ -78,6 +78,8 @@ hdr_result <- new_class(
 #'   the observed exposure range.
 #' @param density_estimator An `hdr_density` conditional-density estimator, built
 #'   with [hdr_density_normal()] (the default) or [new_hdr_density()].
+#' @param exposure_type One of `"auto"` (detect from the data, the default) or
+#'   `"continuous"`.
 #'
 #' @return An `hdr_result` object, an S7 subclass of [positivity_diagnostic].
 #'   Its `@results` tibble has one row per target value with columns `value` (the
@@ -105,7 +107,8 @@ check_hdr <- function(
   .covariates,
   mass = 0.95,
   values = NULL,
-  density_estimator = hdr_density_normal()
+  density_estimator = hdr_density_normal(),
+  exposure_type = c("auto", "continuous")
 ) {
   validate_data_frame(.data)
   validate_probability(mass, arg_name = "mass")
@@ -114,16 +117,12 @@ check_hdr <- function(
   exposure_name <- select_single_exposure(rlang::enquo(.exposure), .data)
   exposure_vec <- .data[[exposure_name]]
 
-  exposure_type <- detect_exposure_type(exposure_vec)
-  if (exposure_type != "continuous") {
-    abort(
-      c(
-        "{.fn check_hdr} supports continuous exposures only.",
-        i = "{.arg .exposure} was detected as {.val {exposure_type}}."
-      ),
-      error_class = "positively_exposure_type_error"
-    )
-  }
+  exposure_type <- resolve_exposure_type(
+    exposure_type,
+    exposure_vec,
+    supported = "continuous",
+    fn = "check_hdr"
+  )
 
   covariate_pos <- eval_select_columns(
     rlang::enquo(.covariates),
@@ -214,37 +213,35 @@ validate_hdr_estimator <- function(
   invisible(density_estimator)
 }
 
-#' Validate that every named exposure column is continuous
+#' Resolve the exposure type of every named exposure column
 #'
-#' Runs the exposure-type detector on each column and aborts when any is binary
-#' or categorical, so the sequential variant holds the same continuous-only line
-#' as [check_hdr()].
+#' Applies `resolve_exposure_type()` to each exposure column in turn, so the
+#' sequential variant holds the same continuous-only line as [check_hdr()] and
+#' honors a declared type the same way. Resolving per column, rather than over
+#' the set, lets the error name the column that cannot carry the type.
 #'
 #' @param .data The data frame.
 #' @param exposure_names The exposure column names.
+#' @param exposure_type The `exposure_type` argument.
 #' @param call The calling environment, used to build the error's call.
 #'
-#' @return `.data`, invisibly, when every exposure is continuous.
+#' @return `.data`, invisibly, when every exposure resolves to continuous.
 #' @keywords internal
 #' @noRd
-validate_continuous_exposures <- function(
+resolve_seq_exposure_types <- function(
   .data,
   exposure_names,
+  exposure_type,
   call = rlang::caller_env()
 ) {
-  types <- vapply(
-    exposure_names,
-    function(name) detect_exposure_type(.data[[name]], announce = FALSE),
-    character(1)
-  )
-  non_continuous <- exposure_names[types != "continuous"]
-  if (length(non_continuous) > 0) {
-    abort(
-      c(
-        "{.fn check_hdr_seq} supports continuous exposures only.",
-        x = "{.val {non_continuous}} {?is/are} not continuous."
-      ),
-      error_class = "positively_exposure_type_error",
+  for (name in exposure_names) {
+    resolve_exposure_type(
+      exposure_type,
+      .data[[name]],
+      supported = "continuous",
+      fn = "check_hdr_seq",
+      arg = name,
+      announce = FALSE,
       call = call
     )
   }
@@ -407,6 +404,8 @@ hdr_nonoverlap <- function(
 #' @param lag The history window: the number of earlier time points whose
 #'   covariates and exposures enter each conditioning set. Defaults to `Inf`, the
 #'   full history.
+#' @param exposure_type One of `"auto"` (detect from the data, the default) or
+#'   `"continuous"`.
 #'
 #' @return An `hdr_result` object, an S7 subclass of [positivity_diagnostic].
 #'   Its `@results` tibble has one row per time point and target value with
@@ -449,7 +448,8 @@ check_hdr_seq <- function(
   mass = 0.95,
   values = NULL,
   density_estimator = hdr_density_normal(),
-  lag = Inf
+  lag = Inf,
+  exposure_type = c("auto", "continuous")
 ) {
   validate_data_frame(.data)
   validate_probability(mass, arg_name = "mass")
@@ -465,7 +465,7 @@ check_hdr_seq <- function(
   exposure_names <- names(exposure_pos)
   n_times <- length(exposure_names)
 
-  validate_continuous_exposures(.data, exposure_names)
+  resolve_seq_exposure_types(.data, exposure_names, exposure_type)
 
   covariate_sets <- parse_covariate_list(
     rlang::enquo(.covariates),
@@ -536,6 +536,11 @@ check_hdr_seq <- function(
   })
   results <- vctrs::vec_rbind(!!!per_time)
 
+  # resolve_seq_exposure_types() supports continuous exposures only, so every
+  # column has already resolved to "continuous" and the type is stated here
+  # rather than threaded back. Widening that supported set requires returning
+  # the resolved types and carrying them through, or this property becomes a
+  # silent lie.
   hdr_result(
     results = results,
     exposure = exposure_names,

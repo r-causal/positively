@@ -12,7 +12,8 @@ check_hat_values(
   threshold = 2,
   null_reps = 500,
   null_method = c("permutation", "bootstrap", "gaussian"),
-  conf_level = 0.95
+  conf_level = 0.95,
+  exposure_type = c("auto", "continuous")
 )
 }
 \arguments{
@@ -39,6 +40,9 @@ A uniform null is deliberately not offered; see Details.}
 
 \item{conf_level}{The null quantile, strictly between 0 and 1, against which the observed
 \eqn{\hat{\phi}} is compared. Defaults to \code{0.95}.}
+
+\item{exposure_type}{One of \code{"auto"} (detect from the data, the default) or
+\code{"continuous"}.}
 }
 \value{
 A \code{hat_values_result} object, an S7 subclass of
