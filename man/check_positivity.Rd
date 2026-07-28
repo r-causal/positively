@@ -28,12 +28,11 @@ applicable set for the exposure type; otherwise a subset of \code{"edp"},
 given.}
 
 \item{exposure_type}{One of \code{"auto"} (detect from the data, the default),
-\code{"binary"}, \code{"categorical"}, or \code{"continuous"}. An explicit value is passed
-to \code{\link[=check_edp]{check_edp()}} and \code{\link[=check_port]{check_port()}}, which honor it directly. The three
-diagnostics that re-detect the type (\code{\link[=check_extrapolation]{check_extrapolation()}},
-\code{\link[=check_hat_values]{check_hat_values()}}, and \code{\link[=check_hdr]{check_hdr()}}) are instead checked up front
-against the detected type; if a requested one of them cannot run on the
-detected type, the call aborts before any diagnostic runs.}
+\code{"binary"}, \code{"categorical"}, or \code{"continuous"}. The resolved type is
+forwarded to every diagnostic that runs, so a supplied type is honored
+throughout rather than re-derived from the data by each diagnostic in turn.
+It must be a type the exposure column can carry, and it must apply to every
+entry in \code{diagnostics}; both are checked before any diagnostic runs.}
 
 \item{args}{A named list of per-diagnostic option lists, for example
 \code{list(port = list(alpha = 0.1))}. Each name must be a diagnostic being run.}
@@ -52,14 +51,13 @@ it is diagnostic only: it reports numbers, not verdicts.
 \details{
 \code{check_positivity()} resolves the exposure type a single time and announces it
 once through an informational message (suppressed by
-\code{options(positively.quiet = TRUE)}). \code{\link[=check_edp]{check_edp()}} and \code{\link[=check_port]{check_port()}} receive
-the resolved type directly; \code{\link[=check_hat_values]{check_hat_values()}}, \code{\link[=check_hdr]{check_hdr()}}, and
-\code{\link[=check_extrapolation]{check_extrapolation()}} re-detect it internally, but their repeated
-announcement is muffled so that the type is reported only once. Every other
-informational message a diagnostic emits still reaches you. When \code{exposure_type}
-is supplied explicitly, it is checked against the detected type up front and a
-genuine disagreement aborts before any diagnostic runs. The default diagnostic
-set depends on the exposure type:
+\code{options(positively.quiet = TRUE)}). Every diagnostic it composes is handed
+that resolved type, so none of them detects a type of its own and the type is
+reported once. Every other informational message a diagnostic emits still
+reaches you. The resolved type, whether you supplied it or it was detected, is
+checked against the exposure column itself before any diagnostic runs: a
+continuous type needs a numeric column, and a binary type needs exactly two
+distinct values. The default diagnostic set depends on the exposure type:
 \itemize{
 \item \strong{binary}: \code{\link[=check_edp]{check_edp()}}, \code{\link[=check_port]{check_port()}}, \code{\link[=check_extrapolation]{check_extrapolation()}}
 \item \strong{categorical}: \code{\link[=check_edp]{check_edp()}}, \code{\link[=check_port]{check_port()}}

@@ -778,7 +778,8 @@ test_that("inapplicable diagnostics that share a type name it once", {
   # Under auto detection the exposure type is a heuristic guess rather than
   # something the caller asserted, and the abort is the only place a user learns
   # the guess can be overridden. hat_values and hdr both need a continuous
-  # exposure, so a single sentence names that type and both diagnostics.
+  # exposure and the 0/1 exposure column is numeric, so that type is one the
+  # column can carry and a single sentence names it and both diagnostics.
   cnd <- rlang::catch_cnd(
     check_positivity(
       data,
@@ -798,14 +799,15 @@ test_that("inapplicable diagnostics that share a type name it once", {
   )
 })
 
-test_that("inapplicable diagnostics needing different types are named apart", {
+test_that("no type is suggested when the column can carry none of them", {
   local_quiet()
   withr::local_options(cli.width = 500)
   data <- sim_pos_categorical(150)
-  # A categorical exposure rejects both, but hat_values needs a continuous type
-  # and extrapolation a binary one, so there is no single type to suggest. Each
-  # diagnostic must be named with the type it needs; a sentence that only says
-  # the type is settable leaves the caller to work out which type to set.
+  # The exposure is a three-level factor. hat_values needs a continuous type,
+  # which a factor cannot carry, and extrapolation needs a binary one, which a
+  # column with three distinct values cannot carry. Either suggestion would abort
+  # on the structural gate the moment the caller acted on it, so neither is
+  # offered and the list of valid diagnostics is the whole of the advice.
   cnd <- rlang::catch_cnd(
     check_positivity(
       data,
@@ -816,40 +818,64 @@ test_that("inapplicable diagnostics needing different types are named apart", {
     classes = "error"
   )
   expect_s3_class(cnd, "positively_diagnostic_error")
-  expect_match(conditionMessage(cnd), "exposure_type", fixed = TRUE)
+  expect_no_match(conditionMessage(cnd), "exposure_type", fixed = TRUE)
+})
+
+test_that("a suggested exposure type runs the diagnostics the advice names", {
+  local_quiet()
+  withr::local_options(cli.width = 500)
+  data <- dgp_coarse_dose(n = 150)
+  # Eight distinct milligram levels over 150 rows put the unique-value ratio
+  # below the is_categorical() cutoff, so detection reads a genuinely continuous
+  # dose as categorical and rejects both continuous diagnostics. The column is
+  # numeric, so the continuous type the advice names is one it can carry, and
+  # acting on the advice is what the advice is for: the same call with that type
+  # declared runs both diagnostics through.
+  cnd <- rlang::catch_cnd(
+    check_positivity(data, exposure, x1, diagnostics = c("hat_values", "hdr")),
+    classes = "error"
+  )
+  expect_s3_class(cnd, "positively_diagnostic_error")
   expect_match(
-    lines_mentioning(cnd, "hat_values"),
-    "continuous",
+    lines_mentioning(cnd, c("hat_values", "hdr")),
+    "exposure_type = \"continuous\"",
     fixed = TRUE,
     all = FALSE
   )
-  expect_match(
-    lines_mentioning(cnd, "extrapolation"),
-    "binary",
-    fixed = TRUE,
-    all = FALSE
+
+  # null_reps is shrunk so the hat-values null resampling stays cheap.
+  res <- check_positivity(
+    data,
+    exposure,
+    x1,
+    diagnostics = c("hat_values", "hdr"),
+    exposure_type = "continuous",
+    args = list(hat_values = list(null_reps = 25))
   )
+  expect_identical(res@diagnostics, c("hat_values", "hdr"))
 })
 
 test_that("a declared type is answered with the diagnostic set, not a type", {
   local_quiet()
   withr::local_options(cli.width = 500)
-  data <- sim_pos_categorical(150)
+  data <- dgp_coarse_dose(n = 150)
   # The two calls resolve to the same categorical type and reject the same
   # diagnostic; only the source of the type differs. A detected type is a guess,
   # so naming the type that would run hat_values tells the caller the guess is
   # overridable. A declared type is a premise, and the advice that follows from a
   # premise is to fix the requested set, which the list of valid diagnostics
-  # already gives.
+  # already gives. The coarse dose is numeric, so the continuous type is on offer
+  # in the first call and its absence from the second is the difference under
+  # test.
   detected <- rlang::catch_cnd(
-    check_positivity(data, exposure, c(x1, x2), diagnostics = "hat_values"),
+    check_positivity(data, exposure, x1, diagnostics = "hat_values"),
     classes = "error"
   )
   declared <- rlang::catch_cnd(
     check_positivity(
       data,
       exposure,
-      c(x1, x2),
+      x1,
       diagnostics = "hat_values",
       exposure_type = "categorical"
     ),
@@ -927,7 +953,10 @@ test_that("the classed errors are stable", {
     check_positivity(data, exposure, c(x1, x2), diagnostics = "density_ratios"),
     error = TRUE
   )
-  # A diagnostic that does not apply to the exposure type.
+  # A diagnostic that does not apply to the exposure type. The 0/1 exposure is
+  # numeric, so the continuous type hat_values needs is on offer; the continuous
+  # exposure has far more than two distinct values, so the binary type
+  # extrapolation needs is not.
   expect_snapshot(
     check_positivity(data, exposure, c(x1, x2), diagnostics = "hat_values"),
     error = TRUE
@@ -968,7 +997,7 @@ test_that("the classed errors are stable", {
     ),
     error = TRUE
   )
-  # A forced exposure_type that sends a requested re-detecting child off a cliff.
+  # A declared exposure type the exposure column cannot carry.
   expect_snapshot(
     check_positivity(
       sim_pos_categorical(150),
@@ -1031,7 +1060,8 @@ test_that("the classed errors are stable", {
     ),
     error = TRUE
   )
-  # Inapplicable diagnostics needing different types are named apart.
+  # Inapplicable diagnostics whose needed types a three-level factor cannot
+  # carry, so no type is suggested.
   expect_snapshot(
     check_positivity(
       sim_pos_categorical(150),

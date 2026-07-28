@@ -50,14 +50,13 @@ default_diagnostics <- function(exposure_type) {
 #' @details
 #' `check_positivity()` resolves the exposure type a single time and announces it
 #' once through an informational message (suppressed by
-#' `options(positively.quiet = TRUE)`). [check_edp()] and [check_port()] receive
-#' the resolved type directly; [check_hat_values()], [check_hdr()], and
-#' [check_extrapolation()] re-detect it internally, but their repeated
-#' announcement is muffled so that the type is reported only once. Every other
-#' informational message a diagnostic emits still reaches you. When `exposure_type`
-#' is supplied explicitly, it is checked against the detected type up front and a
-#' genuine disagreement aborts before any diagnostic runs. The default diagnostic
-#' set depends on the exposure type:
+#' `options(positively.quiet = TRUE)`). Every diagnostic it composes is handed
+#' that resolved type, so none of them detects a type of its own and the type is
+#' reported once. Every other informational message a diagnostic emits still
+#' reaches you. The resolved type, whether you supplied it or it was detected, is
+#' checked against the exposure column itself before any diagnostic runs: a
+#' continuous type needs a numeric column, and a binary type needs exactly two
+#' distinct values. The default diagnostic set depends on the exposure type:
 #'
 #' - **binary**: [check_edp()], [check_port()], [check_extrapolation()]
 #' - **categorical**: [check_edp()], [check_port()]
@@ -87,12 +86,11 @@ default_diagnostics <- function(exposure_type) {
 #'   `"port"`, `"hat_values"`, `"hdr"`, and `"extrapolation"`, run in the order
 #'   given.
 #' @param exposure_type One of `"auto"` (detect from the data, the default),
-#'   `"binary"`, `"categorical"`, or `"continuous"`. An explicit value is passed
-#'   to [check_edp()] and [check_port()], which honor it directly. The three
-#'   diagnostics that re-detect the type ([check_extrapolation()],
-#'   [check_hat_values()], and [check_hdr()]) are instead checked up front
-#'   against the detected type; if a requested one of them cannot run on the
-#'   detected type, the call aborts before any diagnostic runs.
+#'   `"binary"`, `"categorical"`, or `"continuous"`. The resolved type is
+#'   forwarded to every diagnostic that runs, so a supplied type is honored
+#'   throughout rather than re-derived from the data by each diagnostic in turn.
+#'   It must be a type the exposure column can carry, and it must apply to every
+#'   entry in `diagnostics`; both are checked before any diagnostic runs.
 #' @param args A named list of per-diagnostic option lists, for example
 #'   `list(port = list(alpha = 0.1))`. Each name must be a diagnostic being run.
 #'
@@ -168,38 +166,46 @@ check_positivity <- function(
     )
   }
 
-  # Resolve the exposure type once, before children run. When the type is auto it
-  # is detected and announced here; when it is explicit the data are still
-  # detected silently so the feasibility gate below can catch a re-detecting
-  # child that the forced type would send off a cliff.
+  # Resolve the exposure type once, before children run, then check that the
+  # exposure column can carry it. Both the default diagnostic set and the
+  # applicability check take the resolved type as their premise, so the premise
+  # is validated first: advice derived from a type the column cannot carry would
+  # send the user to another type it cannot carry either.
   type <- resolve_composed_exposure_type(exposure_type, exposure_vec)
   resolved_type <- type$resolved
+  validate_exposure_structure(
+    exposure_vec,
+    resolved_type,
+    fn = "check_positivity"
+  )
 
   diagnostics <- diagnostics %||% default_diagnostics(resolved_type)
-  validate_composed_diagnostics(diagnostics, resolved_type)
-  if (type$is_explicit) {
-    validate_composed_feasibility(diagnostics, resolved_type, type$detected)
-  }
+  validate_composed_diagnostics(
+    diagnostics,
+    resolved_type,
+    exposure_vec,
+    type$is_explicit
+  )
   validate_composed_args(args, diagnostics)
 
-  # Run children one at a time. The repeated exposure-detection message from the
-  # three children that re-detect internally is muffled so the type is announced
-  # only once, while every other informational alert (hull skip, chunked Gower)
-  # still reaches the user. A child failure is rethrown as a classed error that
-  # names the diagnostic and chains the child's condition.
+  # Run children one at a time. Each is handed the resolved exposure type and so
+  # detects none of its own, which is why the type is announced once, while every
+  # other informational alert (hull skip, chunked Gower) still reaches the user.
+  # A child failure is rethrown as a classed error that names the diagnostic and
+  # chains the child's condition.
   checks <- vector("list", length(diagnostics))
   for (i in seq_along(diagnostics)) {
     name <- diagnostics[[i]]
     child_fn <- paste0("check_", name)
     checks[[i]] <- tryCatch(
-      muffle_detection_message(run_composed_diagnostic(
+      run_composed_diagnostic(
         name,
         .data,
         exposure_name,
         covariate_names,
         resolved_type,
         args[[name]] %||% list()
-      )),
+      ),
       error = function(cnd) {
         abort(
           "{.fn {child_fn}} failed while composing diagnostics.",
@@ -216,116 +222,37 @@ check_positivity <- function(
 
 #' Resolve the composed exposure type
 #'
-#' Detects the exposure type from the data. When `exposure_type` is `"auto"`, the
-#' detected type is announced and returned as the resolved type. When it is
-#' explicit, the explicit value is the resolved type but the detected type is
-#' still returned so that the feasibility gate can check the re-detecting
-#' children.
+#' Under `"auto"` the type is detected from the data and announced. A supplied
+#' type is returned as given: detection is not consulted at all, so the
+#' unique-value heuristic can never contradict a declaration. Whether the type
+#' was supplied is reported back, because the advice that follows a rejected
+#' diagnostic differs between a guess and a premise.
 #'
 #' @param exposure_type The `exposure_type` argument.
 #' @param exposure_vec The exposure vector.
-#'
-#' @return A list with `resolved` (the type children see), `detected` (the type
-#'   the data imply), and `is_explicit` (whether the caller forced the type).
-#' @keywords internal
-#' @noRd
-resolve_composed_exposure_type <- function(exposure_type, exposure_vec) {
-  explicit <- rlang::arg_match(
-    exposure_type,
-    c("auto", "binary", "categorical", "continuous")
-  )
-  detected <- detect_exposure_type(exposure_vec, announce = FALSE)
-
-  if (explicit == "auto") {
-    alert_info("Treating {.arg .exposure} as {detected}")
-    list(resolved = detected, detected = detected, is_explicit = FALSE)
-  } else {
-    list(resolved = explicit, detected = detected, is_explicit = TRUE)
-  }
-}
-
-# The re-detecting children and the detected exposure type each one requires.
-# check_edp() and check_port() are absent: they receive `exposure_type` and
-# honor it, so a forced type is never sent off a cliff inside them.
-redetecting_requirements <- function() {
-  list(
-    extrapolation = "binary",
-    hat_values = "continuous",
-    hdr = "continuous"
-  )
-}
-
-#' Gate a forced exposure type against the re-detecting children
-#'
-#' The three diagnostics that re-detect the exposure type internally
-#' ([check_extrapolation()], [check_hat_values()], [check_hdr()]) each require a
-#' particular detected type. When the caller forces `exposure_type`, any of those
-#' children among the requested set whose requirement the data do not meet would
-#' abort mid-run, so this catches them up front and names them.
-#'
-#' @param diagnostics The requested diagnostic names.
-#' @param resolved_type The forced exposure type children see.
-#' @param detected The type the data imply.
 #' @param call The calling environment, used to build the error's call.
 #'
-#' @return `diagnostics`, invisibly.
+#' @return A list with `resolved` (the type every diagnostic sees) and
+#'   `is_explicit` (whether the caller supplied it).
 #' @keywords internal
 #' @noRd
-validate_composed_feasibility <- function(
-  diagnostics,
-  resolved_type,
-  detected,
+resolve_composed_exposure_type <- function(
+  exposure_type,
+  exposure_vec,
   call = rlang::caller_env()
 ) {
-  requirements <- redetecting_requirements()
-  requested <- intersect(diagnostics, names(requirements))
-  infeasible <- requested[vapply(
-    requested,
-    function(name) requirements[[name]] != detected,
-    logical(1)
-  )]
-
-  if (length(infeasible) > 0) {
-    abort(
-      c(
-        "{.arg exposure_type} was set to {.val {resolved_type}}, but {.arg .exposure} is detected as {.val {detected}}.",
-        x = "{.val {infeasible}} cannot run on a detected {.val {detected}} exposure.",
-        i = "Drop {cli::qty(infeasible)}{?it/them} from {.arg diagnostics}, or call {?it/them} directly."
-      ),
-      error_class = "positively_exposure_type_error",
-      call = call
-    )
-  }
-
-  invisible(diagnostics)
-}
-
-#' Muffle only the repeated exposure-detection message
-#'
-#' Evaluates `expr` while suppressing the `detect_exposure_type()` announcement
-#' ("Treating ...") that children emit when they re-detect the exposure type. All
-#' other messages pass through untouched.
-#'
-#' @param expr An expression to evaluate.
-#'
-#' @return The value of `expr`.
-#' @keywords internal
-#' @noRd
-muffle_detection_message <- function(expr) {
-  withCallingHandlers(
-    expr,
-    message = function(cnd) {
-      # Match the announcement as cli actually emits it: an info-symbol prefix
-      # followed by "Treating `.exposure` as <type>". Anchoring on the backticked
-      # column reference keeps an unrelated child alert that merely contains the
-      # word "Treating" from being muffled.
-      if (
-        grepl("Treating `.exposure` as ", conditionMessage(cnd), fixed = TRUE)
-      ) {
-        rlang::cnd_muffle(cnd)
-      }
-    }
+  exposure_type <- rlang::arg_match(
+    exposure_type,
+    c("auto", "binary", "categorical", "continuous"),
+    error_call = call
   )
+
+  if (exposure_type == "auto") {
+    detected <- detect_exposure_type(exposure_vec, announce = TRUE)
+    list(resolved = detected, is_explicit = FALSE)
+  } else {
+    list(resolved = exposure_type, is_explicit = TRUE)
+  }
 }
 
 #' Dispatch a single composed diagnostic
@@ -334,9 +261,8 @@ muffle_detection_message <- function(expr) {
 #' selections are forwarded as resolved column names and the call is evaluated in
 #' an environment binding `.data`, so the child's `@call` property prints as a
 #' readable `check_*(.data = .data, .exposure = "...", ...)` rather than an
-#' anonymous call with the data frame inlined. Only `check_edp()` and
-#' `check_port()` accept `exposure_type`; the other three re-detect it, quietly,
-#' under `muffle_detection_message()`.
+#' anonymous call with the data frame inlined. The resolved exposure type is
+#' forwarded to every diagnostic, so none of them detects a type of its own.
 #'
 #' @param name The diagnostic name.
 #' @param .data The data frame.
@@ -356,13 +282,21 @@ run_composed_diagnostic <- function(
   exposure_type,
   method_args
 ) {
+  # The exposure type is forwarded to every diagnostic without exception, so
+  # check_positivity() may only ever forward a type the diagnostic accepts. What
+  # decides that is the `supported` set each diagnostic hands to
+  # resolve_exposure_type(), since that is what gates the arg_match(); a
+  # diagnostic whose `supported` set is narrower than its entry in
+  # diagnostic_exposure_types() would turn an argument error into a composition
+  # failure. validate_composed_diagnostics() has already rejected every
+  # diagnostic the resolved type does not apply to.
   call_args <- c(
     list(
       .data = rlang::sym(".data"),
       .exposure = exposure_name,
-      .covariates = covariate_names
+      .covariates = covariate_names,
+      exposure_type = exposure_type
     ),
-    if (name %in% c("edp", "port")) list(exposure_type = exposure_type),
     method_args
   )
 
@@ -379,6 +313,12 @@ run_composed_diagnostic <- function(
 #'
 #' @param diagnostics The requested diagnostic names.
 #' @param exposure_type The resolved exposure type.
+#' @param exposure_vec The exposure vector, which decides which exposure types
+#'   the advice may offer.
+#' @param is_explicit Whether the caller supplied the exposure type. A detected
+#'   type is a guess, so the rejection also names the types that would run the
+#'   rejected diagnostics; a supplied type is a premise, and the advice that
+#'   follows is to fix the requested set instead.
 #' @param call The calling environment, used to build the error's call.
 #'
 #' @return `diagnostics`, invisibly.
@@ -387,6 +327,8 @@ run_composed_diagnostic <- function(
 validate_composed_diagnostics <- function(
   diagnostics,
   exposure_type,
+  exposure_vec,
+  is_explicit,
   call = rlang::caller_env()
 ) {
   if (!is.character(diagnostics) || length(diagnostics) == 0) {
@@ -450,7 +392,8 @@ validate_composed_diagnostics <- function(
     abort(
       c(
         "{.val {invalid}} {?does/do} not apply to a {.val {exposure_type}} exposure.",
-        i = "Valid diagnostics for a {.val {exposure_type}} exposure are {.val {valid_here}}."
+        i = "Valid diagnostics for a {.val {exposure_type}} exposure are {.val {valid_here}}.",
+        if (!is_explicit) exposure_type_advice(invalid, exposure_vec)
       ),
       error_class = "positively_diagnostic_error",
       call = call
@@ -458,6 +401,58 @@ validate_composed_diagnostics <- function(
   }
 
   invisible(diagnostics)
+}
+
+#' Name the exposure types a rejected diagnostic could be run under
+#'
+#' Builds the advice that follows an applicability rejection under a detected
+#' exposure type. One bullet is emitted per type the rejected diagnostics need,
+#' naming the diagnostics that type would run, so diagnostics needing the same
+#' type are named together and diagnostics needing different types are named
+#' apart. Only types the exposure column can structurally carry are offered:
+#' `exposure_carries_type()` is the same rule the entry point's own gate applies,
+#' so a caller who acts on a bullet is never sent into that gate. When no needed
+#' type survives the filter there is nothing worth suggesting and no bullet is
+#' emitted. The bullets are formatted here rather than handed to `abort()` as cli
+#' templates because how many of them there are depends on the request.
+#'
+#' The rule is written for any number of surviving types, but today's diagnostic
+#' set can yield at most one. Only `check_extrapolation()` needs a binary type,
+#' and it is rejected only when the exposure is not binary, which is exactly when
+#' a binary type is not on offer.
+#'
+#' @param invalid The rejected diagnostic names.
+#' @param exposure_vec The exposure vector, which decides which needed types are
+#'   available to suggest.
+#'
+#' @return A character vector of info bullets, one per feasible needed exposure
+#'   type, empty when none is feasible.
+#' @keywords internal
+#' @noRd
+exposure_type_advice <- function(invalid, exposure_vec) {
+  valid_types <- diagnostic_exposure_types()[invalid]
+  needed <- unique(unlist(valid_types, use.names = FALSE))
+  feasible <- needed[vapply(
+    needed,
+    function(type) exposure_carries_type(exposure_vec, type),
+    logical(1)
+  )]
+
+  bullets <- vapply(
+    feasible,
+    function(type) {
+      runs <- invalid[vapply(
+        valid_types,
+        function(types) type %in% types,
+        logical(1)
+      )]
+      type_code <- paste0("exposure_type = \"", type, "\"")
+      cli::format_inline("Set {.code {type_code}} to run {.val {runs}}.")
+    },
+    character(1)
+  )
+
+  rlang::set_names(bullets, rep("i", length(bullets)))
 }
 
 #' Validate the per-method `args` list against the diagnostics being run
@@ -518,6 +513,28 @@ validate_composed_args <- function(
       c(
         "{.arg args} names {?a diagnostic/diagnostics} that {?is/are} not being run: {.val {extra}}.",
         i = "The diagnostics being run are {.val {diagnostics}}."
+      ),
+      error_class = "positively_args_error",
+      call = call
+    )
+  }
+
+  # The resolved exposure type reaches every diagnostic as a named argument, so
+  # a second one inside an option list would arrive as a duplicate formal and
+  # surface as an unclassed base R error blaming the diagnostic.
+  sets_type <- vapply(
+    args,
+    function(options) "exposure_type" %in% names(options),
+    logical(1)
+  )
+  if (any(sets_type)) {
+    collided <- arg_names[sets_type]
+    abort(
+      c(
+        "{.arg args} must not set {.arg exposure_type}.",
+        x = "{.val {collided}} {?sets/set} it.",
+        i = "{.fn check_positivity} forwards its own {.arg exposure_type} to every
+             diagnostic, so declare the type there instead."
       ),
       error_class = "positively_args_error",
       call = call

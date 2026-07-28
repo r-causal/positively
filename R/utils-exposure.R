@@ -88,15 +88,54 @@ detect_exposure_type <- function(.exposure, announce = TRUE) {
   exposure_type
 }
 
+#' Count the distinct values an exposure vector takes
+#'
+#' Missing values are counted out so that a binary column with NAs reports the
+#' missingness through the diagnostic's own check rather than as a spurious
+#' third level here.
+#'
+#' @param .exposure The exposure vector.
+#'
+#' @return A single integer.
+#' @keywords internal
+#' @noRd
+n_exposure_levels <- function(.exposure) {
+  length(unique(.exposure[!is.na(.exposure)]))
+}
+
+#' Can an exposure vector carry an exposure type?
+#'
+#' The structural requirements an exposure type places on the column itself,
+#' as a single predicate. A continuous exposure must be numeric; `is.numeric()`
+#' rather than coercibility, because `as.double(factor(c("a", "b", "c")))`
+#' silently returns the level codes `1 2 3` and would admit a factor as a dose.
+#' A binary exposure must have exactly two distinct non-missing values. A
+#' categorical exposure imposes nothing: the diagnostics that need more than one
+#' level check for it themselves.
+#'
+#' Both the gate that rejects a type the column cannot carry and the advice that
+#' names a type worth switching to read the rule from here, so every type the
+#' advice offers is one the gate accepts.
+#'
+#' @param .exposure The exposure vector.
+#' @param exposure_type The exposure type to test.
+#'
+#' @return A single logical value.
+#' @keywords internal
+#' @noRd
+exposure_carries_type <- function(.exposure, exposure_type) {
+  switch(
+    exposure_type,
+    continuous = is.numeric(.exposure),
+    binary = n_exposure_levels(.exposure) == 2,
+    TRUE
+  )
+}
+
 #' Validate that an exposure vector can carry its resolved type
 #'
-#' Checks the structural requirements a resolved exposure type places on the
-#' column itself. A continuous exposure must be numeric; `is.numeric()` rather
-#' than coercibility, because `as.double(factor(c("a", "b", "c")))` silently
-#' returns the level codes `1 2 3` and would admit a factor as a dose. A binary
-#' exposure must have exactly two distinct non-missing values. A categorical
-#' exposure imposes nothing: the diagnostics that need more than one level check
-#' for it themselves.
+#' Applies `exposure_carries_type()` and explains a failure. The rule itself
+#' lives in the predicate; only the wording of the abort is chosen here.
 #'
 #' @param .exposure The exposure vector.
 #' @param exposure_type The resolved exposure type.
@@ -114,7 +153,13 @@ validate_exposure_structure <- function(
   arg = ".exposure",
   call = rlang::caller_env()
 ) {
-  if (exposure_type == "continuous" && !is.numeric(.exposure)) {
+  if (exposure_carries_type(.exposure, exposure_type)) {
+    return(invisible(.exposure))
+  }
+
+  # Only the continuous and binary rules in exposure_carries_type() can fail, so
+  # the type alone selects which of the two explains the failure.
+  if (exposure_type == "continuous") {
     abort(
       c(
         "{.fn {fn}} needs a numeric {.arg {arg}} for a continuous exposure.",
@@ -125,25 +170,16 @@ validate_exposure_structure <- function(
     )
   }
 
-  # Missing values are counted out so that a binary column with NAs reports the
-  # missingness through the diagnostic's own check rather than as a spurious
-  # third level here.
-  if (exposure_type == "binary") {
-    n_levels <- length(unique(.exposure[!is.na(.exposure)]))
-    if (n_levels != 2) {
-      abort(
-        c(
-          "{.fn {fn}} needs exactly two distinct values in {.arg {arg}} for a
-           binary exposure.",
-          x = "{.arg {arg}} has {n_levels} distinct value{?s}."
-        ),
-        error_class = "positively_exposure_type_error",
-        call = call
-      )
-    }
-  }
-
-  invisible(.exposure)
+  n_levels <- n_exposure_levels(.exposure)
+  abort(
+    c(
+      "{.fn {fn}} needs exactly two distinct values in {.arg {arg}} for a
+       binary exposure.",
+      x = "{.arg {arg}} has {n_levels} distinct value{?s}."
+    ),
+    error_class = "positively_exposure_type_error",
+    call = call
+  )
 }
 
 #' Resolve an exposure type, detecting it when requested

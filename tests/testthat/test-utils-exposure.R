@@ -393,6 +393,33 @@ test_that("validate_exposure_structure() adds no requirement for categorical", {
   )
 })
 
+test_that("exposure_carries_type() agrees with the structural gate", {
+  # The predicate is the rule, and the gate only explains what the predicate
+  # refused. The applicability advice in check_positivity() filters the types it
+  # offers through the same predicate, so a type the predicate admits and the
+  # gate then rejects would put the advice back in the business of naming a type
+  # that aborts when acted on.
+  columns <- list(
+    seq(0, 1, length.out = 50),
+    c(0, 1, 1, 0),
+    rep(1, 4),
+    c("a", "b", "c"),
+    factor(c("a", "b", "a"), levels = c("a", "b", "c")),
+    factor(c("a", "b", "c")),
+    as.Date("2020-01-01") + 0:9
+  )
+
+  for (column in columns) {
+    for (type in c("binary", "categorical", "continuous")) {
+      raised <- rlang::catch_cnd(
+        validate_exposure_structure(column, type, fn = "check_edp"),
+        classes = "error"
+      )
+      expect_identical(exposure_carries_type(column, type), is.null(raised))
+    }
+  }
+})
+
 test_that("resolve_exposure_type() errors point at the calling function", {
   withr::local_options(positively.quiet = TRUE)
   check_fake <- function(.exposure, exposure_type = "auto") {

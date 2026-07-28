@@ -73,6 +73,7 @@
       Error in `check_positivity()`:
       ! "hat_values" does not apply to a "binary" exposure.
       i Valid diagnostics for a "binary" exposure are "edp", "port", and "extrapolation".
+      i Set `exposure_type = "continuous"` to run "hat_values".
 
 ---
 
@@ -119,9 +120,8 @@
         "port", "extrapolation"), exposure_type = "binary")
     Condition
       Error in `check_positivity()`:
-      ! `exposure_type` was set to "binary", but `.exposure` is detected as "categorical".
-      x "extrapolation" cannot run on a detected "categorical" exposure.
-      i Drop it from `diagnostics`, or call it directly.
+      ! `check_positivity()` needs exactly two distinct values in `.exposure` for a binary exposure.
+      x `.exposure` has 3 distinct values.
 
 ---
 
@@ -187,6 +187,37 @@
       Error in `res[[c("port", "extrapolation")]]`:
       ! `i` must select a single diagnostic.
       x You supplied 2 values.
+
+---
+
+    Code
+      check_positivity(data, exposure, c(x1, x2), diagnostics = c("hat_values", "hdr"))
+    Condition
+      Error in `check_positivity()`:
+      ! "hat_values" and "hdr" do not apply to a "binary" exposure.
+      i Valid diagnostics for a "binary" exposure are "edp", "port", and "extrapolation".
+      i Set `exposure_type = "continuous"` to run "hat_values" and "hdr".
+
+---
+
+    Code
+      check_positivity(sim_pos_categorical(150), exposure, c(x1, x2), diagnostics = c(
+        "hat_values", "extrapolation"))
+    Condition
+      Error in `check_positivity()`:
+      ! "hat_values" and "extrapolation" do not apply to a "categorical" exposure.
+      i Valid diagnostics for a "categorical" exposure are "edp" and "port".
+
+---
+
+    Code
+      check_positivity(data, exposure, c(x1, x2), diagnostics = "port", args = list(
+        port = list(exposure_type = "categorical")))
+    Condition
+      Error in `check_positivity()`:
+      ! `args` must not set `exposure_type`.
+      x "port" sets it.
+      i `check_positivity()` forwards its own `exposure_type` to every diagnostic, so declare the type there instead.
 
 # the missing-exposure message is stable
 
