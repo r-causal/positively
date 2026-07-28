@@ -92,7 +92,8 @@ eta_bias_result <- new_class(
 #'
 #' @param .data A data frame.
 #' @param .exposure The binary exposure column, selected with data-masking.
-#'   `check_eta_bias()` aborts for continuous or categorical exposures.
+#'   `check_eta_bias()` aborts unless the exposure has exactly two distinct
+#'   values, whether that type is detected or declared through `exposure_type`.
 #' @param .outcome The outcome column, selected with data-masking.
 #' @param .covariates The covariate columns, selected with tidyselect. Numeric,
 #'   logical, factor, and character covariates are all supported. The fitted
@@ -126,7 +127,11 @@ eta_bias_result <- new_class(
 #'   the default) or `"empirical"` (resample residuals). Ignored for binary
 #'   outcomes.
 #' @param exposure_type One of `"auto"` (detect from the data, the default) or
-#'   `"binary"`.
+#'   `"binary"`. A supplied type is authoritative and detection is not consulted,
+#'   so `"binary"` is rejected only when the exposure column does not have
+#'   exactly two distinct values. Declaring it unlocks no call that `"auto"`
+#'   would refuse, since detection reads any two-valued column as binary; it is
+#'   accepted so that every diagnostic takes the same argument.
 #'
 #' @return An `eta_bias_result` object, an S7 subclass of
 #'   [positivity_diagnostic]. Its `@results` tibble has one row per truncation

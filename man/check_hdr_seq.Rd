@@ -44,7 +44,15 @@ covariates and exposures enter each conditioning set. Defaults to \code{Inf}, th
 full history.}
 
 \item{exposure_type}{One of \code{"auto"} (detect from the data, the default) or
-\code{"continuous"}.}
+\code{"continuous"}, applied to every exposure column in turn. A supplied type is
+authoritative and detection is not consulted, so \code{"continuous"} is rejected
+only when an exposure column is not numeric, and the error names the column.
+Declaring it on numeric columns with few distinct values, doses recorded at
+a handful of milligram levels for instance, is exactly the supported use:
+the unique-value heuristic reads such a column as categorical, so under
+\code{"auto"} the call aborts. Because numeric is the whole of the requirement, a
+two-valued numeric column is then accepted as well, which is the price of an
+authoritative declaration.}
 }
 \value{
 An \code{hdr_result} object, an S7 subclass of \link{positivity_diagnostic}.

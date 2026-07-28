@@ -76,9 +76,12 @@ edp <- check_edp(pos_violations_long, a2, c(l0, l1), values = c(1, 3, 5))
 edp
 ```
 
-The message reports that the exposure was detected as continuous. Each
-diagnostic re-detects the exposure type from the data, so the same message
-appears with every call below.
+The message reports that the exposure was detected as continuous. Detection runs
+once per call and announces the type it settles on, so a message of this form
+accompanies every call below that leaves the type to detection, while a declared
+type prints none. It is a default and not an override: the section on declaring
+the exposure type shows how to set the type yourself when the heuristic reads a
+continuous exposure as something else.
 
 Effective data points are a relative measure, meaningful when compared across
 candidate values for a fixed covariate set rather than against a universal
@@ -221,6 +224,66 @@ geometries of violation.
 
 Running all three and reading them together shows both the location of a violation
 and the kind of support it lacks.
+
+## Declaring the exposure type
+
+Every diagnostic infers the exposure type from the data unless you declare it.
+Exactly two distinct values is read as binary; otherwise a numeric exposure is
+read as categorical when fewer than 20 percent of its values are distinct, which
+is a sensible default and the wrong answer for a coarsely measured dose.
+Consider a drug dose recorded at eight milligram levels across 150 subjects,
+with higher doses given to subjects with higher `l`.
+
+```{r coarse}
+set.seed(3)
+n <- 150
+l <- rnorm(n)
+dose <- round(pmin(pmax(35 + 15 * l + rnorm(n, sd = 5), 0), 70) / 10) * 10
+coarse <- data.frame(dose = dose, l = l)
+
+sort(unique(coarse$dose))
+```
+
+The dose is continuous in every sense that matters to these diagnostics, but
+eight distinct values over 150 observations fall well under the cutoff, so it is
+detected as categorical.
+
+```{r coarse-detected}
+check_edp(coarse, dose, l, values = c(10, 40, 70))
+```
+
+`check_edp()` accepts a categorical exposure, so it runs regardless, treating
+each dose level as a category. `check_hat_values()` and `check_hdr()` do not
+accept one, so under detection alone neither would run here at all. Setting
+`exposure_type` settles the question. A declared type is authoritative:
+detection is not consulted at all, and the declaration is refused only when its
+math cannot run on the column as given, which for `"continuous"` means a column
+that is not numeric and for `"binary"` a column without exactly two distinct
+values.
+
+```{r coarse-declared}
+check_hdr(coarse, dose, l, values = c(10, 40, 70), exposure_type = "continuous")
+```
+
+The non-overlap ratio is lowest at `40`, near the center of the observed doses,
+and highest at the two extremes, which few covariate profiles support.
+
+`check_positivity()` takes the same argument and forwards the resolved type to
+every diagnostic it composes, so one declaration covers the whole set.
+
+```{r coarse-composed}
+set.seed(4)
+check_positivity(coarse, dose, l, exposure_type = "continuous")
+```
+
+Each diagnostic offers only the types it supports, so `"binary"` is not among
+`check_hdr()`'s choices and declaring it there fails on the argument rather than
+on the column. `check_positivity()` takes all three types, so it is where the
+structural rule does the refusing: eight distinct doses are not two.
+
+```{r coarse-wrong, error = TRUE}
+check_positivity(coarse, dose, l, exposure_type = "binary")
+```
 
 ## Time-varying exposures
 

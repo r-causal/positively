@@ -18,7 +18,8 @@ check_extrapolation(
 \item{.data}{A data frame.}
 
 \item{.exposure}{The binary exposure column, selected with data-masking.
-\code{check_extrapolation()} aborts for continuous or categorical exposures.}
+\code{check_extrapolation()} aborts unless the exposure has exactly two distinct
+values, whether that type is detected or declared through \code{exposure_type}.}
 
 \item{.covariates}{The covariate columns, selected with tidyselect. Numeric
 and categorical covariates are both supported by the Gower distance.}
@@ -36,7 +37,11 @@ warning when there are no numeric covariates or the dimension is high.
 \code{FALSE} skips it.}
 
 \item{exposure_type}{One of \code{"auto"} (detect from the data, the default) or
-\code{"binary"}.}
+\code{"binary"}. A supplied type is authoritative and detection is not consulted,
+so \code{"binary"} is rejected only when the exposure column does not have
+exactly two distinct values. Declaring it unlocks no call that \code{"auto"}
+would refuse, since detection reads any two-valued column as binary; it is
+accepted so that every diagnostic takes the same argument.}
 }
 \value{
 An \code{extrapolation_result} object, an S7 subclass of

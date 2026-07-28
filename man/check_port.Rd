@@ -46,7 +46,12 @@ and flag every subgroup. Ignored for binary and categorical exposures.}
 points that override \code{n_bins}. \code{NULL} (the default) uses quantile bins.}
 
 \item{exposure_type}{One of \code{"auto"} (detect from the data, the default),
-\code{"binary"}, \code{"categorical"}, or \code{"continuous"}.}
+\code{"binary"}, \code{"categorical"}, or \code{"continuous"}. A supplied type is
+authoritative and detection is not consulted, so it is rejected only when
+the exposure column cannot carry it: \code{"continuous"} needs a numeric column
+and \code{"binary"} needs exactly two distinct values, while \code{"categorical"} asks
+nothing of the column. The type also selects how the exposure is read: only
+a continuous type is categorized into \code{n_bins} quantile bins.}
 
 \item{...}{Passed to \code{\link[rpart:rpart.control]{rpart::rpart.control()}}, for example \code{cp}.}
 }

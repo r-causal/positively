@@ -24,7 +24,8 @@ check_eta_bias(
 \item{.data}{A data frame.}
 
 \item{.exposure}{The binary exposure column, selected with data-masking.
-\code{check_eta_bias()} aborts for continuous or categorical exposures.}
+\code{check_eta_bias()} aborts unless the exposure has exactly two distinct
+values, whether that type is detected or declared through \code{exposure_type}.}
 
 \item{.outcome}{The outcome column, selected with data-masking.}
 
@@ -69,7 +70,11 @@ the default) or \code{"empirical"} (resample residuals). Ignored for binary
 outcomes.}
 
 \item{exposure_type}{One of \code{"auto"} (detect from the data, the default) or
-\code{"binary"}.}
+\code{"binary"}. A supplied type is authoritative and detection is not consulted,
+so \code{"binary"} is rejected only when the exposure column does not have
+exactly two distinct values. Declaring it unlocks no call that \code{"auto"}
+would refuse, since detection reads any two-valued column as binary; it is
+accepted so that every diagnostic takes the same argument.}
 }
 \value{
 An \code{eta_bias_result} object, an S7 subclass of

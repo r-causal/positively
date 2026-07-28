@@ -99,7 +99,12 @@ port_result <- new_class(
 #' @param breaks For a continuous exposure, at least three distinct numeric cut
 #'   points that override `n_bins`. `NULL` (the default) uses quantile bins.
 #' @param exposure_type One of `"auto"` (detect from the data, the default),
-#'   `"binary"`, `"categorical"`, or `"continuous"`.
+#'   `"binary"`, `"categorical"`, or `"continuous"`. A supplied type is
+#'   authoritative and detection is not consulted, so it is rejected only when
+#'   the exposure column cannot carry it: `"continuous"` needs a numeric column
+#'   and `"binary"` needs exactly two distinct values, while `"categorical"` asks
+#'   nothing of the column. The type also selects how the exposure is read: only
+#'   a continuous type is categorized into `n_bins` quantile bins.
 #' @param ... Passed to [rpart::rpart.control()], for example `cp`.
 #'
 #' @return A `port_result` object, an S7 subclass of [positivity_diagnostic].

@@ -89,7 +89,8 @@ extrapolation_result <- new_class(
 #'
 #' @param .data A data frame.
 #' @param .exposure The binary exposure column, selected with data-masking.
-#'   `check_extrapolation()` aborts for continuous or categorical exposures.
+#'   `check_extrapolation()` aborts unless the exposure has exactly two distinct
+#'   values, whether that type is detected or declared through `exposure_type`.
 #' @param .covariates The covariate columns, selected with tidyselect. Numeric
 #'   and categorical covariates are both supported by the Gower distance.
 #' @param nearby The reference radius as a multiple of the geometric variability.
@@ -103,7 +104,11 @@ extrapolation_result <- new_class(
 #'   warning when there are no numeric covariates or the dimension is high.
 #'   `FALSE` skips it.
 #' @param exposure_type One of `"auto"` (detect from the data, the default) or
-#'   `"binary"`.
+#'   `"binary"`. A supplied type is authoritative and detection is not consulted,
+#'   so `"binary"` is rejected only when the exposure column does not have
+#'   exactly two distinct values. Declaring it unlocks no call that `"auto"`
+#'   would refuse, since detection reads any two-valued column as binary; it is
+#'   accepted so that every diagnostic takes the same argument.
 #'
 #' @return An `extrapolation_result` object, an S7 subclass of
 #'   [positivity_diagnostic]. Its `@results` tibble has one row per observation

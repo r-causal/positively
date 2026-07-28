@@ -80,7 +80,10 @@ hat_values_result <- new_class(
 #'
 #' @param .data A data frame.
 #' @param .exposure The continuous exposure column, selected with data-masking.
-#'   `check_hat_values()` aborts for binary or categorical exposures.
+#'   Under the default `exposure_type = "auto"`, `check_hat_values()` aborts when
+#'   the exposure is detected as binary or categorical; declaring
+#'   `exposure_type = "continuous"` passes any numeric column through the type
+#'   gate.
 #' @param .covariates The covariate columns, selected with tidyselect.
 #' @param probs A numeric vector of exposure percentiles, each in `[0, 1]`, at
 #'   which candidate points are formed. Defaults to `seq(0.05, 0.95, by =
@@ -96,7 +99,14 @@ hat_values_result <- new_class(
 #' @param conf_level The null quantile, strictly between 0 and 1, against which the observed
 #'   \eqn{\hat{\phi}} is compared. Defaults to `0.95`.
 #' @param exposure_type One of `"auto"` (detect from the data, the default) or
-#'   `"continuous"`.
+#'   `"continuous"`. A supplied type is authoritative and detection is not
+#'   consulted, so `"continuous"` is rejected only when the exposure column is
+#'   not numeric. Declaring it on a numeric column with few distinct values, a
+#'   dose recorded at a handful of milligram levels for instance, is exactly the
+#'   supported use: the unique-value heuristic reads such a column as
+#'   categorical, so under `"auto"` the call aborts. Because numeric is the whole
+#'   of the requirement, a two-valued numeric column is then accepted as well,
+#'   which is the price of an authoritative declaration.
 #'
 #' @return A `hat_values_result` object, an S7 subclass of
 #'   [positivity_diagnostic]. Its `@results` tibble has one row per candidate

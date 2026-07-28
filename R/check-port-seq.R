@@ -34,13 +34,23 @@
 #' non-missing pooled exposure across all time points, so the follower set is
 #' defined against the regime's untreated level rather than whichever levels
 #' happen to survive at a given wave, and an `NA` exposure, for example one a
-#' censored subject carries after leaving the study, distorts neither. A
-#' non-binary exposure carries no follower restriction, so every subject stays
-#' in every risk set. When a risk set at some time point is empty or too small
-#' to support
-#' the reading rule, for example a fully treated preceding wave or a single
-#' follower under the Gruber bound, that time point is skipped with a warning,
-#' contributes no rows, and records `NA` in `@beta`.
+#' censored subject carries after leaving the study, distorts neither. The type
+#' is detected from the pooled exposure unless you declare it through
+#' `exposure_type`, and a declaration is authoritative.
+#'
+#' Only a binary type carries the follower restriction; under any other type
+#' every subject stays in every risk set. Declaring a non-binary type on a binary
+#' exposure therefore changes the analysis rather than only the guardrail: the
+#' already-treated are pooled back in, the diagnostic stops exposing the
+#' violations that pooling over them masks, and the trees tend to flag the
+#' trivial rule that an earlier exposure predicts the current one. Declare a
+#' non-binary type on a binary exposure only when you intend to drop the regime
+#' restriction.
+#'
+#' When a risk set at some time point is empty or too small to support the
+#' reading rule, for example a fully treated preceding wave or a single follower
+#' under the Gruber bound, that time point is skipped with a warning, contributes
+#' no rows, and records `NA` in `@beta`.
 #'
 #' When `beta = "gruber"` the prevalence threshold is resolved per time point
 #' from the risk-set size \eqn{n_t}, as \eqn{5 / (\sqrt{n_t} \, \ln n_t)}. Under
@@ -112,8 +122,14 @@
 #' @param alpha,beta,gamma,n_bins,breaks As in [check_port()]. `beta` is
 #'   resolved per time point when it is `"gruber"`.
 #' @param exposure_type One of `"auto"` (detect from the data, the default),
-#'   `"binary"`, `"categorical"`, or `"continuous"`. Resolved once from the
-#'   exposure pooled across time points.
+#'   `"binary"`, `"categorical"`, or `"continuous"`, resolved once from the
+#'   exposure pooled across time points. A supplied type is authoritative and
+#'   detection is not consulted, so it is rejected only when the pooled exposure
+#'   cannot carry it: `"continuous"` needs a numeric column and `"binary"` needs
+#'   exactly two distinct values, while `"categorical"` asks nothing of the
+#'   column. The type also decides the risk sets, so declaring a non-binary type
+#'   on a binary exposure changes the analysis rather than only the guardrail;
+#'   see Details.
 #' @param ... Passed to [rpart::rpart.control()].
 #'
 #' @return A `port_result` object, an S7 subclass of [positivity_diagnostic].

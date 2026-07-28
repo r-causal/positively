@@ -18,7 +18,9 @@ check_hdr(
 \item{.data}{A data frame.}
 
 \item{.exposure}{The continuous exposure column, selected with data-masking.
-\code{check_hdr()} aborts for binary or categorical exposures.}
+Under the default \code{exposure_type = "auto"}, \code{check_hdr()} aborts when the
+exposure is detected as binary or categorical; declaring
+\code{exposure_type = "continuous"} accepts any numeric column.}
 
 \item{.covariates}{The covariate columns, selected with tidyselect.}
 
@@ -33,7 +35,14 @@ the observed exposure range.}
 with \code{\link[=hdr_density_normal]{hdr_density_normal()}} (the default) or \code{\link[=new_hdr_density]{new_hdr_density()}}.}
 
 \item{exposure_type}{One of \code{"auto"} (detect from the data, the default) or
-\code{"continuous"}.}
+\code{"continuous"}. A supplied type is authoritative and detection is not
+consulted, so \code{"continuous"} is rejected only when the exposure column is
+not numeric. Declaring it on a numeric column with few distinct values, a
+dose recorded at a handful of milligram levels for instance, is exactly the
+supported use: the unique-value heuristic reads such a column as
+categorical, so under \code{"auto"} the call aborts. Because numeric is the whole
+of the requirement, a two-valued numeric column is then accepted as well,
+which is the price of an authoritative declaration.}
 }
 \value{
 An \code{hdr_result} object, an S7 subclass of \link{positivity_diagnostic}.

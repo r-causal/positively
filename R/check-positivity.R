@@ -41,22 +41,39 @@ default_diagnostics <- function(exposure_type) {
 
 #' Diagnose positivity across the applicable methods
 #'
-#' `check_positivity()` is the general entry point to positively. It detects the
-#' exposure type, runs the diagnostics that apply to that type with their
-#' defaults, and returns a [positivity_check] container whose print method shows
-#' each diagnostic's summary in its own section. Like every positively function,
-#' it is diagnostic only: it reports numbers, not verdicts.
+#' `check_positivity()` is the general entry point to positively. It resolves the
+#' exposure type, detecting it from the data unless you declare one, runs the
+#' diagnostics that apply to that type with their defaults, and returns a
+#' [positivity_check] container whose print method shows each diagnostic's
+#' summary in its own section. Like every positively function, it is diagnostic
+#' only: it reports numbers, not verdicts.
 #'
 #' @details
-#' `check_positivity()` resolves the exposure type a single time and announces it
-#' once through an informational message (suppressed by
-#' `options(positively.quiet = TRUE)`). Every diagnostic it composes is handed
-#' that resolved type, so none of them detects a type of its own and the type is
-#' reported once. Every other informational message a diagnostic emits still
-#' reaches you. The resolved type, whether you supplied it or it was detected, is
-#' checked against the exposure column itself before any diagnostic runs: a
-#' continuous type needs a numeric column, and a binary type needs exactly two
-#' distinct values. The default diagnostic set depends on the exposure type:
+#' `check_positivity()` resolves the exposure type a single time and hands the
+#' resolved type to every diagnostic it composes, so none of them derives a type
+#' of its own and the type is announced once, through an informational message
+#' suppressed by `options(positively.quiet = TRUE)`. Every other informational
+#' message a diagnostic emits still reaches you.
+#'
+#' Detection is a default, never an override. Under `exposure_type = "auto"` the
+#' type is inferred from the data; supply a type instead and it is authoritative,
+#' with detection not consulted at all. Either way the resolved type is checked
+#' against the exposure column before any diagnostic runs: a continuous type
+#' needs a numeric column, a binary type needs exactly two distinct values, and a
+#' categorical type asks nothing of the column. A declared type therefore aborts
+#' only when its math cannot run on the column as given, never because the
+#' unique-value heuristic read the column differently than you did. A dose
+#' recorded at eight distinct milligram levels is detected as categorical, and
+#' `exposure_type = "continuous"` runs the continuous-exposure diagnostics on it
+#' regardless.
+#'
+#' The diagnostics that run must also apply to the resolved type. Under `"auto"`
+#' that type is a guess, so an inapplicable-diagnostic error names the
+#' `exposure_type` to declare in order to run the rejected diagnostics, offering
+#' only a type the exposure column can carry. Under a declared type the type is
+#' your premise, and the advice is to adjust `diagnostics` instead.
+#'
+#' The default diagnostic set depends on the exposure type:
 #'
 #' - **binary**: [check_edp()], [check_port()], [check_extrapolation()]
 #' - **categorical**: [check_edp()], [check_port()]
@@ -86,11 +103,12 @@ default_diagnostics <- function(exposure_type) {
 #'   `"port"`, `"hat_values"`, `"hdr"`, and `"extrapolation"`, run in the order
 #'   given.
 #' @param exposure_type One of `"auto"` (detect from the data, the default),
-#'   `"binary"`, `"categorical"`, or `"continuous"`. The resolved type is
-#'   forwarded to every diagnostic that runs, so a supplied type is honored
-#'   throughout rather than re-derived from the data by each diagnostic in turn.
-#'   It must be a type the exposure column can carry, and it must apply to every
-#'   entry in `diagnostics`; both are checked before any diagnostic runs.
+#'   `"binary"`, `"categorical"`, or `"continuous"`. A supplied type is
+#'   authoritative: detection is not consulted, and the resolved type is
+#'   forwarded to every diagnostic that runs rather than re-derived from the data
+#'   by each diagnostic in turn. It must be a type the exposure column can carry,
+#'   and it must apply to every entry in `diagnostics`; both are checked before
+#'   any diagnostic runs.
 #' @param args A named list of per-diagnostic option lists, for example
 #'   `list(port = list(alpha = 0.1))`. Each name must be a diagnostic being run.
 #'

@@ -100,7 +100,11 @@ edp_result <- new_class(
 #'   categories, shared by categorical exposures and factor or character
 #'   covariates. Defaults to `0`. A positive value masks categorical violations.
 #' @param exposure_type One of `"auto"` (detect from the data, the default),
-#'   `"binary"`, `"categorical"`, or `"continuous"`.
+#'   `"binary"`, `"categorical"`, or `"continuous"`. A supplied type is
+#'   authoritative and detection is not consulted, so it is rejected only when
+#'   the exposure column cannot carry it: `"continuous"` needs a numeric column
+#'   and `"binary"` needs exactly two distinct values, while `"categorical"` asks
+#'   nothing of the column.
 #'
 #' @return An `edp_result` object, an S7 subclass of [positivity_diagnostic].
 #'   Its `@results` tibble has one row per observation and intervention value.

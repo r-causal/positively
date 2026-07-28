@@ -20,7 +20,10 @@ check_hat_values(
 \item{.data}{A data frame.}
 
 \item{.exposure}{The continuous exposure column, selected with data-masking.
-\code{check_hat_values()} aborts for binary or categorical exposures.}
+Under the default \code{exposure_type = "auto"}, \code{check_hat_values()} aborts when
+the exposure is detected as binary or categorical; declaring
+\code{exposure_type = "continuous"} passes any numeric column through the type
+gate.}
 
 \item{.covariates}{The covariate columns, selected with tidyselect.}
 
@@ -42,7 +45,14 @@ A uniform null is deliberately not offered; see Details.}
 \eqn{\hat{\phi}} is compared. Defaults to \code{0.95}.}
 
 \item{exposure_type}{One of \code{"auto"} (detect from the data, the default) or
-\code{"continuous"}.}
+\code{"continuous"}. A supplied type is authoritative and detection is not
+consulted, so \code{"continuous"} is rejected only when the exposure column is
+not numeric. Declaring it on a numeric column with few distinct values, a
+dose recorded at a handful of milligram levels for instance, is exactly the
+supported use: the unique-value heuristic reads such a column as
+categorical, so under \code{"auto"} the call aborts. Because numeric is the whole
+of the requirement, a two-valued numeric column is then accepted as well,
+which is the price of an authoritative declaration.}
 }
 \value{
 A \code{hat_values_result} object, an S7 subclass of

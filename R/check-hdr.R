@@ -69,7 +69,9 @@ hdr_result <- new_class(
 #'
 #' @param .data A data frame.
 #' @param .exposure The continuous exposure column, selected with data-masking.
-#'   `check_hdr()` aborts for binary or categorical exposures.
+#'   Under the default `exposure_type = "auto"`, `check_hdr()` aborts when the
+#'   exposure is detected as binary or categorical; declaring
+#'   `exposure_type = "continuous"` accepts any numeric column.
 #' @param .covariates The covariate columns, selected with tidyselect.
 #' @param mass The HDR probability mass, a single value strictly between 0 and 1.
 #'   Defaults to `0.95`.
@@ -79,7 +81,14 @@ hdr_result <- new_class(
 #' @param density_estimator An `hdr_density` conditional-density estimator, built
 #'   with [hdr_density_normal()] (the default) or [new_hdr_density()].
 #' @param exposure_type One of `"auto"` (detect from the data, the default) or
-#'   `"continuous"`.
+#'   `"continuous"`. A supplied type is authoritative and detection is not
+#'   consulted, so `"continuous"` is rejected only when the exposure column is
+#'   not numeric. Declaring it on a numeric column with few distinct values, a
+#'   dose recorded at a handful of milligram levels for instance, is exactly the
+#'   supported use: the unique-value heuristic reads such a column as
+#'   categorical, so under `"auto"` the call aborts. Because numeric is the whole
+#'   of the requirement, a two-valued numeric column is then accepted as well,
+#'   which is the price of an authoritative declaration.
 #'
 #' @return An `hdr_result` object, an S7 subclass of [positivity_diagnostic].
 #'   Its `@results` tibble has one row per target value with columns `value` (the
@@ -405,7 +414,15 @@ hdr_nonoverlap <- function(
 #'   covariates and exposures enter each conditioning set. Defaults to `Inf`, the
 #'   full history.
 #' @param exposure_type One of `"auto"` (detect from the data, the default) or
-#'   `"continuous"`.
+#'   `"continuous"`, applied to every exposure column in turn. A supplied type is
+#'   authoritative and detection is not consulted, so `"continuous"` is rejected
+#'   only when an exposure column is not numeric, and the error names the column.
+#'   Declaring it on numeric columns with few distinct values, doses recorded at
+#'   a handful of milligram levels for instance, is exactly the supported use:
+#'   the unique-value heuristic reads such a column as categorical, so under
+#'   `"auto"` the call aborts. Because numeric is the whole of the requirement, a
+#'   two-valued numeric column is then accepted as well, which is the price of an
+#'   authoritative declaration.
 #'
 #' @return An `hdr_result` object, an S7 subclass of [positivity_diagnostic].
 #'   Its `@results` tibble has one row per time point and target value with

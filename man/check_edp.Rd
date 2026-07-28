@@ -55,7 +55,11 @@ categories, shared by categorical exposures and factor or character
 covariates. Defaults to \code{0}. A positive value masks categorical violations.}
 
 \item{exposure_type}{One of \code{"auto"} (detect from the data, the default),
-\code{"binary"}, \code{"categorical"}, or \code{"continuous"}.}
+\code{"binary"}, \code{"categorical"}, or \code{"continuous"}. A supplied type is
+authoritative and detection is not consulted, so it is rejected only when
+the exposure column cannot carry it: \code{"continuous"} needs a numeric column
+and \code{"binary"} needs exactly two distinct values, while \code{"categorical"} asks
+nothing of the column.}
 }
 \value{
 An \code{edp_result} object, an S7 subclass of \link{positivity_diagnostic}.
