@@ -149,8 +149,8 @@ test_that("an explicit exposure_type overrides auto detection", {
 })
 
 # A coarse numeric exposure: few unique values, so detection calls it
-# categorical, yet a continuous override is a legitimate request check_port()
-# honours directly.
+# categorical, yet the column is numeric and so can carry a declared continuous
+# type without complaint.
 sim_pos_coarse_numeric <- function(n = 150, seed = 1) {
   withr::local_seed(seed)
   tibble::tibble(
@@ -160,13 +160,29 @@ sim_pos_coarse_numeric <- function(n = 150, seed = 1) {
   )
 }
 
-test_that("a forced type infeasible for a re-detecting child aborts up front", {
+test_that("a declared type the exposure cannot carry aborts before any child runs", {
   local_quiet()
   data <- sim_pos_categorical(150)
-  # The exposure is a three-level factor (detected categorical). Forcing binary
-  # lets extrapolation pass the applicability check, but extrapolation re-detects
-  # categorical, so the request must abort before any child runs.
-  expect_error(
+  # The exposure is a three-level factor, so a declared binary type is
+  # structurally impossible: binary needs exactly two distinct values. The abort
+  # must come from the entry point's own structural check, before any diagnostic
+  # is dispatched, so that no child burns a full computation on a request that
+  # cannot succeed. Recording the dispatches pins that directly; the condition
+  # class pins the source, since anything a child raised would arrive wrapped as
+  # a composition error.
+  dispatched <- character()
+  testthat::local_mocked_bindings(
+    check_port = function(...) {
+      dispatched <<- c(dispatched, "port")
+      NULL
+    },
+    check_extrapolation = function(...) {
+      dispatched <<- c(dispatched, "extrapolation")
+      NULL
+    }
+  )
+
+  cnd <- rlang::catch_cnd(
     check_positivity(
       data,
       exposure,
@@ -174,15 +190,69 @@ test_that("a forced type infeasible for a re-detecting child aborts up front", {
       diagnostics = c("port", "extrapolation"),
       exposure_type = "binary"
     ),
-    class = "positively_error"
+    classes = "error"
   )
+  expect_s3_class(cnd, "positively_exposure_type_error")
+  expect_false(inherits(cnd, "positively_composition_error"))
+  expect_identical(dispatched, character())
+
+  # port accepts every exposure type, so nothing about the requested set signals
+  # the problem. Only the column's own structure does, and the gate must catch it
+  # just the same.
+  cnd_port <- rlang::catch_cnd(
+    check_positivity(
+      data,
+      exposure,
+      c(x1, x2),
+      diagnostics = "port",
+      exposure_type = "binary"
+    ),
+    classes = "error"
+  )
+  expect_s3_class(cnd_port, "positively_exposure_type_error")
+  expect_false(inherits(cnd_port, "positively_composition_error"))
+  expect_identical(dispatched, character())
 })
 
-test_that("a forced type a non-re-detecting child accepts is allowed", {
+test_that("the structural gate runs before the applicability check", {
+  local_quiet()
+  data <- sim_pos_categorical(150)
+  # Two guards would fire on this call: the three-level factor cannot carry the
+  # declared binary type, and hat_values does not apply to a binary exposure
+  # either. Only the structural one gives advice worth acting on. Reported the
+  # other way round, the user is told which type would run hat_values, and the
+  # column cannot carry that type either, so following the advice aborts again.
+  # The condition class pins which guard spoke first.
+  dispatched <- character()
+  testthat::local_mocked_bindings(
+    check_hat_values = function(...) {
+      dispatched <<- c(dispatched, "hat_values")
+      NULL
+    }
+  )
+
+  cnd <- rlang::catch_cnd(
+    check_positivity(
+      data,
+      exposure,
+      c(x1, x2),
+      diagnostics = "hat_values",
+      exposure_type = "binary"
+    ),
+    classes = "error"
+  )
+  expect_s3_class(cnd, "positively_exposure_type_error")
+  expect_false(inherits(cnd, "positively_diagnostic_error"))
+  expect_false(inherits(cnd, "positively_composition_error"))
+  expect_identical(dispatched, character())
+})
+
+test_that("a declared type the exposure can carry is honoured", {
   local_quiet()
   data <- sim_pos_coarse_numeric(150)
-  # Detection calls the coarse numeric exposure categorical, but check_port()
-  # accepts a continuous override directly, so the request must succeed.
+  # Detection calls the coarse numeric exposure categorical, but the column is
+  # numeric and so carries a declared continuous type, which check_port()
+  # computes on.
   res <- check_positivity(
     data,
     exposure,
@@ -193,6 +263,68 @@ test_that("a forced type a non-re-detecting child accepts is allowed", {
   expect_identical(child_named(res, "port")@exposure_type, "continuous")
 })
 
+test_that("a declared continuous type runs the continuous set on a coarse dose", {
+  local_quiet()
+  data <- dgp_coarse_dose(n = 150)
+  # Eight distinct milligram levels over 150 rows put the unique-value ratio
+  # below the is_categorical() cutoff, so detection reads a genuinely continuous
+  # dose as categorical. Declaring the type must be enough on its own: the full
+  # continuous default set runs, hat_values and hdr included, and every child
+  # computes on the declared type rather than on its own reading of the column.
+  expect_identical(
+    detect_exposure_type(data$exposure, announce = FALSE),
+    "categorical"
+  )
+
+  # null_reps is shrunk so the hat-values null resampling stays cheap.
+  res <- check_positivity(
+    data,
+    exposure,
+    x1,
+    exposure_type = "continuous",
+    args = list(hat_values = list(null_reps = 25))
+  )
+
+  expect_identical(res@diagnostics, c("edp", "port", "hat_values", "hdr"))
+  expect_identical(
+    vapply(res@checks, function(check) check@exposure_type, character(1)),
+    rep("continuous", 4L)
+  )
+})
+
+# ---- Forwarding the resolved exposure type --------------------------------
+
+test_that("every composed diagnostic accepts each type it can be forwarded", {
+  # check_positivity() forwards the resolved exposure type to every child, so a
+  # type listed for a diagnostic here that the child's own exposure_type
+  # argument does not offer would reach that child as an arg_match() failure and
+  # surface as a composition error rather than as the argument error it is.
+  # Deriving both sides from the package keeps the invariant true of diagnostics
+  # added later, not only of the five composed today.
+  offered <- diagnostic_exposure_types()
+  expect_setequal(names(offered), composed_diagnostics())
+
+  unsupported <- vapply(
+    composed_diagnostics(),
+    function(name) {
+      child <- rlang::env_get(
+        rlang::ns_env("positively"),
+        paste0("check_", name)
+      )
+      accepted <- eval(formals(child)$exposure_type)
+      paste(setdiff(offered[[name]], accepted), collapse = ", ")
+    },
+    character(1)
+  )
+  expect_identical(
+    unsupported,
+    rlang::set_names(
+      rep("", length(composed_diagnostics())),
+      composed_diagnostics()
+    )
+  )
+})
+
 # ---- Child alerts and failures --------------------------------------------
 
 test_that("a child informational alert survives the entry point", {
@@ -201,8 +333,9 @@ test_that("a child informational alert survives the entry point", {
     positively.gower_chunk_threshold = 20
   )
   data <- dgp_good_positivity(n = 60)
-  # The chunked-Gower notice comes from within check_extrapolation(); it must
-  # still reach the user even though the repeated detection message is muffled.
+  # The chunked-Gower notice comes from within check_extrapolation(). The child
+  # is handed the resolved exposure type and so announces no type of its own,
+  # but every other informational alert it raises must still reach the user.
   expect_message(
     expect_message(
       check_positivity(
@@ -220,9 +353,9 @@ test_that("a child informational alert survives the entry point", {
 test_that("the detection message is announced exactly once at default verbosity", {
   withr::local_options(positively.quiet = FALSE)
   data <- dgp_good_positivity(n = 60)
-  # extrapolation re-detects the exposure type internally, so without muffling
-  # the announcement would appear twice: once from the entry point and once from
-  # the child.
+  # The entry point resolves the exposure type once and forwards it to every
+  # child, so extrapolation receives a concrete type and never detects one for
+  # itself. The announcement therefore has exactly one source.
   messages <- character()
   withCallingHandlers(
     check_positivity(data, exposure, c(x1, x2), diagnostics = "extrapolation"),
@@ -331,6 +464,28 @@ test_that("an args entry that is not a list is rejected", {
     ),
     class = "positively_error"
   )
+})
+
+test_that("args naming exposure_type for a diagnostic is rejected", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  # check_positivity() forwards its own exposure_type to every child, so an
+  # exposure_type inside a per-diagnostic option list collides with it. Left to
+  # R that surfaces as an unclassed "matched by multiple actual arguments"
+  # error, wrapped as a composition failure that blames the child rather than
+  # the argument the caller wrote.
+  cnd <- rlang::catch_cnd(
+    check_positivity(
+      data,
+      exposure,
+      c(x1, x2),
+      diagnostics = "port",
+      args = list(port = list(exposure_type = "categorical"))
+    ),
+    classes = "error"
+  )
+  expect_s3_class(cnd, "positively_args_error")
+  expect_false(inherits(cnd, "positively_composition_error"))
 })
 
 test_that("tidy() is reachable without qualifying the generic", {
@@ -596,6 +751,115 @@ test_that("extrapolation is invalid for a continuous exposure", {
   )
 })
 
+# The lines of a condition's message that mention every one of `terms`, or the
+# whole message when no line mentions them all, so that a failed expectation
+# prints what the message actually said. Matching a line at a time keeps a
+# diagnostic and the type it needs read as one statement rather than as two
+# words that happen to appear somewhere in the message.
+lines_mentioning <- function(cnd, terms) {
+  message <- conditionMessage(cnd)
+  lines <- strsplit(message, "\n", fixed = TRUE)[[1]]
+  mentions <- vapply(
+    lines,
+    function(line) {
+      all(vapply(terms, grepl, logical(1), x = line, fixed = TRUE))
+    },
+    logical(1)
+  )
+  if (any(mentions)) lines[mentions] else message
+}
+
+test_that("inapplicable diagnostics that share a type name it once", {
+  local_quiet()
+  # cli wraps to the console width and the advice is read one line at a time, so
+  # the width is widened to keep a long sentence intact.
+  withr::local_options(cli.width = 500)
+  data <- dgp_good_positivity(n = 200)
+  # Under auto detection the exposure type is a heuristic guess rather than
+  # something the caller asserted, and the abort is the only place a user learns
+  # the guess can be overridden. hat_values and hdr both need a continuous
+  # exposure, so a single sentence names that type and both diagnostics.
+  cnd <- rlang::catch_cnd(
+    check_positivity(
+      data,
+      exposure,
+      c(x1, x2),
+      diagnostics = c("hat_values", "hdr")
+    ),
+    classes = "error"
+  )
+  expect_s3_class(cnd, "positively_diagnostic_error")
+  expect_match(conditionMessage(cnd), "exposure_type", fixed = TRUE)
+  expect_match(
+    lines_mentioning(cnd, c("hat_values", "hdr")),
+    "continuous",
+    fixed = TRUE,
+    all = FALSE
+  )
+})
+
+test_that("inapplicable diagnostics needing different types are named apart", {
+  local_quiet()
+  withr::local_options(cli.width = 500)
+  data <- sim_pos_categorical(150)
+  # A categorical exposure rejects both, but hat_values needs a continuous type
+  # and extrapolation a binary one, so there is no single type to suggest. Each
+  # diagnostic must be named with the type it needs; a sentence that only says
+  # the type is settable leaves the caller to work out which type to set.
+  cnd <- rlang::catch_cnd(
+    check_positivity(
+      data,
+      exposure,
+      c(x1, x2),
+      diagnostics = c("hat_values", "extrapolation")
+    ),
+    classes = "error"
+  )
+  expect_s3_class(cnd, "positively_diagnostic_error")
+  expect_match(conditionMessage(cnd), "exposure_type", fixed = TRUE)
+  expect_match(
+    lines_mentioning(cnd, "hat_values"),
+    "continuous",
+    fixed = TRUE,
+    all = FALSE
+  )
+  expect_match(
+    lines_mentioning(cnd, "extrapolation"),
+    "binary",
+    fixed = TRUE,
+    all = FALSE
+  )
+})
+
+test_that("a declared type is answered with the diagnostic set, not a type", {
+  local_quiet()
+  withr::local_options(cli.width = 500)
+  data <- sim_pos_categorical(150)
+  # The two calls resolve to the same categorical type and reject the same
+  # diagnostic; only the source of the type differs. A detected type is a guess,
+  # so naming the type that would run hat_values tells the caller the guess is
+  # overridable. A declared type is a premise, and the advice that follows from a
+  # premise is to fix the requested set, which the list of valid diagnostics
+  # already gives.
+  detected <- rlang::catch_cnd(
+    check_positivity(data, exposure, c(x1, x2), diagnostics = "hat_values"),
+    classes = "error"
+  )
+  declared <- rlang::catch_cnd(
+    check_positivity(
+      data,
+      exposure,
+      c(x1, x2),
+      diagnostics = "hat_values",
+      exposure_type = "categorical"
+    ),
+    classes = "error"
+  )
+  expect_s3_class(declared, "positively_diagnostic_error")
+  expect_match(conditionMessage(detected), "continuous", fixed = TRUE)
+  expect_no_match(conditionMessage(declared), "continuous", fixed = TRUE)
+})
+
 test_that("args naming a diagnostic that is not run aborts", {
   local_quiet()
   data <- dgp_good_positivity(n = 200)
@@ -755,6 +1019,37 @@ test_that("the classed errors are stable", {
   # [[ rejects a non-scalar index.
   expect_snapshot(
     res[[c("port", "extrapolation")]],
+    error = TRUE
+  )
+  # Inapplicable diagnostics that all need the same type name it once.
+  expect_snapshot(
+    check_positivity(
+      data,
+      exposure,
+      c(x1, x2),
+      diagnostics = c("hat_values", "hdr")
+    ),
+    error = TRUE
+  )
+  # Inapplicable diagnostics needing different types are named apart.
+  expect_snapshot(
+    check_positivity(
+      sim_pos_categorical(150),
+      exposure,
+      c(x1, x2),
+      diagnostics = c("hat_values", "extrapolation")
+    ),
+    error = TRUE
+  )
+  # An exposure_type inside a per-diagnostic option list.
+  expect_snapshot(
+    check_positivity(
+      data,
+      exposure,
+      c(x1, x2),
+      diagnostics = "port",
+      args = list(port = list(exposure_type = "categorical"))
+    ),
     error = TRUE
   )
 })
