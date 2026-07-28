@@ -15,11 +15,7 @@ positivity assumption: every unit must have a non-zero probability of
 receiving each level of the exposure within every stratum of the
 covariates. Where that probability is zero, or close to it, an estimate
 comes from the model extrapolating rather than from observed
-comparisons. positively is the positivity and extrapolation member of
-the r-causal family, alongside propensity for weighting and halfmoon for
-balance. It reports diagnostics only: each function returns a tidy
-result object and an optional plot, and the judgment of what to do is
-left to you.
+comparisons.
 
 ## Installation
 
@@ -33,13 +29,11 @@ pak::pak("r-causal/positively")
 
 ## Example
 
-`check_positivity()` is the general entry point. Give it a data frame,
-an exposure column, and the covariates, and it detects the exposure type
-and runs the diagnostics appropriate to that type. The bundled
-`pos_violations` dataset has two positivity problems planted in it: a
-structural subgroup that is never exposed, and a practical
-near-violation where the fitted propensity approaches zero or one in the
-tails of `x1`.
+`check_positivity()` detects the exposure type and runs the diagnostics
+appropriate to that type. The bundled `pos_violations` dataset has two
+positivity problems planted in it: a structural subgroup that is never
+exposed, and a practical near-violation where the fitted propensity
+approaches zero or one in the tails of `x1`.
 
 ``` r
 library(positively)
