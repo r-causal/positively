@@ -5,7 +5,14 @@
 \title{Diagnose extrapolation for binary exposures with Gower distances and the
 convex hull}
 \usage{
-check_extrapolation(.data, .exposure, .covariates, nearby = 1, hull = NULL)
+check_extrapolation(
+  .data,
+  .exposure,
+  .covariates,
+  nearby = 1,
+  hull = NULL,
+  exposure_type = c("auto", "binary")
+)
 }
 \arguments{
 \item{.data}{A data frame.}
@@ -27,6 +34,9 @@ numeric covariates and \pkg{lpSolve} is installed, and skips it otherwise.
 \code{TRUE} forces it to run, aborting when \pkg{lpSolve} is not installed and
 warning when there are no numeric covariates or the dimension is high.
 \code{FALSE} skips it.}
+
+\item{exposure_type}{One of \code{"auto"} (detect from the data, the default) or
+\code{"binary"}.}
 }
 \value{
 An \code{extrapolation_result} object, an S7 subclass of

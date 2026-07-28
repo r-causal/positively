@@ -16,7 +16,8 @@ check_eta_bias(
   truncation = NULL,
   truncation_grid = NULL,
   n_boot = 500,
-  error_dist = c("normal", "empirical")
+  error_dist = c("normal", "empirical"),
+  exposure_type = c("auto", "binary")
 )
 }
 \arguments{
@@ -66,6 +67,9 @@ least 2, since the Monte Carlo standard error needs two draws.}
 \code{"normal"} (add Gaussian noise matched to the residual standard deviation,
 the default) or \code{"empirical"} (resample residuals). Ignored for binary
 outcomes.}
+
+\item{exposure_type}{One of \code{"auto"} (detect from the data, the default) or
+\code{"binary"}.}
 }
 \value{
 An \code{eta_bias_result} object, an S7 subclass of

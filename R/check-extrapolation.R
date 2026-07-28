@@ -102,6 +102,8 @@ extrapolation_result <- new_class(
 #'   `TRUE` forces it to run, aborting when \pkg{lpSolve} is not installed and
 #'   warning when there are no numeric covariates or the dimension is high.
 #'   `FALSE` skips it.
+#' @param exposure_type One of `"auto"` (detect from the data, the default) or
+#'   `"binary"`.
 #'
 #' @return An `extrapolation_result` object, an S7 subclass of
 #'   [positivity_diagnostic]. Its `@results` tibble has one row per observation
@@ -146,7 +148,8 @@ check_extrapolation <- function(
   .exposure,
   .covariates,
   nearby = 1,
-  hull = NULL
+  hull = NULL,
+  exposure_type = c("auto", "binary")
 ) {
   validate_data_frame(.data)
   validate_positive_number(nearby, arg_name = "nearby")
@@ -179,16 +182,20 @@ check_extrapolation <- function(
     )
   }
 
-  exposure_type <- detect_exposure_type(exposure_vec)
-  if (exposure_type != "binary") {
-    abort(
-      c(
-        "{.fn check_extrapolation} supports binary exposures only.",
-        i = "{.arg .exposure} was detected as {.val {exposure_type}}."
-      ),
-      error_class = "positively_exposure_type_error"
-    )
-  }
+  # exposure_type grants no new capability here: detect_exposure_type() reads any
+  # two-valued column as binary, so declaring "binary" can never unlock a call
+  # that "auto" rejects. It is accepted so that every diagnostic takes the same
+  # argument. Resolving through resolve_exposure_type() is not inert, though: the
+  # resolved type is checked against the column on both paths, and a one-level
+  # factor, which detection also calls binary, would otherwise reach the Gower
+  # step with an empty opposite group and report infinite distances rather than
+  # abort.
+  exposure_type <- resolve_exposure_type(
+    exposure_type,
+    exposure_vec,
+    supported = "binary",
+    fn = "check_extrapolation"
+  )
 
   covariate_pos <- eval_select_columns(
     rlang::enquo(.covariates),

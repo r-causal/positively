@@ -125,6 +125,8 @@ eta_bias_result <- new_class(
 #'   `"normal"` (add Gaussian noise matched to the residual standard deviation,
 #'   the default) or `"empirical"` (resample residuals). Ignored for binary
 #'   outcomes.
+#' @param exposure_type One of `"auto"` (detect from the data, the default) or
+#'   `"binary"`.
 #'
 #' @return An `eta_bias_result` object, an S7 subclass of
 #'   [positivity_diagnostic]. Its `@results` tibble has one row per truncation
@@ -164,7 +166,8 @@ check_eta_bias <- function(
   truncation = NULL,
   truncation_grid = NULL,
   n_boot = 500,
-  error_dist = c("normal", "empirical")
+  error_dist = c("normal", "empirical"),
+  exposure_type = c("auto", "binary")
 ) {
   validate_data_frame(.data)
   estimator <- rlang::arg_match(estimator)
@@ -224,16 +227,19 @@ check_eta_bias <- function(
     )
   }
 
-  exposure_type <- detect_exposure_type(exposure_vec)
-  if (exposure_type != "binary") {
-    abort(
-      c(
-        "{.fn check_eta_bias} supports binary exposures only.",
-        i = "{.arg .exposure} was detected as {.val {exposure_type}}."
-      ),
-      error_class = "positively_exposure_type_error"
-    )
-  }
+  # exposure_type grants no new capability here: detect_exposure_type() reads any
+  # two-valued column as binary, so declaring "binary" can never unlock a call
+  # that "auto" rejects. It is accepted so that every diagnostic takes the same
+  # argument. Resolving through resolve_exposure_type() is not inert, though: the
+  # resolved type is checked against the column on both paths, and a one-level
+  # factor, which detection also calls binary, would otherwise pass through
+  # binary_to_01() as all zeros and yield a finite, unwarned, meaningless bias.
+  exposure_type <- resolve_exposure_type(
+    exposure_type,
+    exposure_vec,
+    supported = "binary",
+    fn = "check_eta_bias"
+  )
 
   a <- binary_to_01(exposure_vec)
   y <- as.double(.data[[outcome_pos]])

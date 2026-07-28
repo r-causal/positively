@@ -80,6 +80,7 @@
       Error in `check_eta_bias()`:
       ! `check_eta_bias()` supports binary exposures only.
       i `.exposure` was detected as "continuous".
+      i If `.exposure` is binary, set `exposure_type = "binary"`.
 
 ---
 
@@ -89,6 +90,7 @@
       Error in `check_eta_bias()`:
       ! `check_eta_bias()` supports binary exposures only.
       i `.exposure` was detected as "categorical".
+      i If `.exposure` is binary, set `exposure_type = "binary"`.
 
 ---
 
