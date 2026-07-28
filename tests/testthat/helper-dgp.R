@@ -55,11 +55,15 @@ dgp_continuous_support_gap <- function(n = 500, seed = 4) {
   tibble::tibble(exposure = exposure, x1 = x1)
 }
 
-# The eight-level milligram grid every coarse-dose fixture dispenses on, from
-# 2.5 mg to 20 mg. The point-exposure fixture below and the sequential fixture
-# in test-check-hdr.R both read it here, so the two cannot drift apart.
-coarse_dose_grid <- function() {
-  seq(2.5, 20, by = 2.5)
+# The milligram grid every coarse-dose fixture dispenses on, in 2.5 mg steps.
+# The point-exposure fixture below and the sequential fixture in test-check-hdr.R
+# both read the eight-level default here, so the two cannot drift apart.
+# `n_levels` sets how many doses the grid holds: what makes detection read a dose
+# column as coarse is the ratio of distinct doses to observations, not the step
+# size, so a fixture that must read as continuous within a wave takes a longer
+# grid at the same step.
+coarse_dose_grid <- function(n_levels = 8) {
+  seq(2.5, by = 2.5, length.out = n_levels)
 }
 
 # A continuous drug dose dispensed on coarse_dose_grid(). At the default n of
@@ -74,6 +78,36 @@ dgp_coarse_dose <- function(n = 150, seed = 1) {
   exposure <- dose_grid[rep(seq_along(dose_grid), length.out = n)]
   x1 <- stats::rnorm(n, mean = 0.5 * exposure, sd = 3)
   tibble::tibble(exposure = exposure, x1 = x1)
+}
+
+# Longitudinal wide-format data over three time points whose exposure is a drug
+# dose dispensed on a thirty-level coarse_dose_grid() at every wave. At the
+# default n of 120 a single wave puts 30 distinct doses against 120
+# observations, a ratio of 0.25 that clears the 20 percent cutoff in
+# is_categorical(), so one wave reads as continuous. Pooling the waves holds the
+# distinct doses fixed while tripling the observation count, which drops the
+# ratio to 0.083 and reads the same doses as categorical: the type follows the
+# number of waves rather than anything about the dose column. Each wave draws
+# the same multiset of doses in its own order, so the waves share a marginal
+# dose distribution and quantile bins computed wave by wave carry identical
+# labels. Each covariate tracks the dose that precedes it, so a run on a
+# declared continuous type has structure to find.
+dgp_longitudinal_dose <- function(n = 120, seed = 8) {
+  withr::local_seed(seed)
+  dose_grid <- coarse_dose_grid(n_levels = 30)
+  draw_doses <- function() sample(rep(dose_grid, length.out = n))
+  a1 <- draw_doses()
+  a2 <- draw_doses()
+  a3 <- draw_doses()
+  tibble::tibble(
+    id = seq_len(n),
+    l0 = stats::rnorm(n),
+    a1 = a1,
+    l1 = stats::rnorm(n, mean = 0.3 * a1),
+    a2 = a2,
+    l2 = stats::rnorm(n, mean = 0.3 * a2),
+    a3 = a3
+  )
 }
 
 # Longitudinal wide-format data over three time points with a per-time

@@ -213,6 +213,246 @@ test_that("check_port_seq() runs on a continuous exposure by categorizing it", {
   expect_length(sort(unique(res@results$time)), 3)
 })
 
+# ---- Declared exposure type ------------------------------------------------
+
+# Every reported row carries proportion = n / n_t against its own time point's
+# risk set, so the risk-set size is recoverable exactly from the tidy output
+# whatever shape the trees took.
+risk_set_sizes <- function(res) {
+  sizes <- res@results$n / res@results$proportion
+  as.integer(round(tapply(sizes, res@results$time, max)))
+}
+
+test_that("the detected type flips with the wave count on one dose column", {
+  local_quiet()
+  data <- dgp_longitudinal_dose()
+
+  # One wave of doses clears the unique-value cutoff, so detection reads the
+  # column as continuous and the reading rule runs on quantile bins.
+  one_wave <- check_port_seq(data, a1, list(l0), n_bins = 3, cp = 0.01)
+  expect_identical(one_wave@exposure_type, "continuous")
+  expect_length(unique(one_wave@results$exposure_level), 3L)
+
+  # Adding a wave changes nothing about any dose column, yet detection reads the
+  # exposure pooled across waves, so the same doses now fall below the cutoff.
+  # The type follows the wave count, and with it the binning path is abandoned:
+  # one response per distinct dose replaces one per bin, and n_bins goes unread.
+  two_waves <- check_port_seq(
+    data,
+    c(a1, a2),
+    list(l0, l1),
+    n_bins = 3,
+    cp = 0.01
+  )
+  expect_identical(two_waves@exposure_type, "categorical")
+  expect_length(unique(two_waves@results$exposure_level), 30L)
+})
+
+test_that("a declared continuous type bins a dose the pooled reading misreads", {
+  local_quiet()
+  data <- dgp_longitudinal_dose()
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    n_bins = 3,
+    exposure_type = "continuous",
+    cp = 0.01
+  )
+
+  expect_identical(res@exposure_type, "continuous")
+
+  # One exposure level per bin at every wave is what proves n_bins is read. A
+  # run that merely succeeded would say nothing: the categorical branch also
+  # succeeds, and silently reports one level per distinct dose instead.
+  per_time <- tapply(
+    res@results$exposure_level,
+    res@results$time,
+    function(level) length(unique(level))
+  )
+  expect_identical(as.integer(per_time), rep(3L, 3))
+
+  # The waves share a marginal dose distribution, so their quantile cut points
+  # and bin labels coincide, and the labels are intervals rather than doses.
+  levels_seen <- unique(res@results$exposure_level)
+  expect_length(levels_seen, 3L)
+  expect_true(all(startsWith(levels_seen, "[") | startsWith(levels_seen, "(")))
+
+  # n_bins now moves the result, which is the whole point: under the pooled
+  # detection it was inert.
+  five <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    n_bins = 5,
+    exposure_type = "continuous",
+    cp = 0.01
+  )
+  expect_length(unique(five@results$exposure_level), 5L)
+})
+
+test_that("explicit breaks bin a declared continuous sequential dose", {
+  local_quiet()
+  data <- dgp_longitudinal_dose()
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    breaks = c(0, 25, 50, 75),
+    exposure_type = "continuous",
+    cp = 0.01
+  )
+
+  # The cut points are the user's, not the wave's quantiles, so the labels pin
+  # that breaks reached the binning rather than being dropped with n_bins.
+  expect_setequal(
+    unique(res@results$exposure_level),
+    c("[0,25]", "(25,50]", "(50,75]")
+  )
+})
+
+test_that("a declared binary type rejects a three-level pooled exposure", {
+  local_quiet()
+  data <- sim_port_seq(n = 300, seed = 1)
+  # A third level at time 2 leaves the pooled exposure with three values, so no
+  # binary regime exists for the follower restriction to follow.
+  data$a2[seq_len(40)] <- 2L
+  expect_length(unique(c(data$a1, data$a2)), 3L)
+
+  err <- expect_error(
+    check_port_seq(data, c(a1, a2), list(c1), exposure_type = "binary"),
+    class = "positively_exposure_type_error"
+  )
+  expect_match(
+    conditionMessage(err),
+    "`.exposures` has 3 distinct values",
+    fixed = TRUE
+  )
+
+  # Detection reads the same pooled column as categorical and runs, so the abort
+  # comes from the declaration alone.
+  detected <- check_port_seq(data, c(a1, a2), list(c1), cp = 0.01)
+  expect_identical(detected@exposure_type, "categorical")
+})
+
+test_that("a declared continuous type rejects a factor exposure", {
+  local_quiet()
+  data <- sim_port_seq(n = 300, seed = 1)
+  data$a1 <- factor(data$a1, labels = c("no", "yes"))
+  data$a2 <- factor(data$a2, labels = c("no", "yes"))
+
+  err <- expect_error(
+    check_port_seq(data, c(a1, a2), list(c1), exposure_type = "continuous"),
+    class = "positively_exposure_type_error"
+  )
+  # A factor pools to a factor, and its level codes are not doses, so the
+  # declaration fails on the column rather than binning the codes.
+  expect_match(conditionMessage(err), "continuous", fixed = TRUE)
+  expect_match(conditionMessage(err), "`.exposures` is <factor>", fixed = TRUE)
+})
+
+test_that("check_port_seq() offers every exposure type it can compute", {
+  local_quiet()
+  data <- sim_port_seq(n = 300, seed = 1)
+
+  err <- expect_error(
+    check_port_seq(data, c(a1, a2), list(c1), exposure_type = "ordinal"),
+    class = "rlang_error"
+  )
+  # The sequential reader computes all three types, so the menu is the full one.
+  # cli wraps it across lines at the console width, so the comparison collapses
+  # whitespace.
+  expect_match(
+    gsub("\\s+", " ", conditionMessage(err)),
+    paste(
+      '`exposure_type` must be one of "auto", "binary", "categorical", or',
+      '"continuous", not "ordinal".'
+    ),
+    fixed = TRUE
+  )
+})
+
+test_that("a declared non-binary type drops the monotone follower restriction", {
+  local_quiet()
+  data <- dgp_longitudinal_binary()
+  followers <- as.integer(c(
+    nrow(data),
+    sum(data$a1 == 0),
+    sum(data$a2 == 0)
+  ))
+
+  detected <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2), cp = 0.01)
+  expect_identical(detected@exposure_type, "binary")
+  expect_identical(risk_set_sizes(detected), followers)
+
+  # Declaring the same 0/1 column categorical takes the non-binary branch of the
+  # risk set, which applies no follower restriction, so every subject stays in
+  # every wave.
+  declared <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    exposure_type = "categorical",
+    cp = 0.01
+  )
+  expect_identical(declared@exposure_type, "categorical")
+  expect_identical(risk_set_sizes(declared), rep(nrow(data), 3L))
+
+  # The restriction is what exposes the planted time-2 violation, so dropping it
+  # loses the flag: the already-initiated carry their treatment forward and the
+  # trees flag that carry-forward instead.
+  detected_flagged <- flagged_rows(detected)
+  declared_flagged <- flagged_rows(declared)
+  expect_true(any(
+    detected_flagged$time == 2 & grepl("l1", detected_flagged$description)
+  ))
+  expect_false(any(
+    declared_flagged$time == 2 & grepl("l1", declared_flagged$description)
+  ))
+  expect_true(any(
+    declared_flagged$time == 2 & grepl("a1", declared_flagged$description)
+  ))
+})
+
+test_that("a declared binary type keeps the follower restriction", {
+  local_quiet()
+  data <- dgp_longitudinal_binary()
+
+  detected <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2), cp = 0.01)
+  declared <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    exposure_type = "binary",
+    cp = 0.01
+  )
+
+  # A pooled exposure with exactly two values is the one case detection cannot
+  # get wrong, so declaring binary unlocks no run detection would refuse. What
+  # it does carry is the follower restriction, which every non-binary type
+  # drops.
+  expect_identical(declared@exposure_type, "binary")
+  expect_equal(declared@results, detected@results)
+  expect_identical(
+    risk_set_sizes(declared),
+    as.integer(c(nrow(data), sum(data$a1 == 0), sum(data$a2 == 0)))
+  )
+})
+
+test_that("a degenerate pooled exposure is rejected before the declared type", {
+  local_quiet()
+  data <- sim_port_seq(n = 300, seed = 1)
+  data$a1 <- 0L
+  data$a2 <- 0L
+
+  # A single distinct value cannot carry a binary type either, but the
+  # degenerate exposure is the more specific complaint and is reported first.
+  expect_error(
+    check_port_seq(data, c(a1, a2), list(c1), exposure_type = "binary"),
+    class = "positively_exposure_error"
+  )
+})
+
 # ---- sPoRT localization (expectation 10) ----------------------------------
 
 test_that("flags localize to the time point of the planted violation", {

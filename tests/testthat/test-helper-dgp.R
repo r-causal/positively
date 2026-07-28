@@ -50,6 +50,32 @@ test_that("dgp_coarse_dose() dispenses eight levels detection misreads", {
   expect_gt(stats::cor(data$exposure, data$x1), 0.5)
 })
 
+test_that("dgp_longitudinal_dose() flips type on the wave count", {
+  data <- dgp_longitudinal_dose(n = 120, seed = 8)
+  expect_identical(nrow(data), 120L)
+  waves <- c("a1", "a2", "a3")
+
+  for (wave in waves) {
+    # Every wave dispenses the same 30 doses, so nothing about the dose column
+    # changes as waves accumulate.
+    expect_setequal(unique(data[[wave]]), coarse_dose_grid(n_levels = 30))
+    # The fixture exists to be misread only in the pooled reading, so the
+    # heuristic itself is the assertion on both sides. Hard-coded ratios would
+    # keep this test green after a cutoff change that had already stopped the
+    # flip from happening.
+    expect_false(is_categorical(data[[wave]]))
+  }
+
+  pooled <- unlist(data[waves], use.names = FALSE)
+  expect_length(unique(pooled), 30L)
+  expect_true(is_categorical(pooled))
+
+  # The covariates track the dose that precedes them, so a run on the declared
+  # type has structure to find.
+  expect_gt(stats::cor(data$a1, data$l1), 0.5)
+  expect_gt(stats::cor(data$a2, data$l2), 0.5)
+})
+
 test_that("dgp_longitudinal() is wide with a time-2 support gap", {
   data <- dgp_longitudinal(n = 300, seed = 5)
   expect_identical(nrow(data), 300L)
@@ -123,6 +149,10 @@ test_that("each data-generating process is deterministic given its seed", {
     dgp_continuous_support_gap(seed = 7)
   )
   expect_identical(dgp_coarse_dose(seed = 7), dgp_coarse_dose(seed = 7))
+  expect_identical(
+    dgp_longitudinal_dose(seed = 7),
+    dgp_longitudinal_dose(seed = 7)
+  )
   expect_identical(dgp_longitudinal(seed = 7), dgp_longitudinal(seed = 7))
   expect_identical(
     dgp_longitudinal_binary(seed = 7),
