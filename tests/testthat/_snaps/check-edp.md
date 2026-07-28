@@ -90,6 +90,32 @@
       Error in `check_edp()`:
       ! `kernel` must be one of "gaussian", not "bogus".
 
+# the exposure-type error messages are stable
+
+    Code
+      check_edp(character_exposure, exposure, x1, exposure_type = "continuous")
+    Condition
+      Error in `check_edp()`:
+      ! `check_edp()` needs a numeric `.exposure` for a continuous exposure.
+      x `.exposure` is <character>.
+
+---
+
+    Code
+      check_edp(sim_edp_categorical(300), exposure, z2, exposure_type = "binary")
+    Condition
+      Error in `check_edp()`:
+      ! `check_edp()` needs exactly two distinct values in `.exposure` for a binary exposure.
+      x `.exposure` has 3 distinct values.
+
+---
+
+    Code
+      check_edp(character_exposure, exposure, x1, exposure_type = "bogus")
+    Condition
+      Error in `check_edp()`:
+      ! `exposure_type` must be one of "auto", "binary", "categorical", or "continuous", not "bogus".
+
 # the data-integrity error messages are stable
 
     Code

@@ -163,7 +163,12 @@ check_port <- function(
   }
   validate_two_level_exposure(exposure_vec)
 
-  resolved_type <- match_exposure_type(exposure_type, exposure_vec)
+  resolved_type <- resolve_exposure_type(
+    exposure_type,
+    exposure_vec,
+    supported = c("binary", "categorical", "continuous"),
+    fn = "check_port"
+  )
 
   covariate_pos <- eval_select_columns(
     rlang::enquo(.covariates),

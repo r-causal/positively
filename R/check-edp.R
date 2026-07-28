@@ -205,7 +205,12 @@ check_edp <- function(
     )
   }
 
-  exposure_type <- match_exposure_type(exposure_type, exposure_vec)
+  exposure_type <- resolve_exposure_type(
+    exposure_type,
+    exposure_vec,
+    supported = c("binary", "categorical", "continuous"),
+    fn = "check_edp"
+  )
 
   if (!is.null(values)) {
     validate_values(values, exposure_type)

@@ -272,6 +272,35 @@ test_that("check_edp() rejects an unknown variant or kernel", {
   )
 })
 
+test_that("declaring continuous on a character exposure aborts before any coercion", {
+  local_quiet()
+  # The continuous path reaches as.double(exposure_vec) when it sizes the
+  # default bandwidth. On a character column that returns all NAs with a
+  # coercion warning and the run then dies on a missing condition, so the type
+  # has to be checked against the column before any arithmetic runs.
+  data <- sim_edp_gaussian(60)
+  data$exposure <- rep(c("a", "b", "c"), length.out = nrow(data))
+
+  expect_error(
+    check_edp(data, exposure, x1, exposure_type = "continuous"),
+    class = "positively_exposure_type_error"
+  )
+})
+
+test_that("declaring binary on a three-level exposure aborts rather than mislabeling", {
+  local_quiet()
+  # Nothing downstream of the type resolution narrows a three-level exposure to
+  # two, so a binary declaration used to compute a categorical edp and stamp
+  # "binary" on the result, which then propagated to @exposure_type, glance(),
+  # and print().
+  data <- sim_edp_categorical(300)
+
+  expect_error(
+    check_edp(data, exposure, z2, exposure_type = "binary"),
+    class = "positively_exposure_type_error"
+  )
+})
+
 # ---- Result class and structure -------------------------------------------
 
 test_that("check_edp() returns an edp_result diagnostic", {
@@ -1176,6 +1205,31 @@ test_that("the argument validation messages are stable", {
       kernel = "bogus",
       exposure_type = "continuous"
     ),
+    error = TRUE
+  )
+})
+
+test_that("the exposure-type error messages are stable", {
+  local_quiet()
+  data <- sim_edp_gaussian(60)
+  character_exposure <- data
+  character_exposure$exposure <- rep(c("a", "b", "c"), length.out = nrow(data))
+
+  expect_snapshot(
+    check_edp(character_exposure, exposure, x1, exposure_type = "continuous"),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(
+      sim_edp_categorical(300),
+      exposure,
+      z2,
+      exposure_type = "binary"
+    ),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_edp(character_exposure, exposure, x1, exposure_type = "bogus"),
     error = TRUE
   )
 })

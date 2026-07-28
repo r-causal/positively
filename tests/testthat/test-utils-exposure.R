@@ -2,9 +2,10 @@
 # announces the type it infers unless options(positively.quiet) suppresses it.
 # resolve_exposure_type() wraps that detection in the package's policy:
 # detection supplies a default, an explicit exposure_type is authoritative, and
-# a call fails only when the resolved type's math cannot run on the column as
-# given. Structure is validated on both paths, so a detected type and a declared
-# type fail for the same reasons.
+# an explicit type fails only when that type's math cannot run on the column as
+# given. Under "auto" the detected type must still land in the diagnostic's
+# supported set, so an unsupported detection aborts. Structure is validated on
+# both paths, so a detected type and a declared type fail for the same reasons.
 
 test_that("detect_exposure_type() identifies binary exposures", {
   withr::local_options(positively.quiet = TRUE)
@@ -255,6 +256,35 @@ test_that("the auto path validates structure as strictly as an explicit type", {
   )
 })
 
+test_that("the auto path rejects date-like and logical exposures", {
+  withr::local_options(positively.quiet = TRUE)
+  # Dates, date-times, differences, and logicals store numbers underneath but
+  # are not is.numeric(), so detection reads them as continuous while the
+  # numeric requirement turns them away. Requiring is.numeric() rather than
+  # coercibility is what keeps a factor from passing as a dose, and these
+  # columns are the cost of that rule.
+  exotic <- list(
+    as.Date("2020-01-01") + 0:49,
+    as.POSIXct("2020-01-01", tz = "UTC") + seq(0, 4900, by = 100),
+    as.difftime(seq_len(50), units = "days"),
+    c(TRUE, FALSE, NA)
+  )
+  detected <- vapply(exotic, detect_exposure_type, character(1))
+  expect_identical(detected, rep("continuous", length(exotic)))
+
+  for (exposure in exotic) {
+    expect_error(
+      resolve_exposure_type(
+        "auto",
+        exposure,
+        supported = c("binary", "categorical", "continuous"),
+        fn = "check_edp"
+      ),
+      class = "positively_exposure_type_error"
+    )
+  }
+})
+
 test_that("validate_exposure_structure() requires a numeric continuous exposure", {
   expect_no_error(
     validate_exposure_structure(
@@ -291,6 +321,11 @@ test_that("validate_exposure_structure() requires two values for binary", {
       "binary",
       fn = "check_edp"
     )
+  )
+  # Missing values are not a level: an NA-bearing binary column has two distinct
+  # values here, and its missingness is the diagnostic's own check to report.
+  expect_no_error(
+    validate_exposure_structure(c(0, 1, NA, 1), "binary", fn = "check_edp")
   )
   expect_error(
     validate_exposure_structure(c(0, 1, 2), "binary", fn = "check_edp"),

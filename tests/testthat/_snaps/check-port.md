@@ -175,6 +175,15 @@
       Error in `check_port()`:
       ! `breaks` must be numeric or `NULL`, not a <character>.
 
+---
+
+    Code
+      check_port(three_level, exposure, c(x1, x2), exposure_type = "binary")
+    Condition
+      Error in `check_port()`:
+      ! `check_port()` needs exactly two distinct values in `.exposure` for a binary exposure.
+      x `.exposure` has 3 distinct values.
+
 # check_port() missing-exposure message is stable
 
     Code

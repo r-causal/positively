@@ -178,6 +178,26 @@ test_that("check_port() aborts on a single-level exposure", {
   )
 })
 
+test_that("declaring binary on a three-level exposure aborts rather than dropping levels", {
+  local_quiet()
+  # port_level_responses() reduces a binary exposure to the indicator of its
+  # highest level alone, so an unchecked binary declaration would examine one
+  # level of three and report a third of the rows the same column yields when
+  # read as categorical, with no sign that two levels were never looked at.
+  data <- sim_port_categorical(n = 600, seed = 1)
+
+  categorical <- check_port(data, exposure, x2, exposure_type = "categorical")
+  expect_setequal(
+    unique(categorical@results$exposure_level),
+    c("low", "medium", "high")
+  )
+
+  expect_error(
+    check_port(data, exposure, x2, exposure_type = "binary"),
+    class = "positively_exposure_type_error"
+  )
+})
+
 test_that("check_port() rejects alpha outside the unit interval", {
   local_quiet()
   data <- dgp_good_positivity(n = 200, seed = 1)
@@ -943,6 +963,8 @@ test_that("check_port() argument validation messages are stable", {
   data <- dgp_good_positivity(n = 200, seed = 1)
   single_level <- data
   single_level$exposure <- 1L
+  three_level <- data
+  three_level$exposure <- rep(c("a", "b", "c"), length.out = nrow(data))
 
   expect_snapshot(check_port(1:10, exposure, x1), error = TRUE)
   expect_snapshot(
@@ -990,6 +1012,10 @@ test_that("check_port() argument validation messages are stable", {
   )
   expect_snapshot(
     check_port(data, exposure, c(x1, x2), breaks = "a"),
+    error = TRUE
+  )
+  expect_snapshot(
+    check_port(three_level, exposure, c(x1, x2), exposure_type = "binary"),
     error = TRUE
   )
 })
