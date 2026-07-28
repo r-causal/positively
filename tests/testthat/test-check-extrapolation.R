@@ -190,6 +190,126 @@ test_that("check_extrapolation() aborts on fewer than two observations", {
   )
 })
 
+# ---- Declared exposure type ------------------------------------------------
+
+test_that("a declared binary type reproduces the auto path exactly", {
+  local_quiet()
+  data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
+  auto <- check_extrapolation(data, exposure, tidyselect::starts_with("x"))
+  declared <- check_extrapolation(
+    data,
+    exposure,
+    tidyselect::starts_with("x"),
+    exposure_type = "binary"
+  )
+
+  # On a genuinely binary exposure the declaration can only agree with
+  # detection, so every reported quantity must match, not merely the fact that
+  # both calls returned.
+  expect_identical(declared@exposure_type, auto@exposure_type)
+  expect_identical(declared@results, auto@results)
+  expect_identical(
+    declared@geometric_variability,
+    auto@geometric_variability
+  )
+  expect_identical(declared@hull_run, auto@hull_run)
+  expect_identical(declared@n, auto@n)
+})
+
+test_that("a declared binary type skips the detection alert", {
+  data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
+  # This test observes messages rather than muffling them, so the hull is turned
+  # off explicitly: the automatic hull announces its own skip when lpSolve is not
+  # installed, which is a supported configuration and unrelated to detection.
+  # The auto path announces what it inferred. A declared type is taken as given,
+  # so there is nothing to announce.
+  expect_message(
+    check_extrapolation(
+      data,
+      exposure,
+      tidyselect::starts_with("x"),
+      hull = FALSE
+    ),
+    "Treating `.exposure` as binary"
+  )
+  expect_no_message(
+    check_extrapolation(
+      data,
+      exposure,
+      tidyselect::starts_with("x"),
+      hull = FALSE,
+      exposure_type = "binary"
+    )
+  )
+})
+
+test_that("a declared binary type aborts on a three-level exposure", {
+  local_quiet()
+  data <- sim_extrap_gaussian(60, p = 2, sep = 0, seed = 1)
+  data$exposure <- factor(rep(c("a", "b", "c"), length.out = nrow(data)))
+
+  # The opposite-group comparison is a not-equal test against the current unit's
+  # group, so three levels would quietly become one against all others: a
+  # finite, well-formed, and meaningless answer. Declaring the type must not
+  # buy passage to it.
+  err <- expect_error(
+    check_extrapolation(
+      data,
+      exposure,
+      c(x1, x2),
+      exposure_type = "binary"
+    ),
+    class = "positively_exposure_type_error"
+  )
+  expect_match(conditionMessage(err), "two distinct values", fixed = TRUE)
+})
+
+test_that("a constant exposure aborts on both the auto and declared paths", {
+  local_quiet()
+  data <- sim_extrap_gaussian(60, p = 2, sep = 0, seed = 1)
+  data$exposure <- factor(rep("a", nrow(data)))
+
+  # A one-level factor is not two distinct values, yet detection reads it as
+  # binary, so detection alone can never reject it. The opposite group is then
+  # empty and every per-unit statistic is taken over nothing. Only the
+  # structural requirement of the resolved type rules this out, and it rules it
+  # out whether the type was declared or inferred.
+  expect_identical(detect_exposure_type(data$exposure), "binary")
+
+  expect_error(
+    check_extrapolation(data, exposure, c(x1, x2)),
+    class = "positively_exposure_type_error"
+  )
+  expect_error(
+    check_extrapolation(
+      data,
+      exposure,
+      c(x1, x2),
+      exposure_type = "binary"
+    ),
+    class = "positively_exposure_type_error"
+  )
+})
+
+test_that("check_extrapolation() rejects a type outside its supported menu", {
+  local_quiet()
+  data <- sim_extrap_gaussian(60, p = 2, sep = 0, seed = 1)
+  err <- expect_error(
+    check_extrapolation(
+      data,
+      exposure,
+      c(x1, x2),
+      exposure_type = "continuous"
+    ),
+    class = "rlang_error"
+  )
+  expect_match(
+    conditionMessage(err),
+    '`exposure_type` must be one of "auto" or "binary", not "continuous".',
+    fixed = TRUE
+  )
+})
+
 # ---- Unsupported covariate types ------------------------------------------
 
 test_that("check_extrapolation() rejects a Date covariate", {

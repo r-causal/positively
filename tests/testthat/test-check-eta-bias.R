@@ -711,6 +711,106 @@ test_that("the numeric matrix path is unchanged under a fixed seed (regression)"
   expect_equal(res@results$boot_mean[[1]], 1.2383665971651121)
 })
 
+# ---- Declared exposure type ------------------------------------------------
+
+test_that("a declared binary type reproduces the auto path exactly", {
+  local_quiet()
+  data <- sim_eta_good(n = 300, seed = 1)
+  auto <- fit_eta(data, "ipw", n_boot = 50)
+  declared <- fit_eta(data, "ipw", exposure_type = "binary", n_boot = 50)
+
+  # Both calls run under the same seed, and on a genuinely binary exposure the
+  # declaration can only agree with detection, so the bootstrap draws and every
+  # summary built from them must match, not merely the fact that both returned.
+  expect_identical(declared@exposure_type, auto@exposure_type)
+  expect_identical(declared@results, auto@results)
+  expect_identical(declared@truth, auto@truth)
+  expect_identical(declared@boot_estimates, auto@boot_estimates)
+})
+
+test_that("a declared binary type skips the detection alert", {
+  data <- sim_eta_good(n = 300, seed = 1)
+  # The auto path announces what it inferred. A declared type is taken as given,
+  # so there is nothing to announce.
+  expect_message(
+    fit_eta(data, "gcomp", n_boot = 10),
+    "Treating `.exposure` as binary"
+  )
+  expect_no_message(
+    fit_eta(data, "gcomp", exposure_type = "binary", n_boot = 10)
+  )
+})
+
+test_that("a declared binary type aborts on a three-level exposure", {
+  local_quiet()
+  data <- sim_eta_good(n = 120, seed = 1)
+  data$a <- factor(rep(c("a", "b", "c"), length.out = nrow(data)))
+
+  err <- expect_error(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      exposure_type = "binary",
+      n_boot = 10
+    ),
+    class = "positively_exposure_type_error"
+  )
+  expect_match(conditionMessage(err), "two distinct values", fixed = TRUE)
+})
+
+test_that("a constant exposure aborts on both the auto and declared paths", {
+  local_quiet()
+  data <- sim_eta_good(n = 120, seed = 1)
+  data$a <- factor(rep("a", nrow(data)))
+
+  # A one-level factor is not two distinct values, yet detection reads it as
+  # binary, so detection alone can never reject it. binary_to_01() then maps the
+  # single level to 0, leaving a treatment mechanism with no treated arm and
+  # estimates that are degenerate rather than informative. Only the structural
+  # requirement of the resolved type rules this out, and it rules it out whether
+  # the type was declared or inferred.
+  expect_identical(detect_exposure_type(data$a), "binary")
+
+  expect_error(
+    check_eta_bias(data, a, y, c(x1, x2), n_boot = 10),
+    class = "positively_exposure_type_error"
+  )
+  expect_error(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      exposure_type = "binary",
+      n_boot = 10
+    ),
+    class = "positively_exposure_type_error"
+  )
+})
+
+test_that("check_eta_bias() rejects a type outside its supported menu", {
+  local_quiet()
+  data <- sim_eta_good(n = 80, seed = 1)
+  err <- expect_error(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      exposure_type = "continuous",
+      n_boot = 10
+    ),
+    class = "rlang_error"
+  )
+  expect_match(
+    conditionMessage(err),
+    '`exposure_type` must be one of "auto" or "binary", not "continuous".',
+    fixed = TRUE
+  )
+})
+
 # ---- Degenerate bootstrap draws -------------------------------------------
 
 test_that("non-finite bootstrap draws are dropped with a classed warning", {
