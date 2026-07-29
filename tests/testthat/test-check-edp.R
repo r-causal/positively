@@ -922,10 +922,7 @@ test_that("the scatter view-gate abort names the autoplot method", {
     values = 0,
     exposure_type = "continuous"
   )
-  expect_snapshot(
-    ggplot2::autoplot(plain, type = "scatter"),
-    error = TRUE
-  )
+  expect_snapshot_abort(ggplot2::autoplot(plain, type = "scatter"))
 })
 
 test_that("the scatter view separates infinite ideal weights into their own layer", {
@@ -1192,90 +1189,68 @@ test_that("the argument validation messages are stable", {
   local_quiet()
   data <- sim_edp_gaussian(60)
 
-  expect_snapshot(check_edp(1:10, exposure, x1), error = TRUE)
-  expect_snapshot(
-    check_edp(
-      data,
-      exposure,
-      tidyselect::starts_with("zzz"),
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_edp(data, c(exposure, x1), x1, exposure_type = "continuous"),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_edp(
-      data,
-      exposure,
-      x1,
-      categorical_similarity = 1.5,
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_edp(
-      data,
-      exposure,
-      x1,
-      categorical_similarity = "x",
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_edp(
-      data,
-      exposure,
-      x1,
-      bw_exposure = -1,
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_edp(
-      data,
-      exposure,
-      x1,
-      bw_exposure = c(1, 2),
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_edp(
-      data,
-      exposure,
-      x1,
-      bw_covariates = -1,
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_edp(
-      data,
-      exposure,
-      x1,
-      variant = "bogus",
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_edp(
-      data,
-      exposure,
-      x1,
-      kernel = "bogus",
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_edp(1:10, exposure, x1))
+  expect_snapshot_abort(check_edp(
+    data,
+    exposure,
+    tidyselect::starts_with("zzz"),
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_edp(
+    data,
+    c(exposure, x1),
+    x1,
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_edp(
+    data,
+    exposure,
+    x1,
+    categorical_similarity = 1.5,
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_edp(
+    data,
+    exposure,
+    x1,
+    categorical_similarity = "x",
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_edp(
+    data,
+    exposure,
+    x1,
+    bw_exposure = -1,
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_edp(
+    data,
+    exposure,
+    x1,
+    bw_exposure = c(1, 2),
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_edp(
+    data,
+    exposure,
+    x1,
+    bw_covariates = -1,
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_edp(
+    data,
+    exposure,
+    x1,
+    variant = "bogus",
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_edp(
+    data,
+    exposure,
+    x1,
+    kernel = "bogus",
+    exposure_type = "continuous"
+  ))
 })
 
 test_that("the exposure-type error messages are stable", {
@@ -1284,22 +1259,23 @@ test_that("the exposure-type error messages are stable", {
   character_exposure <- data
   character_exposure$exposure <- rep(c("a", "b", "c"), length.out = nrow(data))
 
-  expect_snapshot(
-    check_edp(character_exposure, exposure, x1, exposure_type = "continuous"),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_edp(
-      sim_edp_categorical(300),
-      exposure,
-      z2,
-      exposure_type = "binary"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
+  expect_snapshot_abort(check_edp(
+    character_exposure,
+    exposure,
+    x1,
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_edp(
+    sim_edp_categorical(300),
+    exposure,
+    z2,
+    exposure_type = "binary"
+  ))
+  # arg_match() inside resolve_exposure_type() raises an unclassed rlang error,
+  # so a value outside the menu carries no package class.
+  expect_snapshot_abort(
     check_edp(character_exposure, exposure, x1, exposure_type = "bogus"),
-    error = TRUE
+    class = "rlang_error"
   )
 })
 
@@ -1308,78 +1284,75 @@ test_that("the data-integrity error messages are stable", {
   data <- sim_edp_gaussian(60)
 
   one_row <- tibble::tibble(exposure = 0.5, x1 = -0.2)
-  expect_snapshot(
-    check_edp(one_row, exposure, x1, exposure_type = "continuous"),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_edp(
+    one_row,
+    exposure,
+    x1,
+    exposure_type = "continuous"
+  ))
 
   na_exposure <- data
   na_exposure$exposure[1] <- NA
-  expect_snapshot(
-    check_edp(na_exposure, exposure, x1, exposure_type = "continuous"),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_edp(
+    na_exposure,
+    exposure,
+    x1,
+    exposure_type = "continuous"
+  ))
 
   na_covariate <- data
   na_covariate$x1[1] <- NA
-  expect_snapshot(
-    check_edp(na_covariate, exposure, x1, exposure_type = "continuous"),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_edp(
+    na_covariate,
+    exposure,
+    x1,
+    exposure_type = "continuous"
+  ))
 })
 
 test_that("the value and estimator-selection error messages are stable", {
   local_quiet()
   data <- sim_edp_gaussian(60)
 
-  expect_snapshot(
-    check_edp(data, exposure, x1, values = "a", exposure_type = "continuous"),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_edp(
-      data,
-      exposure,
-      x1,
-      values = c(0, NA),
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_edp(
-      data,
-      exposure,
-      x1,
-      values = numeric(0),
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_edp(
-      data,
-      exposure,
-      x1,
-      .outcome_covariates = tidyselect::starts_with("zzz"),
-      variant = "estimator",
-      values = 0,
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_edp(
-      data,
-      exposure,
-      x1,
-      .treatment_covariates = tidyselect::starts_with("zzz"),
-      variant = "estimator",
-      values = 0,
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_edp(
+    data,
+    exposure,
+    x1,
+    values = "a",
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, NA),
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_edp(
+    data,
+    exposure,
+    x1,
+    values = numeric(0),
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_edp(
+    data,
+    exposure,
+    x1,
+    .outcome_covariates = tidyselect::starts_with("zzz"),
+    variant = "estimator",
+    values = 0,
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_edp(
+    data,
+    exposure,
+    x1,
+    .treatment_covariates = tidyselect::starts_with("zzz"),
+    variant = "estimator",
+    values = 0,
+    exposure_type = "continuous"
+  ))
 })
 
 test_that("the unused-bandwidth warnings are stable", {
