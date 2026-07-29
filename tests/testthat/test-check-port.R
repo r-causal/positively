@@ -646,10 +646,7 @@ test_that("a resolved Gruber bound of 0.5 or more is rejected", {
 test_that("the degenerate Gruber bound message pins the bound and sample size", {
   local_quiet()
   data <- port_gruber_data(n = 12, zeros = 7)
-  expect_snapshot(
-    check_port(data, exposure, x1, beta = "gruber"),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_port(data, exposure, x1, beta = "gruber"))
 })
 
 test_that("a Gruber bound below 0.5 still runs", {
@@ -875,13 +872,9 @@ test_that("the dots reach rpart.control", {
 test_that("check_port() rejects a dot that is not an rpart.control option", {
   local_quiet()
   data <- sim_port_structural(n = 500, seed = 1)
-  expect_error(
+  expect_snapshot_abort(
     check_port(data, exposure, c(x3, x1), alpa = 0.4),
     class = "positively_args_error"
-  )
-  expect_snapshot(
-    check_port(data, exposure, c(x3, x1), alpa = 0.4),
-    error = TRUE
   )
 })
 
@@ -968,58 +961,36 @@ test_that("check_port() argument validation messages are stable", {
   three_level <- data
   three_level$exposure <- rep(c("a", "b", "c"), length.out = nrow(data))
 
-  expect_snapshot(check_port(1:10, exposure, x1), error = TRUE)
-  expect_snapshot(
-    check_port(data, exposure, tidyselect::starts_with("zzz")),
-    error = TRUE
-  )
-  expect_snapshot(check_port(data, c(exposure, x1), x2), error = TRUE)
-  expect_snapshot(check_port(single_level, exposure, c(x1, x2)), error = TRUE)
-  expect_snapshot(
-    check_port(data, exposure, c(x1, x2), alpha = 0),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port(data, exposure, c(x1, x2), alpha = 1.5),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port(data, exposure, c(x1, x2), alpha = c(0.05, 0.1)),
-    error = TRUE
-  )
-  expect_snapshot(check_port(data, exposure, c(x1, x2), beta = 0), error = TRUE)
-  expect_snapshot(
-    check_port(data, exposure, c(x1, x2), beta = 1.5),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port(data, exposure, c(x1, x2), beta = 0.6),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port(data, exposure, c(x1, x2), beta = "banana"),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port(data, exposure, c(x1, x2), gamma = 0),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port(data, exposure, c(x1, x2), gamma = 2.5),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port(data, exposure, c(x1, x2), n_bins = 0),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port(data, exposure, c(x1, x2), breaks = "a"),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port(three_level, exposure, c(x1, x2), exposure_type = "binary"),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_port(1:10, exposure, x1))
+  expect_snapshot_abort(check_port(
+    data,
+    exposure,
+    tidyselect::starts_with("zzz")
+  ))
+  expect_snapshot_abort(check_port(data, c(exposure, x1), x2))
+  expect_snapshot_abort(check_port(single_level, exposure, c(x1, x2)))
+  expect_snapshot_abort(check_port(data, exposure, c(x1, x2), alpha = 0))
+  expect_snapshot_abort(check_port(data, exposure, c(x1, x2), alpha = 1.5))
+  expect_snapshot_abort(check_port(
+    data,
+    exposure,
+    c(x1, x2),
+    alpha = c(0.05, 0.1)
+  ))
+  expect_snapshot_abort(check_port(data, exposure, c(x1, x2), beta = 0))
+  expect_snapshot_abort(check_port(data, exposure, c(x1, x2), beta = 1.5))
+  expect_snapshot_abort(check_port(data, exposure, c(x1, x2), beta = 0.6))
+  expect_snapshot_abort(check_port(data, exposure, c(x1, x2), beta = "banana"))
+  expect_snapshot_abort(check_port(data, exposure, c(x1, x2), gamma = 0))
+  expect_snapshot_abort(check_port(data, exposure, c(x1, x2), gamma = 2.5))
+  expect_snapshot_abort(check_port(data, exposure, c(x1, x2), n_bins = 0))
+  expect_snapshot_abort(check_port(data, exposure, c(x1, x2), breaks = "a"))
+  expect_snapshot_abort(check_port(
+    three_level,
+    exposure,
+    c(x1, x2),
+    exposure_type = "binary"
+  ))
 })
 
 # ---- Degenerate breaks and quantile collapse ------------------------------
@@ -1154,10 +1125,7 @@ test_that("check_port() aborts on a missing exposure value", {
 
 test_that("check_port() missing-exposure message is stable", {
   local_quiet()
-  expect_snapshot(
-    check_port(port_missing_exposure_data(), exposure, g),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_port(port_missing_exposure_data(), exposure, g))
 })
 
 # ---- Response-name collision ----------------------------------------------
@@ -1183,51 +1151,39 @@ test_that("a covariate named .port_response is handled like any other", {
 
 test_that("check_port() degenerate binning messages are stable", {
   local_quiet()
-  expect_snapshot(
-    check_port(
-      port_binning_data(),
-      exposure,
-      x1,
-      breaks = 4,
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port(
-      port_binning_data(),
-      exposure,
-      x1,
-      breaks = c(0, 6),
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port(
-      port_binning_data(),
-      exposure,
-      x1,
-      breaks = c(0, NA, 6),
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port(
-      port_zero_inflated_data(),
-      exposure,
-      x1,
-      n_bins = 3,
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_port(
+    port_binning_data(),
+    exposure,
+    x1,
+    breaks = 4,
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_port(
+    port_binning_data(),
+    exposure,
+    x1,
+    breaks = c(0, 6),
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_port(
+    port_binning_data(),
+    exposure,
+    x1,
+    breaks = c(0, NA, 6),
+    exposure_type = "continuous"
+  ))
+  expect_snapshot_abort(check_port(
+    port_zero_inflated_data(),
+    exposure,
+    x1,
+    n_bins = 3,
+    exposure_type = "continuous"
+  ))
 })
 
 test_that("check_port() missing-covariate message is stable", {
   local_quiet()
   data <- dgp_good_positivity(n = 300, seed = 1)
   data$x1[1] <- NA
-  expect_snapshot(check_port(data, exposure, c(x1, x2)), error = TRUE)
+  expect_snapshot_abort(check_port(data, exposure, c(x1, x2)))
 })

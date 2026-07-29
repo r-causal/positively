@@ -1424,54 +1424,47 @@ test_that("check_hdr() argument validation messages are stable", {
   data <- sim_hdr_linear(80, seed = 1)
   binary <- dgp_good_positivity(n = 100, seed = 1)
 
-  expect_snapshot(check_hdr(1:10, exposure, x1), error = TRUE)
-  expect_snapshot(check_hdr(binary, exposure, c(x1, x2)), error = TRUE)
-  expect_snapshot(
-    check_hdr(data, exposure, tidyselect::starts_with("zzz")),
-    error = TRUE
-  )
-  expect_snapshot(check_hdr(data, c(exposure, l), l), error = TRUE)
-  expect_snapshot(check_hdr(data, exposure, l, mass = 0), error = TRUE)
-  expect_snapshot(check_hdr(data, exposure, l, mass = 1.5), error = TRUE)
-  expect_snapshot(
-    check_hdr(data, exposure, l, mass = c(0.9, 0.95)),
-    error = TRUE
-  )
-  expect_snapshot(check_hdr(data, exposure, l, values = "a"), error = TRUE)
-  expect_snapshot(
-    check_hdr(data, exposure, l, values = c(0, NA)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hdr(data, exposure, l, values = numeric(0)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hdr(data, exposure, l, values = c(0, Inf)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hdr(data, exposure, l, density_estimator = "not an estimator"),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hdr(1:10, exposure, x1))
+  expect_snapshot_abort(check_hdr(binary, exposure, c(x1, x2)))
+  expect_snapshot_abort(check_hdr(
+    data,
+    exposure,
+    tidyselect::starts_with("zzz")
+  ))
+  expect_snapshot_abort(check_hdr(data, c(exposure, l), l))
+  expect_snapshot_abort(check_hdr(data, exposure, l, mass = 0))
+  expect_snapshot_abort(check_hdr(data, exposure, l, mass = 1.5))
+  expect_snapshot_abort(check_hdr(data, exposure, l, mass = c(0.9, 0.95)))
+  expect_snapshot_abort(check_hdr(data, exposure, l, values = "a"))
+  expect_snapshot_abort(check_hdr(data, exposure, l, values = c(0, NA)))
+  expect_snapshot_abort(check_hdr(data, exposure, l, values = numeric(0)))
+  expect_snapshot_abort(check_hdr(data, exposure, l, values = c(0, Inf)))
+  expect_snapshot_abort(check_hdr(
+    data,
+    exposure,
+    l,
+    density_estimator = "not an estimator"
+  ))
 
   na_covariate <- data
   na_covariate$l[1] <- NA
-  expect_snapshot(check_hdr(na_covariate, exposure, l), error = TRUE)
+  expect_snapshot_abort(check_hdr(na_covariate, exposure, l))
 
   one_row <- tibble::tibble(exposure = 0.5, l = -0.2)
-  expect_snapshot(check_hdr(one_row, exposure, l), error = TRUE)
+  expect_snapshot_abort(check_hdr(one_row, exposure, l))
 
-  expect_snapshot(check_hdr(data, exposure, c(exposure, l)), error = TRUE)
+  expect_snapshot_abort(check_hdr(data, exposure, c(exposure, l)))
 
   constant <- tibble::tibble(
     exposure = rep(3, 50),
     l = seq(-1, 1, length.out = 50)
   )
-  expect_snapshot(
-    check_hdr(constant, exposure, l, exposure_type = "continuous"),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hdr(
+    constant,
+    exposure,
+    l,
+    exposure_type = "continuous"
+  ))
 })
 
 test_that("the flat-at-one non-overlap messages are stable", {
@@ -1496,63 +1489,58 @@ test_that("check_hdr_seq() argument validation messages are stable", {
   local_quiet()
   data <- dgp_longitudinal(n = 300, seed = 5)
 
-  expect_snapshot(
-    check_hdr_seq(data, c(a1, a2, a3), list(l0, l1)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hdr_seq(data, c(a1, a2, a3), list(l0, l1, l2), lag = -1),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hdr_seq(data, c(a1, a2, a3), list(l0, l1, l2), lag = 1.5),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hdr_seq(data, c(a1, a2, a3), list(l0, l1, l2), lag = "a"),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hdr_seq(data, c(a1, a2, a3), list(l0, l1)))
+  expect_snapshot_abort(check_hdr_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    lag = -1
+  ))
+  expect_snapshot_abort(check_hdr_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    lag = 1.5
+  ))
+  expect_snapshot_abort(check_hdr_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    lag = "a"
+  ))
 
   binary <- data
   binary$a2 <- rep(c(0, 1), length.out = nrow(binary))
-  expect_snapshot(
-    check_hdr_seq(binary, c(a1, a2, a3), list(l0, l1, l2)),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hdr_seq(binary, c(a1, a2, a3), list(l0, l1, l2)))
 
   binary_pair <- binary
   binary_pair$a3 <- rep(c(0, 1), length.out = nrow(binary_pair))
-  expect_snapshot(
-    check_hdr_seq(binary_pair, c(a1, a2, a3), list(l0, l1, l2)),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hdr_seq(
+    binary_pair,
+    c(a1, a2, a3),
+    list(l0, l1, l2)
+  ))
 
   factors <- data
   factors$a2 <- factor(rep(c("low", "high"), length.out = nrow(factors)))
   factors$a3 <- factor(rep(c("low", "high"), length.out = nrow(factors)))
-  expect_snapshot(
-    check_hdr_seq(
-      factors,
-      c(a1, a2, a3),
-      list(l0, l1, l2),
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hdr_seq(
+    factors,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    exposure_type = "continuous"
+  ))
 
   mixed <- data
   mixed$a1 <- factor(rep(c("low", "high"), length.out = nrow(mixed)))
   mixed$a2 <- rep(c("low", "high"), length.out = nrow(mixed))
   mixed$a3 <- as.Date("2020-01-01") + seq_len(nrow(mixed))
-  expect_snapshot(
-    check_hdr_seq(
-      mixed,
-      c(a1, a2, a3),
-      list(l0, l1, l2),
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hdr_seq(
+    mixed,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    exposure_type = "continuous"
+  ))
 
   ranked <- data
   ranked$a1 <- factor(
@@ -1560,51 +1548,41 @@ test_that("check_hdr_seq() argument validation messages are stable", {
     ordered = TRUE
   )
   ranked$a2 <- factor(rep(c("low", "high"), length.out = nrow(ranked)))
-  expect_snapshot(
-    check_hdr_seq(
-      ranked,
-      c(a1, a2, a3),
-      list(l0, l1, l2),
-      exposure_type = "continuous"
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hdr_seq(
+    ranked,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    exposure_type = "continuous"
+  ))
 
-  expect_snapshot(
-    check_hdr_seq(data, c(a1, a2), list(c(l0, a1), l1), values = 0),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hdr_seq(
-      data,
-      c(a1, a2, a3),
-      list(l0, l1, l2),
-      .baseline = a2,
-      values = 0
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hdr_seq(
-      data,
-      c(a1, a2, a3),
-      list(tidyselect::starts_with("zzz")),
-      values = 0
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hdr_seq(
+    data,
+    c(a1, a2),
+    list(c(l0, a1), l1),
+    values = 0
+  ))
+  expect_snapshot_abort(check_hdr_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .baseline = a2,
+    values = 0
+  ))
+  expect_snapshot_abort(check_hdr_seq(
+    data,
+    c(a1, a2, a3),
+    list(tidyselect::starts_with("zzz")),
+    values = 0
+  ))
 
   constant <- data
   constant$a1 <- 2
   constant$a3 <- 7
-  expect_snapshot(
-    check_hdr_seq(
-      constant,
-      c(a1, a2, a3),
-      list(l0, l1, l2),
-      exposure_type = "continuous",
-      values = 0
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hdr_seq(
+    constant,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    exposure_type = "continuous",
+    values = 0
+  ))
 })
