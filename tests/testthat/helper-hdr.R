@@ -6,7 +6,7 @@
 make_normal_like <- function(with_threshold = FALSE) {
   fit <- function(formula, data) {
     model <- stats::lm(formula, data = data)
-    list(model = model, sigma = summary(model)$sigma)
+    list(model = model, sigma = stats::sigma(model))
   }
   density <- function(state, a, newdata) {
     mu <- stats::predict(state$model, newdata = newdata)

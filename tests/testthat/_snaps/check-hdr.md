@@ -153,6 +153,37 @@
       ! `.covariates` must not include the exposure column.
       x "exposure" is also selected by `.exposure`.
 
+---
+
+    Code
+      check_hdr(constant, exposure, l, exposure_type = "continuous")
+    Condition
+      Error in `check_hdr()`:
+      ! `check_hdr()` needs `.exposure` to take more than one value.
+      x `exposure` is constant.
+      i The non-overlap ratio compares covariate profiles at a common target dose, and the target grid spans the observed exposure range. One observed dose leaves one target and a fitted density with no width, so the ratio would report that dose as supported at every profile.
+
+# the flat-at-one non-overlap messages are stable
+
+    Code
+      res <- check_hdr(point, exposure, x, values = c(-1, 0, 1))
+    Condition
+      Warning in `check_hdr()`:
+      The non-overlap ratio is 1 throughout the observed exposure range.
+      i The exposure is close to a deterministic function of the columns it is conditioned on, so no covariate profile's highest-density region reaches another profile's dose.
+      i The reading is correct, but it is set by the width of the fitted conditional density rather than by any comparison between profiles.
+
+---
+
+    Code
+      res <- check_hdr_seq(sequential, c(a1, a2, a3), list(l0, l1, l2), values = c(-1,
+        0, 1))
+    Condition
+      Warning in `check_hdr_seq()`:
+      The non-overlap ratio is 1 throughout the observed exposure range of time points 2 and 3.
+      i The exposure is close to a deterministic function of the columns it is conditioned on, so no covariate profile's highest-density region reaches another profile's dose.
+      i The reading is correct, but it is set by the width of the fitted conditional density rather than by any comparison between profiles.
+
 # check_hdr_seq() argument validation messages are stable
 
     Code
@@ -267,4 +298,15 @@
       ! Every time point must have at least one conditioning column.
       x The conditioning set at time 1 is empty.
       i Supply time-varying covariates in `.covariates` or baseline covariates in `.baseline`.
+
+---
+
+    Code
+      check_hdr_seq(constant, c(a1, a2, a3), list(l0, l1, l2), exposure_type = "continuous",
+      values = 0)
+    Condition
+      Error in `check_hdr_seq()`:
+      ! `check_hdr_seq()` needs `.exposures` to take more than one value.
+      x `a1` and `a3` are constant.
+      i The non-overlap ratio compares covariate profiles at a common target dose, and the target grid spans the observed exposure range. One observed dose leaves one target and a fitted density with no width, so the ratio would report that dose as supported at every profile.
 

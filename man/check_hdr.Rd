@@ -20,7 +20,8 @@ check_hdr(
 \item{.exposure}{The continuous exposure column, selected with data-masking.
 Under the default \code{exposure_type = "auto"}, \code{check_hdr()} aborts when the
 exposure is detected as binary or categorical; declaring
-\code{exposure_type = "continuous"} accepts any numeric column.}
+\code{exposure_type = "continuous"} accepts any numeric column that takes more
+than one value.}
 
 \item{.covariates}{The covariate columns, selected with tidyselect.}
 
@@ -41,8 +42,11 @@ not numeric. Declaring it on a numeric column with few distinct values, a
 dose recorded at a handful of milligram levels for instance, is exactly the
 supported use: the unique-value heuristic reads such a column as
 categorical, so under \code{"auto"} the call aborts. Because numeric is the whole
-of the requirement, a two-valued numeric column is then accepted as well,
-which is the price of an authoritative declaration.}
+of what the type asks of the column, a two-valued numeric column is then
+accepted as well, which is the price of an authoritative declaration. A
+constant column is refused whichever way the type was decided, since the
+ratio compares covariate profiles at a common target dose and one observed
+dose leaves nothing to compare.}
 }
 \value{
 An \code{hdr_result} object, an S7 subclass of \link{positivity_diagnostic}.
@@ -89,6 +93,18 @@ where a stratum's supported dose moves away from a target. It does not detect
 multimodal gaps: a hole between two modes of the true conditional density is
 filled by the fitted normal and reported as supported. Supply a flexible
 estimator through \code{\link[=new_hdr_density]{new_hdr_density()}} when multimodal structure is expected.
+
+When the exposure is close to a deterministic function of the covariates, the
+fitted conditional density is narrow enough that no profile's region reaches
+another profile's dose, and the ratio is one everywhere inside the observed
+exposure range. That reading is literally correct, since a dose fixed by the
+covariates is supported at no other profile, but it is set by the width of the
+fitted density rather than by any comparison between profiles, so
+\code{check_hdr()} warns when it happens. The warning is decided on a dense grid
+spanning the observed range, not on \code{values}, so it reports a property of the
+fit and does not depend on which doses were asked about: a ratio of one at a
+few probes aimed into a genuine support gap is a finding rather than an
+artifact, and stays unremarked.
 }
 \examples{
 set.seed(1)

@@ -183,6 +183,38 @@ test_that("the normal density matches a plain Gaussian around fitted means", {
   )
 })
 
+# ---- Residual standard deviation ------------------------------------------
+
+test_that("the normal estimator reads sigma without warning on a perfect fit", {
+  # summary.lm() warns that an essentially perfect fit may be unreliable, which
+  # belongs to the inference tables this estimator never reads. Reading the
+  # residual standard deviation on its own is silent and returns the same
+  # number, so the substitution must not move sigma anywhere.
+  est <- hdr_density_normal()
+
+  perfect <- withr::with_seed(1, {
+    frame <- tibble::tibble(l = stats::rnorm(100))
+    frame$exposure <- 2 * frame$l
+    frame
+  })
+  state <- expect_no_warning(est@fit(exposure ~ l, perfect))
+  expect_identical(
+    state$sigma,
+    suppressWarnings(summary(stats::lm(exposure ~ l, data = perfect))$sigma)
+  )
+
+  noisy <- withr::with_seed(2, {
+    frame <- tibble::tibble(l = stats::rnorm(100))
+    frame$exposure <- 2 * frame$l + stats::rnorm(100)
+    frame
+  })
+  noisy_state <- expect_no_warning(est@fit(exposure ~ l, noisy))
+  expect_identical(
+    noisy_state$sigma,
+    summary(stats::lm(exposure ~ l, data = noisy))$sigma
+  )
+})
+
 # ---- Numeric-grid cutoff on a degenerate density --------------------------
 
 test_that("check_hdr() aborts when the numeric-grid cutoff is undefined", {

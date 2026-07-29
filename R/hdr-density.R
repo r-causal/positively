@@ -79,7 +79,7 @@ hdr_density <- new_class(
 #' estimator <- new_hdr_density(
 #'   fit = function(formula, data) {
 #'     model <- lm(formula, data = data)
-#'     list(model = model, sigma = summary(model)$sigma)
+#'     list(model = model, sigma = sigma(model))
 #'   },
 #'   density = function(state, a, newdata) {
 #'     mu <- predict(state$model, newdata = newdata)
@@ -169,7 +169,13 @@ new_hdr_density <- function(
 hdr_density_normal <- function() {
   fit <- function(formula, data) {
     model <- stats::lm(formula, data = data)
-    list(model = model, sigma = summary(model)$sigma)
+    # stats::sigma() returns the same number as summary(model)$sigma without
+    # assembling the coefficient table, and so without the "essentially perfect
+    # fit" warning summary.lm() raises when the exposure is close to a
+    # deterministic function of the covariates. That warning belongs to
+    # inference this estimator never reads, and it is unclassed, so letting it
+    # through would put a bare base R warning in front of the user.
+    list(model = model, sigma = stats::sigma(model))
   }
   density <- function(state, a, newdata) {
     mu <- stats::predict(state$model, newdata = newdata)

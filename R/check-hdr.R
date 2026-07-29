@@ -67,11 +67,24 @@ hdr_result <- new_class(
 #' filled by the fitted normal and reported as supported. Supply a flexible
 #' estimator through [new_hdr_density()] when multimodal structure is expected.
 #'
+#' When the exposure is close to a deterministic function of the covariates, the
+#' fitted conditional density is narrow enough that no profile's region reaches
+#' another profile's dose, and the ratio is one everywhere inside the observed
+#' exposure range. That reading is literally correct, since a dose fixed by the
+#' covariates is supported at no other profile, but it is set by the width of the
+#' fitted density rather than by any comparison between profiles, so
+#' `check_hdr()` warns when it happens. The warning is decided on a dense grid
+#' spanning the observed range, not on `values`, so it reports a property of the
+#' fit and does not depend on which doses were asked about: a ratio of one at a
+#' few probes aimed into a genuine support gap is a finding rather than an
+#' artifact, and stays unremarked.
+#'
 #' @param .data A data frame.
 #' @param .exposure The continuous exposure column, selected with data-masking.
 #'   Under the default `exposure_type = "auto"`, `check_hdr()` aborts when the
 #'   exposure is detected as binary or categorical; declaring
-#'   `exposure_type = "continuous"` accepts any numeric column.
+#'   `exposure_type = "continuous"` accepts any numeric column that takes more
+#'   than one value.
 #' @param .covariates The covariate columns, selected with tidyselect.
 #' @param mass The HDR probability mass, a single value strictly between 0 and 1.
 #'   Defaults to `0.95`.
@@ -87,8 +100,11 @@ hdr_result <- new_class(
 #'   dose recorded at a handful of milligram levels for instance, is exactly the
 #'   supported use: the unique-value heuristic reads such a column as
 #'   categorical, so under `"auto"` the call aborts. Because numeric is the whole
-#'   of the requirement, a two-valued numeric column is then accepted as well,
-#'   which is the price of an authoritative declaration.
+#'   of what the type asks of the column, a two-valued numeric column is then
+#'   accepted as well, which is the price of an authoritative declaration. A
+#'   constant column is refused whichever way the type was decided, since the
+#'   ratio compares covariate profiles at a common target dose and one observed
+#'   dose leaves nothing to compare.
 #'
 #' @return An `hdr_result` object, an S7 subclass of [positivity_diagnostic].
 #'   Its `@results` tibble has one row per target value with columns `value` (the
@@ -166,18 +182,31 @@ check_hdr <- function(
     )
   }
 
+  validate_exposure_variation(
+    .data,
+    exposure_name,
+    ".exposure",
+    fn = "check_hdr"
+  )
+
   targets <- resolve_targets(values, exposure_vec)
 
   analysis <- .data[c(exposure_name, covariate_names)]
-  nonoverlap <- hdr_nonoverlap(
+  exposure <- as.double(exposure_vec)
+  fitted <- hdr_fit(
     density_estimator,
     exposure_name = exposure_name,
     covariate_names = covariate_names,
     analysis = analysis,
-    exposure = as.double(exposure_vec),
-    mass = mass,
-    targets = targets
+    exposure = exposure,
+    mass = mass
   )
+  nonoverlap <- hdr_ratios(density_estimator, fitted, analysis, targets)
+  if (
+    nonoverlap_is_flat_at_one(density_estimator, fitted, analysis, exposure)
+  ) {
+    warn_flat_nonoverlap()
+  }
 
   results <- tibble::tibble(value = targets, nonoverlap = nonoverlap)
 
@@ -220,6 +249,160 @@ validate_hdr_estimator <- function(
     )
   }
   invisible(density_estimator)
+}
+
+#' Validate that every named exposure column varies
+#'
+#' A constant exposure is a precondition failure of the HDR diagnostic rather
+#' than a property the exposure type is missing. `"continuous"` says the column
+#' carries a dose the density model can be fitted to, and a constant numeric
+#' column carries one; what it cannot do is support the comparison the ratio
+#' makes. Folding the rule into `exposure_carries_type()` would therefore refuse
+#' a declared `"continuous"` in [check_edp()] and [check_port()], which
+#' categorize the exposure and ask nothing of its spread, and would pre-empt the
+#' rank check in [check_hat_values()] with a vaguer message.
+#'
+#' Aborting rather than warning is what the returned number requires. With one
+#' distinct value `resolve_targets()` returns a single target instead of the
+#' documented 100-point grid, the fitted residual standard deviation is zero or
+#' within rounding of it, and the ratio comes back as zero, which reads as
+#' perfectly supported: not an imprecise answer but the opposite of the truth.
+#' The sibling diagnostics already hold this line, [check_hat_values()] through
+#' its rank check and [check_extrapolation()] and [check_eta_bias()] through
+#' their exposure-type checks.
+#'
+#' @param .data The data frame.
+#' @param columns The exposure column names.
+#' @param arg_name The argument name used in error messages.
+#' @param fn The name of the calling diagnostic, used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `.data`, invisibly, when every named column takes more than one
+#'   value.
+#' @keywords internal
+#' @noRd
+validate_exposure_variation <- function(
+  .data,
+  columns,
+  arg_name,
+  fn,
+  call = rlang::caller_env()
+) {
+  constant <- columns[vapply(
+    columns,
+    function(column) n_exposure_levels(.data[[column]]) < 2,
+    logical(1)
+  )]
+  if (length(constant) == 0) {
+    return(invisible(.data))
+  }
+
+  abort(
+    c(
+      "{.fn {fn}} needs {.arg {arg_name}} to take more than one value.",
+      x = "{.arg {constant}} {?is/are} constant.",
+      i = "The non-overlap ratio compares covariate profiles at a common target
+           dose, and the target grid spans the observed exposure range. One
+           observed dose leaves one target and a fitted density with no width,
+           so the ratio would report that dose as supported at every profile."
+    ),
+    error_class = "positively_variance_error",
+    call = call
+  )
+}
+
+#' A dense grid of probe values strictly inside the observed exposure range
+#'
+#' The grid the flat-at-one test is read on. It is built here rather than taken
+#' from `values` because how many targets a user asked for, and where, is not
+#' something the test can be allowed to depend on: three probes aimed into a
+#' genuine support gap all read one, and a criterion reading them would call a
+#' real finding an artifact, while the same fit judged on a dense grid does not.
+#' Generating the grid makes the reading a property of the fit.
+#'
+#' The endpoints are dropped. A ratio of one beyond the observed range is what a
+#' deliberate probe at an unobserved dose is asking for, and each range endpoint
+#' is a dose some profile actually received, so the ratio there is held below one
+#' by that profile alone. Keeping them would leave the test unreachable.
+#'
+#' @param exposure The observed exposure vector, which varies by the time this
+#'   is reached.
+#' @param n_probe The number of interior probe values.
+#'
+#' @return A numeric vector of `n_probe` values strictly inside the range.
+#' @keywords internal
+#' @noRd
+interior_probe_grid <- function(exposure, n_probe = 100L) {
+  limits <- range(exposure)
+  grid <- seq(limits[1], limits[2], length.out = n_probe + 2L)
+  grid[-c(1L, length(grid))]
+}
+
+#' Is the non-overlap curve flat at one inside the observed exposure range?
+#'
+#' Reads the degeneracy off the estimator's output rather than its internals, so
+#' the test holds for any estimator built through [new_hdr_density()] and not
+#' only for the fitted residual standard deviation of the default one. The
+#' fitted state is reused, so the extra ratios cost no second fit. Exact equality
+#' is safe because each ratio is the `mean()` of a logical vector.
+#'
+#' A missing ratio is not a flat reading. A saturated or over-parameterized fit
+#' has no residual standard deviation to speak of, which makes every ratio `NA`,
+#' and a comparison over those is `NA` rather than `FALSE`. Returning it would
+#' put `NA` where the caller branches and raise an unclassed base R error.
+#'
+#' @param density_estimator An `hdr_density` estimator.
+#' @param fitted The fitted state and per-row cutoff from `hdr_fit()`.
+#' @param analysis A data frame holding the exposure and covariate columns.
+#' @param exposure The observed exposure vector as a double.
+#'
+#' @return A single logical value, never `NA`.
+#' @keywords internal
+#' @noRd
+nonoverlap_is_flat_at_one <- function(
+  density_estimator,
+  fitted,
+  analysis,
+  exposure
+) {
+  probes <- interior_probe_grid(exposure)
+  ratios <- hdr_ratios(density_estimator, fitted, analysis, probes)
+  length(ratios) > 0 && !anyNA(ratios) && all(ratios == 1)
+}
+
+#' Report a non-overlap curve flat at one inside the observed range
+#'
+#' The exposure varies, so the reading is not wrong and the diagnostic returns
+#' it. What the warning adds is where the number came from: the fitted density
+#' is too narrow for any profile's region to reach another profile's dose, so
+#' the ratio is set by that width rather than by a comparison between profiles.
+#'
+#' @param times The offending time points, or `NULL` for the point diagnostic.
+#' @param call The calling environment, used to build the warning's call.
+#'
+#' @return Invisibly `NULL`; raises a warning as a side effect.
+#' @keywords internal
+#' @noRd
+warn_flat_nonoverlap <- function(times = NULL, call = rlang::caller_env()) {
+  headline <- if (is.null(times)) {
+    "The non-overlap ratio is 1 throughout the observed exposure range."
+  } else {
+    "The non-overlap ratio is 1 throughout the observed exposure range of
+     {cli::qty(length(times))}time point{?s} {times}."
+  }
+
+  warn(
+    c(
+      headline,
+      i = "The exposure is close to a deterministic function of the columns it
+           is conditioned on, so no covariate profile's highest-density region
+           reaches another profile's dose.",
+      i = "The reading is correct, but it is set by the width of the fitted
+           conditional density rather than by any comparison between profiles."
+    ),
+    warning_class = "positively_degenerate_density_warning",
+    call = call
+  )
 }
 
 #' Resolve the exposure type of every named exposure column
@@ -458,11 +641,12 @@ resolve_targets <- function(values, exposure, call = rlang::caller_env()) {
   as.double(values)
 }
 
-#' The HDR non-overlap ratio at each target value
+#' Fit the conditional-density estimator and resolve its HDR cutoff
 #'
-#' Fits the conditional-density estimator, resolves the per-row HDR density
-#' cutoff, then for every target value returns the fraction of rows whose
-#' density at that value falls below the cutoff, that is, whose HDR excludes it.
+#' The fit and the per-row density cutoff are the whole of what the ratios are
+#' read from, so they are produced once and handed to every reading taken off
+#' them: the ratios at the user's target values, and the ratios on the interior
+#' probe grid the flat-at-one test uses.
 #'
 #' @param density_estimator An `hdr_density` estimator.
 #' @param exposure_name The exposure column name.
@@ -470,20 +654,19 @@ resolve_targets <- function(values, exposure, call = rlang::caller_env()) {
 #' @param analysis A data frame holding the exposure and covariate columns.
 #' @param exposure The observed exposure vector as a double.
 #' @param mass The HDR probability mass.
-#' @param targets The target exposure values.
 #' @param call The calling environment, used to build the error's call.
 #'
-#' @return A numeric vector of non-overlap ratios, one per target value.
+#' @return A list with `state`, the estimator's fitted state, and `cutoff`, the
+#'   per-row HDR density cutoff.
 #' @keywords internal
 #' @noRd
-hdr_nonoverlap <- function(
+hdr_fit <- function(
   density_estimator,
   exposure_name,
   covariate_names,
   analysis,
   exposure,
   mass,
-  targets,
   call = rlang::caller_env()
 ) {
   formula <- stats::reformulate(covariate_names, response = exposure_name)
@@ -496,11 +679,28 @@ hdr_nonoverlap <- function(
     exposure = exposure,
     call = call
   )
+  list(state = state, cutoff = cutoff)
+}
+
+#' The HDR non-overlap ratio at each target value
+#'
+#' For every target value, the fraction of rows whose density at that value falls
+#' below the cutoff, that is, whose HDR excludes it.
+#'
+#' @param density_estimator An `hdr_density` estimator.
+#' @param fitted The fitted state and per-row cutoff from `hdr_fit()`.
+#' @param analysis A data frame holding the exposure and covariate columns.
+#' @param targets The target exposure values.
+#'
+#' @return A numeric vector of non-overlap ratios, one per target value.
+#' @keywords internal
+#' @noRd
+hdr_ratios <- function(density_estimator, fitted, analysis, targets) {
   vapply(
     targets,
     function(a) {
-      density <- density_estimator@density(state, a, analysis)
-      mean(density < cutoff)
+      density <- density_estimator@density(fitted$state, a, analysis)
+      mean(density < fitted$cutoff)
     },
     numeric(1)
   )
@@ -531,6 +731,13 @@ hdr_nonoverlap <- function(
 #' multimodal gap at a single time point is invisible to it, as for
 #' [check_hdr()].
 #'
+#' A time point whose exposure is close to a deterministic function of its
+#' conditioning set reads a ratio of one throughout that time point's observed
+#' exposure range, for the reason [check_hdr()] describes. Each time point is
+#' judged on a dense grid spanning its own range, since the shared target grid
+#' spans the pooled range and can leave a time point with a single target of its
+#' own. One warning names every such time point.
+#'
 #' @param .data A data frame in wide form, one row per subject.
 #' @param .exposures An ordered tidyselect of exposure columns, one per time
 #'   point.
@@ -557,9 +764,11 @@ hdr_nonoverlap <- function(
 #'   Declaring it on numeric columns with few distinct values, doses recorded at
 #'   a handful of milligram levels for instance, is exactly the supported use:
 #'   the unique-value heuristic reads such a column as categorical, so under
-#'   `"auto"` the call aborts. Because numeric is the whole of the requirement, a
-#'   two-valued numeric column is then accepted as well, which is the price of an
-#'   authoritative declaration.
+#'   `"auto"` the call aborts. Because numeric is the whole of what the type asks
+#'   of a column, a two-valued numeric column is then accepted as well, which is
+#'   the price of an authoritative declaration. A constant column is refused
+#'   whichever way the type was decided, and the error names every constant
+#'   column at once.
 #'
 #' @return An `hdr_result` object, an S7 subclass of [positivity_diagnostic].
 #'   Its `@results` tibble has one row per time point and target value with
@@ -646,6 +855,13 @@ check_hdr_seq <- function(
     )
   }
 
+  validate_exposure_variation(
+    .data,
+    exposure_names,
+    ".exposures",
+    fn = "check_hdr_seq"
+  )
+
   pooled_exposure <- as.double(unlist(.data[exposure_names], use.names = FALSE))
   targets <- resolve_targets(values, pooled_exposure)
 
@@ -667,28 +883,45 @@ check_hdr_seq <- function(
     call = rlang::current_env()
   )
 
+  # Each wave is fitted on its own conditioning set, so its flat-at-one reading
+  # is taken on a probe grid spanning that wave's own observed range. The shared
+  # target grid spans the pooled range instead, which can leave a wave with one
+  # target of its own, or none, and no verdict can rest on that.
   seq_call <- rlang::current_env()
   per_time <- purrr::map(seq_len(n_times), function(t) {
     conditioning <- conditioning_sets[[t]]
     exposure_name <- exposure_names[[t]]
     analysis <- .data[c(exposure_name, conditioning)]
-    nonoverlap <- hdr_nonoverlap(
+    exposure <- as.double(.data[[exposure_name]])
+    fitted <- hdr_fit(
       density_estimator,
       exposure_name = exposure_name,
       covariate_names = conditioning,
       analysis = analysis,
-      exposure = as.double(.data[[exposure_name]]),
+      exposure = exposure,
       mass = mass,
-      targets = targets,
       call = seq_call
     )
-    tibble::tibble(
-      time = rep(t, length(targets)),
-      value = targets,
-      nonoverlap = nonoverlap
+    list(
+      results = tibble::tibble(
+        time = rep(t, length(targets)),
+        value = targets,
+        nonoverlap = hdr_ratios(density_estimator, fitted, analysis, targets)
+      ),
+      flat = nonoverlap_is_flat_at_one(
+        density_estimator,
+        fitted,
+        analysis,
+        exposure
+      )
     )
   })
-  results <- vctrs::vec_rbind(!!!per_time)
+  results <- vctrs::vec_rbind(!!!lapply(per_time, `[[`, "results"))
+
+  flat <- vapply(per_time, function(wave) wave$flat, logical(1))
+  if (any(flat)) {
+    warn_flat_nonoverlap(times = which(flat))
+  }
 
   # resolve_seq_exposure_types() supports continuous exposures only, so every
   # column has already resolved to "continuous" and the type is stated here

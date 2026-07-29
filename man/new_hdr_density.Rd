@@ -63,7 +63,7 @@ Membership of a target \code{a} in the HDR at row \eqn{j} is the test
 estimator <- new_hdr_density(
   fit = function(formula, data) {
     model <- lm(formula, data = data)
-    list(model = model, sigma = summary(model)$sigma)
+    list(model = model, sigma = sigma(model))
   },
   density = function(state, a, newdata) {
     mu <- predict(state$model, newdata = newdata)

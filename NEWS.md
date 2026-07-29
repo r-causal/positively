@@ -80,3 +80,21 @@
   follower restriction, so declaring a non-binary type on a binary exposure
   keeps every subject in every risk set and stops the diagnostic from exposing
   the violations that pooling over the already-treated masks.
+
+* `check_hdr()` and `check_hdr_seq()` abort on a constant exposure column.
+  Previously a constant column declared `exposure_type = "continuous"`
+  collapsed the documented 100-point target grid to the single observed dose
+  and reported a non-overlap ratio of zero there, which reads as perfectly
+  supported. The sequential error names every constant column at once.
+
+* `check_hdr()` and `check_hdr_seq()` warn when the non-overlap ratio is one
+  throughout the observed exposure range. That happens when the exposure is
+  close to a deterministic function of the columns it is conditioned on, and
+  while the reading is correct it is set by the width of the fitted conditional
+  density rather than by any comparison between covariate profiles. The warning
+  is decided on a dense grid spanning the observed range rather than on
+  `values`, so it reports a property of the fit: a ratio of one at a handful of
+  targets aimed into a genuine support gap is a finding, not an artifact, and
+  goes unremarked. `check_hdr_seq()` judges each time point on its own range,
+  since the target grid spans the pooled one, and names every affected time
+  point in a single warning.

@@ -94,6 +94,59 @@ sim_hdr_seq_coarse <- function(n = 150, seed = 1) {
   tibble::tibble(l0 = l0, a1 = a1, l1 = l1, a2 = a2, l2 = l2, a3 = a3)
 }
 
+# A perfectly determined exposure: A = 2 * X with no residual noise at all. The
+# exposure varies, so the diagnostic has a grid to span, but the fitted density
+# has no width and no profile's HDR reaches any other profile's dose, so every
+# target inside the observed range reads one.
+sim_hdr_determined <- function(n = 200, seed = 1) {
+  withr::local_seed(seed)
+  x <- stats::rnorm(n)
+  tibble::tibble(exposure = 2 * x, x = x)
+}
+
+# Three waves whose second and third exposures are determined by the covariate
+# entering their own conditioning sets, while the first carries genuine residual
+# noise. Two waves of three read flat at one, so a report that named every wave
+# or only the first would be visible.
+sim_hdr_seq_determined <- function(n = 200, seed = 1) {
+  withr::local_seed(seed)
+  l0 <- stats::rnorm(n)
+  a1 <- stats::rnorm(n, mean = l0)
+  l1 <- stats::rnorm(n)
+  l2 <- stats::rnorm(n)
+  tibble::tibble(l0 = l0, a1 = a1, l1 = l1, a2 = 2 * l1, l2 = l2, a3 = 3 * l2)
+}
+
+# Two well-separated covariate groups with a genuine support gap between them.
+# The exposure is far from deterministic, with an R-squared near 0.9 against a
+# residual standard deviation of about 1, and the two groups' regions are
+# roughly [-4.9, -1.1] and [1.2, 5.0], so a target in the middle is unsupported
+# at every profile because the profiles genuinely disagree about the dose.
+sim_hdr_separated <- function(n = 400, seed = 1) {
+  withr::local_seed(seed)
+  g <- rep(c(0, 1), length.out = n)
+  tibble::tibble(g = g, exposure = 3 * (2 * g - 1) + stats::rnorm(n, 0, 1))
+}
+
+# Three waves of separated groups, so every wave carries a real support gap and
+# none is deterministic. The waves' ranges differ, so the pooled target grid
+# leaves a wave with few targets of its own to be judged on.
+sim_hdr_seq_separated <- function(n = 400, seed = 1) {
+  withr::local_seed(seed)
+  g <- rep(c(0, 1), length.out = n)
+  wave <- function(center, spread) {
+    center + spread * (2 * g - 1) + stats::rnorm(n, 0, 1)
+  }
+  tibble::tibble(
+    l0 = g,
+    a1 = wave(0, 3),
+    l1 = g,
+    a2 = wave(6, 3),
+    l2 = g,
+    a3 = wave(-6, 3)
+  )
+}
+
 # The non-overlap value at a single target, matched exactly on the grid value.
 tau_at <- function(res, a) {
   res@results$nonoverlap[res@results$value == a]
@@ -329,6 +382,185 @@ test_that("check_hdr() rejects a type outside its supported menu", {
   )
 })
 
+# ---- Degenerate exposures -------------------------------------------------
+
+test_that("check_hdr() aborts on a constant exposure", {
+  local_quiet()
+  # A constant exposure collapses the documented 100-point grid to one target
+  # and leaves the fitted density no width, so the ratio reads zero at the one
+  # observed dose. That is not an imprecise answer, it is the opposite of the
+  # truth, which is why this aborts rather than warns.
+  declared <- tibble::tibble(
+    exposure = rep(3, 50),
+    l = seq(-1, 1, length.out = 50)
+  )
+  expect_error(
+    check_hdr(declared, exposure, l, exposure_type = "continuous"),
+    class = "positively_variance_error"
+  )
+
+  # The unique-value heuristic reads a constant column as categorical only once
+  # the ratio of one distinct value to the row count falls below the cutoff, so
+  # at five rows or fewer the auto path reaches the same arithmetic.
+  detected <- tibble::tibble(exposure = rep(3, 4), l = c(-1, 0, 1, 2))
+  expect_identical(detect_exposure_type(detected$exposure), "continuous")
+  expect_error(
+    check_hdr(detected, exposure, l),
+    class = "positively_variance_error"
+  )
+})
+
+test_that("check_hdr_seq() names every constant wave in one abort", {
+  local_quiet()
+  withr::local_options(cli.width = 200)
+  data <- dgp_longitudinal(n = 300, seed = 5)
+  data$a1 <- 2
+  data$a3 <- 7
+
+  err <- expect_error(
+    check_hdr_seq(
+      data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      exposure_type = "continuous",
+      values = 0
+    ),
+    class = "positively_variance_error"
+  )
+  # Both offending waves are named together, so a user does not correct one
+  # column, rerun, and be told about the next.
+  expect_match(conditionMessage(err), "`a1` and `a3`", fixed = TRUE)
+})
+
+test_that("no unclassed condition escapes a perfectly determined exposure", {
+  local_quiet()
+  # summary.lm() calls the fit "essentially perfect" and warns about it, which
+  # would put a bare base R warning in front of a user of a package whose every
+  # condition is classed. Nothing the diagnostic raises here may be unclassed.
+  data <- sim_hdr_determined(200, seed = 1)
+
+  raised <- list()
+  withCallingHandlers(
+    check_hdr(data, exposure, x),
+    warning = function(cnd) {
+      raised[[length(raised) + 1L]] <<- cnd
+      invokeRestart("muffleWarning")
+    }
+  )
+
+  expect_gt(length(raised), 0)
+  for (cnd in raised) {
+    expect_s3_class(cnd, "positively_warning")
+  }
+})
+
+test_that("a non-overlap curve flat at one inside the observed range warns", {
+  local_quiet()
+  # The exposure varies, so a ratio of one is literally correct: a dose fixed by
+  # the covariates is supported at no other profile. What the warning reports is
+  # that the reading is driven by the width of the fitted density rather than by
+  # any comparison between profiles.
+  data <- sim_hdr_determined(200, seed = 1)
+
+  expect_warning(
+    check_hdr(data, exposure, x, values = c(-1, 0, 1)),
+    class = "positively_degenerate_density_warning"
+  )
+  expect_warning(
+    check_hdr(data, exposure, x),
+    class = "positively_degenerate_density_warning"
+  )
+})
+
+test_that("a saturated fit returns a result rather than a bare R condition", {
+  local_quiet()
+  # With as many parameters as observations the residual standard deviation is
+  # NaN, so every ratio is NA. A flat-at-one test written as a comparison over
+  # those ratios is itself NA, and branching on it raises an unclassed base R
+  # error from inside a function whose whole purpose is to keep those away.
+  saturated <- tibble::tibble(
+    exposure = c(1, 2, 4),
+    x = c(0, 1, 3),
+    y = c(1, 0, 2)
+  )
+  res <- expect_no_warning(
+    check_hdr(saturated, exposure, c(x, y), exposure_type = "continuous")
+  )
+  expect_identical(S7::S7_class(res)@name, "hdr_result")
+  expect_true(all(is.na(res@results$nonoverlap)))
+
+  # The second wave conditions on three columns over three rows, so it saturates
+  # while the first wave keeps a residual standard deviation and reads normally.
+  seq_saturated <- tibble::tibble(
+    l0 = c(0, 1, 2),
+    a1 = c(0, 3, 1),
+    l1 = c(1, 0, 2),
+    a2 = c(2, 5, 1)
+  )
+  seq_res <- expect_no_warning(
+    check_hdr_seq(
+      seq_saturated,
+      c(a1, a2),
+      list(l0, l1),
+      exposure_type = "continuous"
+    )
+  )
+  expect_identical(S7::S7_class(seq_res)@name, "hdr_result")
+  expect_true(anyNA(seq_res@results$nonoverlap))
+})
+
+test_that("a genuine support gap between profiles does not warn", {
+  local_quiet()
+  # The exposure is nowhere near deterministic and the ratio of one in the gap
+  # is set precisely by a comparison between profiles, which is the reading the
+  # diagnostic exists to report. Whether the warning fires must be a property of
+  # the fit, so it cannot depend on which doses the user happened to ask about.
+  data <- sim_hdr_separated(400, seed = 1)
+
+  expect_no_warning(check_hdr(data, exposure, g, values = c(-0.5, 0, 0.5)))
+  expect_no_warning(check_hdr(data, exposure, g, values = 0))
+  expect_no_warning(check_hdr(data, exposure, g))
+
+  # The probe list really does land in the gap, so the test would pass on a
+  # criterion that had simply stopped firing.
+  probed <- suppressWarnings(
+    check_hdr(data, exposure, g, values = c(-0.5, 0, 0.5))
+  )
+  expect_true(all(probed@results$nonoverlap == 1))
+})
+
+test_that("a sequential support gap does not warn on the pooled grid", {
+  local_quiet()
+  # Each wave is judged against its own observed range while the target grid
+  # spans the pooled one, so a wave can be left with very few targets of its own.
+  # A criterion reading the shared grid would let that decide the verdict.
+  data <- sim_hdr_seq_separated(400, seed = 1)
+
+  expect_no_warning(check_hdr_seq(data, c(a1, a2, a3), list(l0, l1, l2)))
+  expect_no_warning(
+    check_hdr_seq(data, c(a1, a2, a3), list(l0, l1, l2), values = c(-6, 0, 6))
+  )
+})
+
+test_that("check_hdr_seq() names every degenerate wave in one warning", {
+  local_quiet()
+  withr::local_options(cli.width = 200)
+  data <- sim_hdr_seq_determined(200, seed = 1)
+
+  cnd <- expect_warning(
+    check_hdr_seq(
+      data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      values = c(-1, 0, 1)
+    ),
+    class = "positively_degenerate_density_warning"
+  )
+  # The first wave carries residual noise, so naming every wave would be as
+  # wrong as naming only the first.
+  expect_match(conditionMessage(cnd), "2 and 3", fixed = TRUE)
+})
+
 # ---- Closed-form oracle and curve helpers ---------------------------------
 
 # Closed-form non-overlap for the linear-Gaussian design:
@@ -447,7 +679,11 @@ test_that("a target beyond all support gives tau exactly one", {
   sigma <- summary(model)$sigma
   a_extreme <- max(mu) + 5 * sigma
 
-  res <- check_hdr(data, exposure, l, values = a_extreme)
+  # Every target here reads one, but the target sits beyond all observed
+  # support, so it is a deliberate probe at an unobserved dose and is entitled
+  # to that ratio. Restricting the flat-at-one reading to targets inside the
+  # observed range is what keeps this case quiet.
+  res <- expect_no_warning(check_hdr(data, exposure, l, values = a_extreme))
   expect_equal(tau_at(res, a_extreme), 1)
 })
 
@@ -1227,6 +1463,33 @@ test_that("check_hdr() argument validation messages are stable", {
   expect_snapshot(check_hdr(one_row, exposure, l), error = TRUE)
 
   expect_snapshot(check_hdr(data, exposure, c(exposure, l)), error = TRUE)
+
+  constant <- tibble::tibble(
+    exposure = rep(3, 50),
+    l = seq(-1, 1, length.out = 50)
+  )
+  expect_snapshot(
+    check_hdr(constant, exposure, l, exposure_type = "continuous"),
+    error = TRUE
+  )
+})
+
+test_that("the flat-at-one non-overlap messages are stable", {
+  local_quiet()
+  withr::local_options(warn = 0)
+
+  point <- sim_hdr_determined(200, seed = 1)
+  expect_snapshot(res <- check_hdr(point, exposure, x, values = c(-1, 0, 1)))
+
+  sequential <- sim_hdr_seq_determined(200, seed = 1)
+  expect_snapshot(
+    res <- check_hdr_seq(
+      sequential,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      values = c(-1, 0, 1)
+    )
+  )
 })
 
 test_that("check_hdr_seq() argument validation messages are stable", {
@@ -1326,6 +1589,20 @@ test_that("check_hdr_seq() argument validation messages are stable", {
       data,
       c(a1, a2, a3),
       list(tidyselect::starts_with("zzz")),
+      values = 0
+    ),
+    error = TRUE
+  )
+
+  constant <- data
+  constant$a1 <- 2
+  constant$a3 <- 7
+  expect_snapshot(
+    check_hdr_seq(
+      constant,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      exposure_type = "continuous",
       values = 0
     ),
     error = TRUE

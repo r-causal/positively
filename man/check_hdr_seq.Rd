@@ -51,9 +51,11 @@ every offending column at once, rather than the first one it meets.
 Declaring it on numeric columns with few distinct values, doses recorded at
 a handful of milligram levels for instance, is exactly the supported use:
 the unique-value heuristic reads such a column as categorical, so under
-\code{"auto"} the call aborts. Because numeric is the whole of the requirement, a
-two-valued numeric column is then accepted as well, which is the price of an
-authoritative declaration.}
+\code{"auto"} the call aborts. Because numeric is the whole of what the type asks
+of a column, a two-valued numeric column is then accepted as well, which is
+the price of an authoritative declaration. A constant column is refused
+whichever way the type was decided, and the error names every constant
+column at once.}
 }
 \value{
 An \code{hdr_result} object, an S7 subclass of \link{positivity_diagnostic}.
@@ -83,6 +85,13 @@ stratum's supported dose away from a target is isolated to the time point
 where it occurs. The default normal estimator sees mean-shift gaps only; a
 multimodal gap at a single time point is invisible to it, as for
 \code{\link[=check_hdr]{check_hdr()}}.
+
+A time point whose exposure is close to a deterministic function of its
+conditioning set reads a ratio of one throughout that time point's observed
+exposure range, for the reason \code{\link[=check_hdr]{check_hdr()}} describes. Each time point is
+judged on a dense grid spanning its own range, since the shared target grid
+spans the pooled range and can leave a time point with a single target of its
+own. One warning names every such time point.
 }
 \examples{
 set.seed(1)
