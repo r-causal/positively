@@ -224,10 +224,16 @@ validate_hdr_estimator <- function(
 
 #' Resolve the exposure type of every named exposure column
 #'
-#' Applies `resolve_exposure_type()` to each exposure column in turn, so the
+#' Classifies each exposure column with `classify_exposure_type()`, so the
 #' sequential variant holds the same continuous-only line as [check_hdr()] and
-#' honors a declared type the same way. Resolving per column, rather than over
-#' the set, lets the error name the column that cannot carry the type.
+#' honors a declared type the same way, then reports every offender in one
+#' abort. Collecting before reporting is what keeps a user with three offending
+#' waves from correcting one column, rerunning, and being told about the next.
+#'
+#' The menu gate runs once, before any column is read. A type outside the
+#' supported menu is a fact about the argument rather than about any one column,
+#' so matching it first keeps it an argument error instead of one offender among
+#' several.
 #'
 #' @param .data The data frame.
 #' @param exposure_names The exposure column names.
@@ -243,18 +249,147 @@ resolve_seq_exposure_types <- function(
   exposure_type,
   call = rlang::caller_env()
 ) {
-  for (name in exposure_names) {
-    resolve_exposure_type(
+  supported <- diagnostic_supported_types()[["hdr_seq"]]
+  exposure_type <- rlang::arg_match(
+    exposure_type,
+    values = c("auto", supported),
+    error_arg = "exposure_type",
+    error_call = call
+  )
+
+  classified <- lapply(exposure_names, function(name) {
+    classify_exposure_type(
       exposure_type,
       .data[[name]],
-      supported = diagnostic_supported_types()[["hdr_seq"]],
-      fn = "check_hdr_seq",
-      arg = name,
-      announce = FALSE,
+      supported = supported,
+      announce = FALSE
+    )
+  })
+  problems <- vapply(classified, function(x) x$problem, character(1))
+  unsupported <- problems == "unsupported"
+  cannot_carry <- problems == "structure"
+
+  # The two failures are reported in the order the single-column path raises
+  # them, detection before structure, so the message a user meets first is the
+  # same one either way.
+  if (any(unsupported)) {
+    abort_seq_detected_types(
+      exposure_names[unsupported],
+      vapply(classified[unsupported], function(x) x$detected, character(1)),
+      supported = supported,
       call = call
     )
   }
+  if (any(cannot_carry)) {
+    abort_seq_exposure_structure(
+      .data,
+      exposure_names[cannot_carry],
+      call = call
+    )
+  }
+
   invisible(.data)
+}
+
+#' Report every exposure column detection read outside the supported set
+#'
+#' One info bullet per distinct detected type, so columns read the same way are
+#' named together and columns read differently are named apart, followed by a
+#' single hint naming every offender. Detection is a guess, so the bullets stay
+#' informational and the hint names the escape hatch; that keeps the
+#' one-offender message the shape [check_hdr()] raises, differing only in the
+#' function and the argument it names.
+#'
+#' How many bullets there are depends on the data, so the templates are built by
+#' index. Interpolating a column name into a template instead would send user
+#' text through cli twice, once here and once in `abort()`: a name containing
+#' braces would be read as an expression, replacing the diagnostic error with an
+#' internal cli failure and losing the package's own condition classes with it.
+#'
+#' @param offenders The exposure column names whose detected type is
+#'   unsupported.
+#' @param detected The detected type of each offender, aligned with `offenders`.
+#' @param supported The exposure types `check_hdr_seq()` can compute.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return Never returns; always raises an error.
+#' @keywords internal
+#' @noRd
+abort_seq_detected_types <- function(
+  offenders,
+  detected,
+  supported,
+  call = rlang::caller_env()
+) {
+  types <- unique(detected)
+  named <- lapply(types, function(type) offenders[detected == type])
+  type_code <- paste0("exposure_type = \"", supported, "\"")
+
+  readings <- sprintf(
+    "{.arg {named[[%d]]}} {?was/were} detected as {.val {types[[%d]]}}.",
+    seq_along(named),
+    seq_along(named)
+  )
+  hint <- "If {.arg {offenders}} {?is/are} {.or {supported}}, set
+           {.or {.code {type_code}}}."
+
+  bullets <- c(readings, hint)
+  abort(
+    c(
+      "{.fn check_hdr_seq} supports {.or {supported}} exposures only.",
+      rlang::set_names(bullets, rep("i", length(bullets)))
+    ),
+    error_class = "positively_exposure_type_error",
+    call = call
+  )
+}
+
+#' Report every exposure column that cannot carry the resolved type
+#'
+#' One danger bullet per distinct column class, matching the shape
+#' `validate_exposure_structure()` raises for a single column. No escape hatch
+#' is offered: reaching here under a declared type means the user has already
+#' used it, and reaching here under detection means the column is not numeric
+#' whatever it was read as. `check_hdr_seq()` supports continuous exposures
+#' alone, so the numeric requirement is the only one that can fail and the
+#' wording states it outright.
+#'
+#' As in `abort_seq_detected_types()`, the templates are built by index so that
+#' a column name reaches cli once, as a value, rather than twice as text.
+#'
+#' @param .data The data frame.
+#' @param offenders The exposure column names that cannot carry the type.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return Never returns; always raises an error.
+#' @keywords internal
+#' @noRd
+abort_seq_exposure_structure <- function(
+  .data,
+  offenders,
+  call = rlang::caller_env()
+) {
+  classes <- lapply(.data[offenders], class)
+  keys <- vapply(classes, paste, character(1), collapse = "/")
+  distinct <- unique(keys)
+  named <- lapply(distinct, function(key) offenders[keys == key])
+  shapes <- lapply(distinct, function(key) classes[[match(key, keys)]])
+
+  bullets <- sprintf(
+    "{.arg {named[[%d]]}} {?is/are} {.cls {shapes[[%d]]}}.",
+    seq_along(named),
+    seq_along(named)
+  )
+
+  abort(
+    c(
+      "{.fn check_hdr_seq} needs a numeric {.arg .exposures} for a continuous
+       exposure.",
+      rlang::set_names(bullets, rep("x", length(bullets)))
+    ),
+    error_class = "positively_exposure_type_error",
+    call = call
+  )
 }
 
 #' Resolve a data-masked selection to a single exposure column name
@@ -416,7 +551,8 @@ hdr_nonoverlap <- function(
 #' @param exposure_type One of `"auto"` (detect from the data, the default) or
 #'   `"continuous"`, applied to every exposure column in turn. A supplied type is
 #'   authoritative and detection is not consulted, so `"continuous"` is rejected
-#'   only when an exposure column is not numeric, and the error names the column.
+#'   only when an exposure column is not numeric. Either way the error names
+#'   every offending column at once, rather than the first one it meets.
 #'   Declaring it on numeric columns with few distinct values, doses recorded at
 #'   a handful of milligram levels for instance, is exactly the supported use:
 #'   the unique-value heuristic reads such a column as categorical, so under

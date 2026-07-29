@@ -46,7 +46,8 @@ full history.}
 \item{exposure_type}{One of \code{"auto"} (detect from the data, the default) or
 \code{"continuous"}, applied to every exposure column in turn. A supplied type is
 authoritative and detection is not consulted, so \code{"continuous"} is rejected
-only when an exposure column is not numeric, and the error names the column.
+only when an exposure column is not numeric. Either way the error names
+every offending column at once, rather than the first one it meets.
 Declaring it on numeric columns with few distinct values, doses recorded at
 a handful of milligram levels for instance, is exactly the supported use:
 the unique-value heuristic reads such a column as categorical, so under

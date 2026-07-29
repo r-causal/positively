@@ -214,15 +214,64 @@ validate_exposure_structure <- function(
   )
 }
 
+#' Decide an exposure type without raising
+#'
+#' The deciding half of `resolve_exposure_type()`. It asks the same questions in
+#' the same order, and returns what it found rather than aborting on it. A
+#' caller resolving one column hands the answer straight to the reporting half;
+#' a caller resolving several collects every answer first and reports once, so a
+#' user with three offending exposure columns is told about all three instead of
+#' correcting one and rerunning to meet the next.
+#'
+#' The menu gate is not applied here. `rlang::arg_match()` is a statement about
+#' the argument rather than about any one column, so a caller resolving several
+#' columns matches once before its loop and a caller resolving one matches in
+#' `resolve_exposure_type()`.
+#'
+#' @param exposure_type `"auto"` or one of `supported`, already matched against
+#'   the menu.
+#' @param .exposure The exposure vector.
+#' @param supported The exposure types the calling diagnostic can compute.
+#' @param announce Whether a detected type is announced through `alert_info()`.
+#'   Defaults to `TRUE`; callers that classify several exposures at once pass
+#'   `FALSE` to stay silent.
+#'
+#' @return A list with `type`, the resolved exposure type; `detected`, the type
+#'   detection read from the column, or `NA_character_` when a type was
+#'   declared; and `problem`, one of `"none"`, `"unsupported"` for a detected
+#'   type outside `supported`, and `"structure"` for a resolved type the column
+#'   cannot carry.
+#' @keywords internal
+#' @noRd
+classify_exposure_type <- function(
+  exposure_type,
+  .exposure,
+  supported,
+  announce = TRUE
+) {
+  detected <- NA_character_
+  type <- exposure_type
+
+  if (exposure_type == "auto") {
+    detected <- detect_exposure_type(.exposure, announce = announce)
+    type <- detected
+    if (!detected %in% supported) {
+      return(list(type = type, detected = detected, problem = "unsupported"))
+    }
+  }
+
+  problem <- if (exposure_carries_type(.exposure, type)) "none" else "structure"
+  list(type = type, detected = detected, problem = problem)
+}
+
 #' Resolve an exposure type, detecting it when requested
 #'
 #' Matches `exposure_type` against `"auto"` and the types the calling diagnostic
-#' supports with [rlang::arg_match()]. When it is `"auto"`, the type is inferred
-#' from the data through `detect_exposure_type()` and must land in `supported`;
-#' otherwise the supplied type is honored without detection. Either way the
-#' resolved type is checked against the column through
-#' `validate_exposure_structure()`, so a detected type and a declared type fail
-#' for the same reasons.
+#' supports with [rlang::arg_match()], then reports whatever
+#' `classify_exposure_type()` decided. When it is `"auto"`, the type is inferred
+#' from the data and must land in `supported`; otherwise the supplied type is
+#' honored without detection. Either way the resolved type is checked against
+#' the column, so a detected type and a declared type fail for the same reasons.
 #'
 #' @param exposure_type `"auto"` or one of `supported`.
 #' @param .exposure The exposure vector.
@@ -253,30 +302,39 @@ resolve_exposure_type <- function(
     error_call = call
   )
 
-  if (exposure_type == "auto") {
-    exposure_type <- detect_exposure_type(.exposure, announce = announce)
-    if (!exposure_type %in% supported) {
-      type_code <- paste0("exposure_type = \"", supported, "\"")
-      abort(
-        c(
-          "{.fn {fn}} supports {.or {supported}} exposures only.",
-          i = "{.arg {arg}} was detected as {.val {exposure_type}}.",
-          i = "If {.arg {arg}} is {.or {supported}}, set
-               {.or {.code {type_code}}}."
-        ),
-        error_class = "positively_exposure_type_error",
-        call = call
-      )
-    }
-  }
-
-  validate_exposure_structure(
-    .exposure,
+  classified <- classify_exposure_type(
     exposure_type,
-    fn = fn,
-    arg = arg,
-    call = call
+    .exposure,
+    supported = supported,
+    announce = announce
   )
 
-  exposure_type
+  if (classified$problem == "unsupported") {
+    detected <- classified$detected
+    type_code <- paste0("exposure_type = \"", supported, "\"")
+    abort(
+      c(
+        "{.fn {fn}} supports {.or {supported}} exposures only.",
+        i = "{.arg {arg}} was detected as {.val {detected}}.",
+        i = "If {.arg {arg}} is {.or {supported}}, set
+             {.or {.code {type_code}}}."
+      ),
+      error_class = "positively_exposure_type_error",
+      call = call
+    )
+  }
+
+  # The classifier has already applied exposure_carries_type(), so the gate is
+  # entered only to raise; the wording of that failure belongs to it.
+  if (classified$problem == "structure") {
+    validate_exposure_structure(
+      .exposure,
+      classified$type,
+      fn = fn,
+      arg = arg,
+      call = call
+    )
+  }
+
+  classified$type
 }

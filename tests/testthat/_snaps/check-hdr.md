@@ -202,6 +202,46 @@
 ---
 
     Code
+      check_hdr_seq(binary_pair, c(a1, a2, a3), list(l0, l1, l2))
+    Condition
+      Error in `check_hdr_seq()`:
+      ! `check_hdr_seq()` supports continuous exposures only.
+      i `a2` and `a3` were detected as "binary".
+      i If `a2` and `a3` are continuous, set `exposure_type = "continuous"`.
+
+---
+
+    Code
+      check_hdr_seq(factors, c(a1, a2, a3), list(l0, l1, l2), exposure_type = "continuous")
+    Condition
+      Error in `check_hdr_seq()`:
+      ! `check_hdr_seq()` needs a numeric `.exposures` for a continuous exposure.
+      x `a2` and `a3` are <factor>.
+
+---
+
+    Code
+      check_hdr_seq(mixed, c(a1, a2, a3), list(l0, l1, l2), exposure_type = "continuous")
+    Condition
+      Error in `check_hdr_seq()`:
+      ! `check_hdr_seq()` needs a numeric `.exposures` for a continuous exposure.
+      x `a1` is <factor>.
+      x `a2` is <character>.
+      x `a3` is <Date>.
+
+---
+
+    Code
+      check_hdr_seq(ranked, c(a1, a2, a3), list(l0, l1, l2), exposure_type = "continuous")
+    Condition
+      Error in `check_hdr_seq()`:
+      ! `check_hdr_seq()` needs a numeric `.exposures` for a continuous exposure.
+      x `a1` is <ordered/factor>.
+      x `a2` is <factor>.
+
+---
+
+    Code
       check_hdr_seq(data, c(a1, a2), list(c(l0, a1), l1), values = 0)
     Condition
       Error in `check_hdr_seq()`:

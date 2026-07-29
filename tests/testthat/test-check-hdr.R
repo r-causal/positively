@@ -649,6 +649,9 @@ test_that("a declared continuous type runs the sequential diagnostic", {
 
 test_that("the sequential doses a declaration rescues are ones detection misreads", {
   local_quiet()
+  # A width wide enough that no bullet wraps, so the assertions below read the
+  # message rather than the console geometry they happen to run under.
+  withr::local_options(cli.width = 200)
   # Paired with the test above, as in the point diagnostics: without this half,
   # raising the unique-value cutoff in is_categorical() would make the waves
   # detect continuous and leave the declaration test passing while it covered
@@ -669,13 +672,28 @@ test_that("the sequential doses a declaration rescues are ones detection misread
     ),
     class = "positively_exposure_type_error"
   )
-  expect_match(conditionMessage(err), "categorical", fixed = TRUE)
+  # Every wave is coarse, so every wave offends. Naming them together is what
+  # keeps a user from correcting one column, rerunning, and being told about the
+  # next one.
+  message <- conditionMessage(err)
+  expect_match(
+    message,
+    "`a1`, `a2`, and `a3` were detected as \"categorical\".",
+    fixed = TRUE
+  )
+  expect_match(
+    message,
+    "If `a1`, `a2`, and `a3` are continuous, set `exposure_type = \"continuous\"`.",
+    fixed = TRUE
+  )
 })
 
-test_that("a declared continuous type names a factor exposure it cannot carry", {
+test_that("a declared continuous type names every factor exposure it cannot carry", {
   local_quiet()
+  withr::local_options(cli.width = 200)
   data <- sim_hdr_seq_coarse(n = 150, seed = 1)
   data$a2 <- factor(rep(c("low", "high"), length.out = nrow(data)))
+  data$a3 <- factor(rep(c("low", "high"), length.out = nrow(data)))
 
   err <- expect_error(
     check_hdr_seq(
@@ -687,9 +705,139 @@ test_that("a declared continuous type names a factor exposure it cannot carry", 
     ),
     class = "positively_exposure_type_error"
   )
-  # The offending column is named, so a user with several exposures knows which
-  # one the declared type cannot describe.
-  expect_match(conditionMessage(err), "a2", fixed = TRUE)
+  # Every offending column is named, so a user with several exposures knows
+  # which ones the declared type cannot describe.
+  expect_match(
+    conditionMessage(err),
+    "`a2` and `a3` are <factor>.",
+    fixed = TRUE
+  )
+})
+
+test_that("sequential offenders read differently are named apart", {
+  local_quiet()
+  withr::local_options(cli.width = 200)
+  data <- dgp_longitudinal(n = 300, seed = 5)
+  data$a2 <- rep(c(0, 1), length.out = nrow(data))
+  data$a3 <- rep(seq_len(8), length.out = nrow(data))
+  expect_identical(detect_exposure_type(data$a2), "binary")
+  expect_identical(detect_exposure_type(data$a3), "categorical")
+
+  err <- expect_error(
+    check_hdr_seq(data, c(a1, a2, a3), list(l0, l1, l2), values = 0),
+    class = "positively_exposure_type_error"
+  )
+  message <- conditionMessage(err)
+
+  # One bullet per distinct reading, so a user is told what each column was read
+  # as rather than being handed one verdict covering both.
+  readings <- gregexpr("detected as", message, fixed = TRUE)[[1]]
+  expect_length(readings, 2L)
+  expect_match(message, "`a2` was detected as \"binary\".", fixed = TRUE)
+  expect_match(message, "`a3` was detected as \"categorical\".", fixed = TRUE)
+
+  # The hint is single, because the escape hatch is the same for either reading.
+  expect_match(
+    message,
+    "If `a2` and `a3` are continuous, set `exposure_type = \"continuous\"`.",
+    fixed = TRUE
+  )
+})
+
+test_that("a detection failure is reported before a structural one", {
+  local_quiet()
+  withr::local_options(cli.width = 200)
+  # A Date column is read as continuous and then cannot carry it; a two-valued
+  # column is read as binary, which the diagnostic does not support at all. The
+  # structural offender comes first in selection order, so position cannot be
+  # what decides which of the two failures is reported.
+  data <- dgp_longitudinal(n = 300, seed = 5)
+  data$a2 <- as.Date("2020-01-01") + seq_len(nrow(data))
+  data$a3 <- rep(c(0, 1), length.out = nrow(data))
+  expect_identical(detect_exposure_type(data$a2), "continuous")
+  expect_identical(detect_exposure_type(data$a3), "binary")
+
+  err <- expect_error(
+    check_hdr_seq(data, c(a1, a2, a3), list(l0, l1, l2), values = 0),
+    class = "positively_exposure_type_error"
+  )
+  message <- conditionMessage(err)
+  expect_match(message, "`a3` was detected as \"binary\".", fixed = TRUE)
+  expect_no_match(message, "a2", fixed = TRUE)
+})
+
+test_that("a column name containing braces survives the detection message", {
+  local_quiet()
+  withr::local_options(cli.width = 200)
+  # Column names are user data. They reach the message as values rather than as
+  # template text, so a name cli would otherwise read as an expression stays a
+  # name, and the package's own condition classes survive instead of being
+  # replaced by an internal cli failure.
+  data <- dgp_longitudinal(n = 300, seed = 5)
+  names(data)[match(c("a2", "a3"), names(data))] <- c("a{b}", "a{1}")
+  data[["a{b}"]] <- rep(c(0, 1), length.out = nrow(data))
+  data[["a{1}"]] <- rep(c(0, 1), length.out = nrow(data))
+
+  err <- expect_error(
+    check_hdr_seq(data, c(a1, `a{b}`, `a{1}`), list(l0, l1, l2), values = 0),
+    class = "positively_exposure_type_error"
+  )
+  expect_match(
+    conditionMessage(err),
+    "`a{b}` and `a{1}` were detected as \"binary\".",
+    fixed = TRUE
+  )
+})
+
+test_that("a column name containing braces survives the structural message", {
+  local_quiet()
+  withr::local_options(cli.width = 200)
+  data <- dgp_longitudinal(n = 300, seed = 5)
+  names(data)[match(c("a2", "a3"), names(data))] <- c("a{b}", "a{1}")
+  data[["a{b}"]] <- factor(rep(c("low", "high"), length.out = nrow(data)))
+  data[["a{1}"]] <- factor(rep(c("low", "high"), length.out = nrow(data)))
+
+  err <- expect_error(
+    check_hdr_seq(
+      data,
+      c(a1, `a{b}`, `a{1}`),
+      list(l0, l1, l2),
+      exposure_type = "continuous",
+      values = 0
+    ),
+    class = "positively_exposure_type_error"
+  )
+  expect_match(
+    conditionMessage(err),
+    "`a{b}` and `a{1}` are <factor>.",
+    fixed = TRUE
+  )
+})
+
+test_that("structural offenders of different classes are named apart", {
+  local_quiet()
+  withr::local_options(cli.width = 200)
+  # The structural bullets group by the column's class vector, so a run whose
+  # offenders all share one class would leave a collapsed grouping green.
+  data <- dgp_longitudinal(n = 300, seed = 5)
+  data$a1 <- factor(rep(c("low", "high"), length.out = nrow(data)))
+  data$a2 <- rep(c("low", "high"), length.out = nrow(data))
+  data$a3 <- as.Date("2020-01-01") + seq_len(nrow(data))
+
+  err <- expect_error(
+    check_hdr_seq(
+      data,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      exposure_type = "continuous",
+      values = 0
+    ),
+    class = "positively_exposure_type_error"
+  )
+  message <- conditionMessage(err)
+  expect_match(message, "`a1` is <factor>.", fixed = TRUE)
+  expect_match(message, "`a2` is <character>.", fixed = TRUE)
+  expect_match(message, "`a3` is <Date>.", fixed = TRUE)
 })
 
 test_that("check_hdr_seq() rejects a type outside its supported menu", {
@@ -1106,6 +1254,56 @@ test_that("check_hdr_seq() argument validation messages are stable", {
   binary$a2 <- rep(c(0, 1), length.out = nrow(binary))
   expect_snapshot(
     check_hdr_seq(binary, c(a1, a2, a3), list(l0, l1, l2)),
+    error = TRUE
+  )
+
+  binary_pair <- binary
+  binary_pair$a3 <- rep(c(0, 1), length.out = nrow(binary_pair))
+  expect_snapshot(
+    check_hdr_seq(binary_pair, c(a1, a2, a3), list(l0, l1, l2)),
+    error = TRUE
+  )
+
+  factors <- data
+  factors$a2 <- factor(rep(c("low", "high"), length.out = nrow(factors)))
+  factors$a3 <- factor(rep(c("low", "high"), length.out = nrow(factors)))
+  expect_snapshot(
+    check_hdr_seq(
+      factors,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+
+  mixed <- data
+  mixed$a1 <- factor(rep(c("low", "high"), length.out = nrow(mixed)))
+  mixed$a2 <- rep(c("low", "high"), length.out = nrow(mixed))
+  mixed$a3 <- as.Date("2020-01-01") + seq_len(nrow(mixed))
+  expect_snapshot(
+    check_hdr_seq(
+      mixed,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      exposure_type = "continuous"
+    ),
+    error = TRUE
+  )
+
+  ranked <- data
+  ranked$a1 <- factor(
+    rep(c("low", "high"), length.out = nrow(ranked)),
+    ordered = TRUE
+  )
+  ranked$a2 <- factor(rep(c("low", "high"), length.out = nrow(ranked)))
+  expect_snapshot(
+    check_hdr_seq(
+      ranked,
+      c(a1, a2, a3),
+      list(l0, l1, l2),
+      exposure_type = "continuous"
+    ),
     error = TRUE
   )
 
