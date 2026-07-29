@@ -45,7 +45,7 @@ method(autoplot, eta_bias_result) <- function(
   type = c("bootstrap", "sweep"),
   ...
 ) {
-  type <- rlang::arg_match(type)
+  type <- resolve_arg_match(rlang::arg_match(type))
   if (type == "bootstrap") {
     autoplot_eta_bias_bootstrap(object)
   } else {

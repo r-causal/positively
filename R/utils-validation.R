@@ -27,6 +27,54 @@ validate_data_frame <- function(
   invisible(.data)
 }
 
+#' Match an argument against its menu, reporting a classed positively error
+#'
+#' Wraps an [rlang::arg_match()] call so that a value outside the menu carries
+#' `positively_error` like every other failure the package raises, instead of
+#' the bare `rlang_error` `arg_match()` throws. The matching itself is left to
+#' `arg_match()`: its handling of an untouched formal default, of a supplied
+#' value, and of a near miss is the contract each `check_*()` argument is
+#' written against, and its message names every allowed value and, on a near
+#' miss, the one that was meant. Only the condition class changes.
+#'
+#' `matched` is evaluated inside [rlang::try_fetch()] but stays a promise of the
+#' calling function, so `arg_match()` still reads the menu from that function's
+#' own formal and needs no second copy of the allowed values here.
+#'
+#' Forcing that promise also evaluates the caller's argument, so the handler is
+#' narrowed to `rlang_error`, which is what `arg_match()` raises. An argument
+#' that fails to evaluate at all raises a base R `simpleError`, and relabelling
+#' that as a failure to match a menu would be untrue, so it passes through. An
+#' argument expression that raises an `rlang_error` of its own is the residual
+#' case this cannot separate; its message survives intact, so the report stays
+#' accurate even where the class is not.
+#'
+#' The caught headline and bullets reach cli as values rather than as template
+#' text, so an argument value containing braces stays a value instead of being
+#' read as an expression, which would replace the argument error with an
+#' internal cli failure and lose the package's condition classes with it.
+#'
+#' @param matched An [rlang::arg_match()] call on one of the caller's formals.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return The matched value.
+#' @keywords internal
+#' @noRd
+resolve_arg_match <- function(matched, call = rlang::caller_env()) {
+  rlang::try_fetch(
+    matched,
+    rlang_error = function(cnd) {
+      bullets <- if (is.character(cnd$body)) cnd$body else character(0)
+      templates <- sprintf("{bullets[[%d]]}", seq_along(bullets))
+      abort(
+        c("{cnd$message}", rlang::set_names(templates, names(bullets))),
+        error_class = "positively_args_error",
+        call = call
+      )
+    }
+  )
+}
+
 #' Validate a resolved column selection
 #'
 #' Takes an already-resolved [tidyselect::eval_select()]-style selection, a

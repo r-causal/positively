@@ -516,6 +516,17 @@ test_that("the cumulative view is a ggplot for a matrix and aborts for a point",
   )
 })
 
+test_that("autoplot() rejects an unknown type as a classed error", {
+  res <- check_density_ratios(gen_lognormal_ratios(200, k = 1))
+
+  # A view name is chosen from a fixed menu like any other argument, and the
+  # call rendering a figure does not make its failure a lesser one.
+  expect_error(
+    ggplot2::autoplot(res, type = "bogus"),
+    class = "positively_args_error"
+  )
+})
+
 test_that("density-ratio autoplot views render as expected", {
   announce_doppelganger(
     "Density ratios point histogram",

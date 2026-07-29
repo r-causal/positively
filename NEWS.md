@@ -98,3 +98,13 @@
   goes unremarked. `check_hdr_seq()` judges each time point on its own range,
   since the target grid spans the pooled one, and names every affected time
   point in a single warning.
+
+* An argument matched against a fixed menu now raises a `positively_error` with
+  the subclass `positively_args_error`, so it can be caught like every other
+  failure the package raises rather than only as a bare `rlang_error`. This
+  covers `variant` and `kernel` in `check_edp()`, `null_method` in
+  `check_hat_values()`, `estimator`, `outcome_type`, and `error_dist` in
+  `check_eta_bias()`, `strategy` in `check_port_seq()`, and the `type` argument
+  of every `autoplot()` and `plot()` method. The messages are unchanged, down to
+  the suggestion offered on a near miss. `exposure_type` is deliberately not
+  included and still raises an unclassed error.

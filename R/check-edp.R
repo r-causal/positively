@@ -143,8 +143,8 @@ check_edp <- function(
   exposure_type = c("auto", "binary", "categorical", "continuous")
 ) {
   validate_data_frame(.data)
-  variant <- rlang::arg_match(variant)
-  kernel <- rlang::arg_match(kernel)
+  variant <- resolve_arg_match(rlang::arg_match(variant))
+  kernel <- resolve_arg_match(rlang::arg_match(kernel))
   validate_unit_scalar(categorical_similarity, "categorical_similarity")
   if (!is.null(bw_exposure)) {
     validate_nonnegative_scalar(bw_exposure, "bw_exposure")

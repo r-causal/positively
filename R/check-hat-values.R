@@ -152,7 +152,7 @@ check_hat_values <- function(
   validate_probability(conf_level, arg_name = "conf_level")
   validate_positive_number(threshold, arg_name = "threshold")
   validate_count(null_reps, arg_name = "null_reps")
-  null_method <- rlang::arg_match(null_method)
+  null_method <- resolve_arg_match(rlang::arg_match(null_method))
 
   exposure_pos <- eval_select_column(
     rlang::enquo(.exposure),

@@ -198,7 +198,7 @@ check_port_seq <- function(
   validate_count(n_bins, "n_bins", min = 2)
   validate_breaks(breaks)
   validate_lag(lag)
-  strategy <- rlang::arg_match(strategy)
+  strategy <- resolve_arg_match(rlang::arg_match(strategy))
   if (strategy == "pooled") {
     abort(
       c(

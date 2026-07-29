@@ -175,9 +175,9 @@ check_eta_bias <- function(
   exposure_type = c("auto", "binary")
 ) {
   validate_data_frame(.data)
-  estimator <- rlang::arg_match(estimator)
-  outcome_type <- rlang::arg_match(outcome_type)
-  error_dist <- rlang::arg_match(error_dist)
+  estimator <- resolve_arg_match(rlang::arg_match(estimator))
+  outcome_type <- resolve_arg_match(rlang::arg_match(outcome_type))
+  error_dist <- resolve_arg_match(rlang::arg_match(error_dist))
   validate_count(n_boot, arg_name = "n_boot", min = 2)
 
   levels <- resolve_truncation_levels(

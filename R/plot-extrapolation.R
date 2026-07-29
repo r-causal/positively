@@ -34,7 +34,7 @@ method(autoplot, extrapolation_result) <- function(
   type = c("distribution", "hull"),
   ...
 ) {
-  type <- rlang::arg_match(type)
+  type <- resolve_arg_match(rlang::arg_match(type))
   if (type == "distribution") {
     autoplot_extrapolation_distribution(object)
   } else {

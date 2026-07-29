@@ -217,7 +217,7 @@ test_that("check_eta_bias() validates the estimator against a fixed set", {
   data <- sim_eta_good(n = 80, seed = 1)
   expect_error(
     check_eta_bias(data, a, y, c(x1, x2), estimator = "banana", n_boot = 10),
-    class = "rlang_error"
+    class = "positively_args_error"
   )
 })
 
@@ -233,7 +233,7 @@ test_that("check_eta_bias() validates outcome_type against a fixed set", {
       outcome_type = "count",
       n_boot = 10
     ),
-    class = "rlang_error"
+    class = "positively_args_error"
   )
 })
 
@@ -249,7 +249,7 @@ test_that("check_eta_bias() validates error_dist against a fixed set", {
       error_dist = "poisson",
       n_boot = 10
     ),
-    class = "rlang_error"
+    class = "positively_args_error"
   )
 })
 
@@ -1133,6 +1133,19 @@ test_that("autoplot() returns a ggplot for each type", {
 
   expect_s3_class(ggplot2::autoplot(single, type = "bootstrap"), "ggplot")
   expect_s3_class(ggplot2::autoplot(swept, type = "sweep"), "ggplot")
+})
+
+test_that("autoplot() rejects an unknown type as a classed error", {
+  local_quiet()
+  data <- sim_eta_violation(n = 500, seed = 1)
+  res <- fit_eta(data, "ipw", n_boot = 10)
+
+  # A view name is chosen from a fixed menu like any other argument, and the
+  # call rendering a figure does not make its failure a lesser one.
+  expect_error(
+    ggplot2::autoplot(res, type = "bogus"),
+    class = "positively_args_error"
+  )
 })
 
 test_that("ETA bias autoplot views render as expected", {

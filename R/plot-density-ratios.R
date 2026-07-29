@@ -31,7 +31,7 @@ method(autoplot, density_ratios_result) <- function(
   type = c("distribution", "cumulative"),
   ...
 ) {
-  type <- rlang::arg_match(type)
+  type <- resolve_arg_match(rlang::arg_match(type))
   if (type == "cumulative") {
     autoplot_density_ratios_cumulative(object, call = rlang::current_call())
   } else if (length(object@ratios) == 1) {

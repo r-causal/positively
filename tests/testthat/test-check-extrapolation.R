@@ -897,6 +897,19 @@ test_that("autoplot() returns a ggplot for each type", {
   expect_s3_class(ggplot2::autoplot(res, type = "hull"), "ggplot")
 })
 
+test_that("autoplot() rejects an unknown type as a classed error", {
+  local_quiet()
+  data <- sim_extrap_gaussian(100, p = 4, sep = 0, seed = 1)
+  res <- check_extrapolation(data, exposure, tidyselect::starts_with("x"))
+
+  # A view name is chosen from a fixed menu like any other argument, and the
+  # call rendering a figure does not make its failure a lesser one.
+  expect_error(
+    ggplot2::autoplot(res, type = "bogus"),
+    class = "positively_args_error"
+  )
+})
+
 test_that("plot() draws the view and returns the result invisibly", {
   local_quiet()
   local_null_device()

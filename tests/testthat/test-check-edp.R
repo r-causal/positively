@@ -250,6 +250,9 @@ test_that("check_edp() aborts on fewer than two observations", {
 
 test_that("check_edp() rejects an unknown variant or kernel", {
   data <- sim_edp_gaussian(60)
+  # An argument the user chose from a fixed menu fails like every other failure
+  # the package raises, so it carries the package's condition class rather than
+  # arriving as the bare rlang error `arg_match()` throws.
   expect_error(
     check_edp(
       data,
@@ -258,7 +261,7 @@ test_that("check_edp() rejects an unknown variant or kernel", {
       variant = "bogus",
       exposure_type = "continuous"
     ),
-    class = "rlang_error"
+    class = "positively_args_error"
   )
   expect_error(
     check_edp(
@@ -268,8 +271,50 @@ test_that("check_edp() rejects an unknown variant or kernel", {
       kernel = "bogus",
       exposure_type = "continuous"
     ),
-    class = "rlang_error"
+    class = "positively_args_error"
   )
+})
+
+test_that("a near miss on a menu argument keeps its suggestion", {
+  data <- sim_edp_gaussian(60)
+  # Classing the failure must not cost the user the message `arg_match()` wrote:
+  # it names every allowed value and, on a near miss, the one that was meant.
+  err <- expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      variant = "dat",
+      exposure_type = "continuous"
+    ),
+    class = "positively_args_error"
+  )
+  expect_match(
+    conditionMessage(err),
+    'Did you mean "data"?',
+    fixed = TRUE
+  )
+
+  # An argument value is user text, and it reaches the message as a value rather
+  # than as template text, so a value cli would otherwise read as an expression
+  # stays a value and the package's condition classes survive.
+  braced <- expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      variant = "dat{a}",
+      exposure_type = "continuous"
+    ),
+    class = "positively_args_error"
+  )
+  expect_match(conditionMessage(braced), 'not "dat{a}"', fixed = TRUE)
+
+  # A failure raised while evaluating the argument is not a failure to match it,
+  # so it must not be relabelled as one on its way out.
+  failed <- expect_error(check_edp(data, exposure, x1, variant = no_such_thing))
+  expect_false(inherits(failed, "positively_error"))
+  expect_match(conditionMessage(failed), "no_such_thing", fixed = TRUE)
 })
 
 test_that("declaring continuous on a character exposure aborts before any coercion", {
@@ -809,6 +854,24 @@ test_that("autoplot() returns a ggplot for each data-variant type", {
 
   expect_s3_class(ggplot2::autoplot(res, type = "histogram"), "ggplot")
   expect_s3_class(ggplot2::autoplot(res, type = "ecdf"), "ggplot")
+})
+
+test_that("autoplot() rejects an unknown type as a classed error", {
+  data <- sim_edp_gaussian(150)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+
+  # A view name is chosen from a fixed menu like any other argument, and the
+  # call rendering a figure does not make its failure a lesser one.
+  expect_error(
+    ggplot2::autoplot(res, type = "bogus"),
+    class = "positively_args_error"
+  )
 })
 
 test_that("plot() draws the view and returns the result invisibly", {

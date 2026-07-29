@@ -34,7 +34,7 @@ method(autoplot, edp_result) <- function(
   type = c("histogram", "ecdf", "scatter"),
   ...
 ) {
-  type <- rlang::arg_match(type)
+  type <- resolve_arg_match(rlang::arg_match(type))
   if (type == "histogram") {
     autoplot_edp_histogram(object)
   } else if (type == "ecdf") {

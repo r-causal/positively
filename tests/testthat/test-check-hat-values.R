@@ -675,7 +675,7 @@ test_that("null_method rejects an unknown scheme", {
   data <- sim_hat_linear(80, beta = 1, seed = 1)
   expect_error(
     check_hat_values(data, dose, x1, null_method = "uniform", null_reps = 2),
-    class = "rlang_error"
+    class = "positively_args_error"
   )
 })
 
@@ -757,6 +757,19 @@ test_that("autoplot() returns a ggplot for each type", {
 
   expect_s3_class(ggplot2::autoplot(res, type = "null"), "ggplot")
   expect_s3_class(ggplot2::autoplot(res, type = "profile"), "ggplot")
+})
+
+test_that("autoplot() rejects an unknown type as a classed error", {
+  local_quiet()
+  data <- sim_hat_linear(150, beta = 1, seed = 1)
+  res <- check_hat_values(data, dose, x1, null_reps = 2)
+
+  # A view name is chosen from a fixed menu like any other argument, and the
+  # call rendering a figure does not make its failure a lesser one.
+  expect_error(
+    ggplot2::autoplot(res, type = "bogus"),
+    class = "positively_args_error"
+  )
 })
 
 test_that("plot() draws the view and returns the result invisibly", {

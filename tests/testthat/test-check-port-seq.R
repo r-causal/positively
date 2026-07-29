@@ -122,7 +122,8 @@ test_that("check_port_seq() rejects an unknown strategy", {
   local_quiet()
   data <- sim_port_seq(n = 300, seed = 1)
   expect_error(
-    check_port_seq(data, c(a1, a2, a3), list(c1), strategy = "bogus")
+    check_port_seq(data, c(a1, a2, a3), list(c1), strategy = "bogus"),
+    class = "positively_args_error"
   )
 })
 

@@ -35,7 +35,7 @@ method(autoplot, hat_values_result) <- function(
   type = c("null", "profile"),
   ...
 ) {
-  type <- rlang::arg_match(type)
+  type <- resolve_arg_match(rlang::arg_match(type))
   if (type == "null") {
     autoplot_hat_values_null(object)
   } else {
