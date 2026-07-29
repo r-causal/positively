@@ -416,11 +416,7 @@ warn_flat_nonoverlap <- function(times = NULL, call = rlang::caller_env()) {
 #' The menu gate runs once, before any column is read. A type outside the
 #' supported menu is a fact about the argument rather than about any one column,
 #' so matching it first keeps it an argument error instead of one offender among
-#' several. As in `resolve_exposure_type()`, that gate raises
-#' [rlang::arg_match()]'s own unclassed error rather than routing through
-#' `resolve_arg_match()`, and for the same reason: the exposure-type menu is
-#' pinned by class and by wording wherever it is reached, so re-classing it is
-#' one move across every site rather than a local tidy-up.
+#' several.
 #'
 #' @param .data The data frame.
 #' @param exposure_names The exposure column names.
@@ -437,11 +433,14 @@ resolve_seq_exposure_types <- function(
   call = rlang::caller_env()
 ) {
   supported <- diagnostic_supported_types()[["hdr_seq"]]
-  exposure_type <- rlang::arg_match(
-    exposure_type,
-    values = c("auto", supported),
-    error_arg = "exposure_type",
-    error_call = call
+  exposure_type <- resolve_arg_match(
+    rlang::arg_match(
+      exposure_type,
+      values = c("auto", supported),
+      error_arg = "exposure_type",
+      error_call = call
+    ),
+    call = call
   )
 
   classified <- lapply(exposure_names, function(name) {

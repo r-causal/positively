@@ -793,7 +793,7 @@ test_that("check_eta_bias() rejects a type outside its supported menu", {
       exposure_type = "continuous",
       n_boot = 10
     ),
-    class = "rlang_error"
+    class = "positively_args_error"
   )
   expect_match(
     conditionMessage(err),

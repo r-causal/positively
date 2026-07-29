@@ -300,7 +300,7 @@ test_that("check_extrapolation() rejects a type outside its supported menu", {
       c(x1, x2),
       exposure_type = "continuous"
     ),
-    class = "rlang_error"
+    class = "positively_args_error"
   )
   expect_match(
     conditionMessage(err),

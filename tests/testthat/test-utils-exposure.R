@@ -642,12 +642,7 @@ test_that("resolve_exposure_type() errors point at the calling function", {
     )
   }
   expect_snapshot_abort(check_fake(c(0, 1, 0, 1)))
-  # arg_match() inside resolve_exposure_type() raises an unclassed rlang error,
-  # so the rejected menu value carries no package class.
-  expect_snapshot_abort(
-    check_fake(c(0, 1, 0, 1), exposure_type = "binary"),
-    class = "rlang_error"
-  )
+  expect_snapshot_abort(check_fake(c(0, 1, 0, 1), exposure_type = "binary"))
   expect_snapshot_abort(check_fake(
     factor(c("a", "b", "c")),
     exposure_type = "continuous"

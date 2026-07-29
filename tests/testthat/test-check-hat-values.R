@@ -289,7 +289,7 @@ test_that("check_hat_values() rejects a type outside its supported menu", {
   data <- dgp_coarse_dose(n = 150, seed = 1)
   err <- expect_error(
     check_hat_values(data, exposure, x1, exposure_type = "binary"),
-    class = "rlang_error"
+    class = "positively_args_error"
   )
   expect_match(
     conditionMessage(err),

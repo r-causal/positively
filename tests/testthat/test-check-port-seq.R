@@ -373,7 +373,7 @@ test_that("check_port_seq() offers every exposure type it can compute", {
 
   err <- expect_error(
     check_port_seq(data, c(a1, a2), list(c1), exposure_type = "ordinal"),
-    class = "rlang_error"
+    class = "positively_args_error"
   )
   # The sequential reader computes all three types, so the menu is the full one.
   # cli wraps it across lines at the console width, so the comparison collapses

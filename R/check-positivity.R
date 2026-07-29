@@ -242,12 +242,6 @@ check_positivity <- function(
 #' was supplied is reported back, because the advice that follows a rejected
 #' diagnostic differs between a guess and a premise.
 #'
-#' As in `resolve_exposure_type()`, the menu match here raises
-#' [rlang::arg_match()]'s own unclassed error rather than routing through
-#' `resolve_arg_match()`, and for the same reason: the exposure-type menu is
-#' pinned by class and by wording wherever it is reached, so re-classing it is
-#' one move across every site rather than a local tidy-up.
-#'
 #' @param exposure_type The `exposure_type` argument.
 #' @param exposure_vec The exposure vector.
 #' @param call The calling environment, used to build the error's call.
@@ -261,10 +255,13 @@ resolve_composed_exposure_type <- function(
   exposure_vec,
   call = rlang::caller_env()
 ) {
-  exposure_type <- rlang::arg_match(
-    exposure_type,
-    c("auto", diagnostic_supported_types()[["positivity"]]),
-    error_call = call
+  exposure_type <- resolve_arg_match(
+    rlang::arg_match(
+      exposure_type,
+      c("auto", diagnostic_supported_types()[["positivity"]]),
+      error_call = call
+    ),
+    call = call
   )
 
   if (exposure_type == "auto") {

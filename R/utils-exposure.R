@@ -283,13 +283,6 @@ classify_exposure_type <- function(
 #' honored without detection. Either way the resolved type is checked against
 #' the column, so a detected type and a declared type fail for the same reasons.
 #'
-#' The menu match raises [rlang::arg_match()]'s own unclassed error rather than
-#' routing through `resolve_arg_match()`, which is how every other menu argument
-#' in the package is reported. Each diagnostic that resolves a single exposure
-#' column reaches this one gate and pins both the class and the exact wording of
-#' what it raises, so re-classing here changes all of them at once and has to be
-#' made as one move rather than as a local tidy-up.
-#'
 #' @param exposure_type `"auto"` or one of `supported`.
 #' @param .exposure The exposure vector.
 #' @param supported The exposure types the calling diagnostic can compute.
@@ -312,11 +305,14 @@ resolve_exposure_type <- function(
   announce = TRUE,
   call = rlang::caller_env()
 ) {
-  exposure_type <- rlang::arg_match(
-    exposure_type,
-    values = c("auto", supported),
-    error_arg = "exposure_type",
-    error_call = call
+  exposure_type <- resolve_arg_match(
+    rlang::arg_match(
+      exposure_type,
+      values = c("auto", supported),
+      error_arg = "exposure_type",
+      error_call = call
+    ),
+    call = call
   )
 
   classified <- classify_exposure_type(

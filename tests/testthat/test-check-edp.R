@@ -1271,12 +1271,12 @@ test_that("the exposure-type error messages are stable", {
     z2,
     exposure_type = "binary"
   ))
-  # arg_match() inside resolve_exposure_type() raises an unclassed rlang error,
-  # so a value outside the menu carries no package class.
-  expect_snapshot_abort(
-    check_edp(character_exposure, exposure, x1, exposure_type = "bogus"),
-    class = "rlang_error"
-  )
+  expect_snapshot_abort(check_edp(
+    character_exposure,
+    exposure,
+    x1,
+    exposure_type = "bogus"
+  ))
 })
 
 test_that("the data-integrity error messages are stable", {
