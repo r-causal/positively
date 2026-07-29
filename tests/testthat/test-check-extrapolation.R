@@ -69,8 +69,7 @@ test_that("check_extrapolation() aborts on a continuous exposure", {
 
 test_that("check_extrapolation() aborts on a categorical exposure", {
   local_quiet()
-  data <- dgp_good_positivity(n = 200, seed = 1)
-  data$exposure <- factor(sample(c("a", "b", "c"), nrow(data), replace = TRUE))
+  data <- dgp_categorical(n = 200, seed = 1)
   expect_error(
     check_extrapolation(data, exposure, c(x1, x2)),
     class = "positively_error"
@@ -952,10 +951,7 @@ test_that("the extrapolation hull view renders as expected", {
 test_that("the binary-only abort messages are stable", {
   local_quiet()
   continuous <- dgp_continuous_support_gap(n = 100, seed = 1)
-  categorical <- dgp_good_positivity(n = 200, seed = 1)
-  categorical$exposure <- factor(
-    sample(c("a", "b", "c"), nrow(categorical), replace = TRUE)
-  )
+  categorical <- dgp_categorical(n = 200, seed = 1)
 
   expect_snapshot(
     check_extrapolation(continuous, exposure, x1),

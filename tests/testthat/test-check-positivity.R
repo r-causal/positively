@@ -14,19 +14,6 @@ child_named <- function(res, name) {
   res@checks[[match(name, res@diagnostics)]]
 }
 
-# Three-level categorical exposure with two numeric covariates.
-sim_pos_categorical <- function(n = 150, seed = 1) {
-  withr::local_seed(seed)
-  x1 <- stats::rnorm(n)
-  x2 <- stats::rnorm(n)
-  level <- sample(c("low", "mid", "high"), n, replace = TRUE)
-  tibble::tibble(
-    exposure = factor(level, levels = c("low", "mid", "high")),
-    x1 = x1,
-    x2 = x2
-  )
-}
-
 # ---- Default diagnostic sets by exposure type -----------------------------
 
 test_that("a binary exposure runs edp, port, and extrapolation by default", {
@@ -72,7 +59,7 @@ test_that("each binary child carries the resolved exposure name and type", {
 
 test_that("a categorical exposure runs edp and port by default", {
   local_quiet()
-  data <- sim_pos_categorical(150)
+  data <- dgp_categorical(150)
   res <- check_positivity(data, exposure, c(x1, x2))
 
   expect_true(S7::S7_inherits(res, positivity_check))
@@ -148,21 +135,9 @@ test_that("an explicit exposure_type overrides auto detection", {
   expect_identical(child_named(res, "port")@exposure_type, "categorical")
 })
 
-# A coarse numeric exposure: few unique values, so detection calls it
-# categorical, yet the column is numeric and so can carry a declared continuous
-# type without complaint.
-sim_pos_coarse_numeric <- function(n = 150, seed = 1) {
-  withr::local_seed(seed)
-  tibble::tibble(
-    exposure = sample(1:8, n, replace = TRUE),
-    x1 = stats::rnorm(n),
-    x2 = stats::rnorm(n)
-  )
-}
-
 test_that("a declared type the exposure cannot carry aborts before any child runs", {
   local_quiet()
-  data <- sim_pos_categorical(150)
+  data <- dgp_categorical(150)
   # The exposure is a three-level factor, so a declared binary type is
   # structurally impossible: binary needs exactly two distinct values. The abort
   # must come from the entry point's own structural check, before any diagnostic
@@ -216,7 +191,7 @@ test_that("a declared type the exposure cannot carry aborts before any child run
 
 test_that("the structural gate runs before the applicability check", {
   local_quiet()
-  data <- sim_pos_categorical(150)
+  data <- dgp_categorical(150)
   # Two guards would fire on this call: the three-level factor cannot carry the
   # declared binary type, and hat_values does not apply to a binary exposure
   # either. Only the structural one gives advice worth acting on. Reported the
@@ -249,18 +224,35 @@ test_that("the structural gate runs before the applicability check", {
 
 test_that("a declared type the exposure can carry is honoured", {
   local_quiet()
-  data <- sim_pos_coarse_numeric(150)
+  data <- dgp_coarse_dose(n = 150)
   # Detection calls the coarse numeric exposure categorical, but the column is
-  # numeric and so carries a declared continuous type, which check_port()
-  # computes on.
+  # numeric and so carries a declared continuous type. The declaration has to
+  # reach the arithmetic and not only the child's metadata, so the shape of the
+  # result is what says which type was computed on: check_port() bins a
+  # continuous exposure into quantile ranges and reports one row per subgroup and
+  # range, where a categorical exposure reports a row per distinct dose. Fewer
+  # reported levels than distinct doses is therefore only reachable through the
+  # continuous path.
   res <- check_positivity(
     data,
     exposure,
-    c(x1, x2),
+    x1,
     diagnostics = "port",
     exposure_type = "continuous"
   )
-  expect_identical(child_named(res, "port")@exposure_type, "continuous")
+  port <- child_named(res, "port")
+  expect_identical(port@exposure_type, "continuous")
+  expect_lt(
+    length(unique(port@results$exposure_level)),
+    length(unique(data$exposure))
+  )
+  # The covariate tracks the dose, so extreme doses are implausible at some
+  # covariate values and the run has structure to find. Both outcomes must
+  # appear: an empty result, or one where every subgroup reads the same way,
+  # would satisfy the type assertion above just as well while proving nothing was
+  # computed.
+  expect_true(any(port@results$flagged))
+  expect_true(!all(port@results$flagged))
 })
 
 test_that("a declared continuous type runs the continuous set on a coarse dose", {
@@ -802,7 +794,7 @@ test_that("inapplicable diagnostics that share a type name it once", {
 test_that("no type is suggested when the column can carry none of them", {
   local_quiet()
   withr::local_options(cli.width = 500)
-  data <- sim_pos_categorical(150)
+  data <- dgp_categorical(150)
   # The exposure is a three-level factor. hat_values needs a continuous type,
   # which a factor cannot carry, and extrapolation needs a binary one, which a
   # column with three distinct values cannot carry. Either suggestion would abort
@@ -1001,7 +993,7 @@ test_that("the classed errors are stable", {
   # A declared exposure type the exposure column cannot carry.
   expect_snapshot(
     check_positivity(
-      sim_pos_categorical(150),
+      dgp_categorical(150),
       exposure,
       c(x1, x2),
       diagnostics = c("port", "extrapolation"),
@@ -1065,7 +1057,7 @@ test_that("the classed errors are stable", {
   # carry, so no type is suggested.
   expect_snapshot(
     check_positivity(
-      sim_pos_categorical(150),
+      dgp_categorical(150),
       exposure,
       c(x1, x2),
       diagnostics = c("hat_values", "extrapolation")

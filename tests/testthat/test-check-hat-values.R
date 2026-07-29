@@ -52,8 +52,7 @@ test_that("check_hat_values() aborts on a binary exposure", {
 
 test_that("check_hat_values() aborts on a categorical exposure", {
   local_quiet()
-  data <- dgp_structural_subgroup(n = 200, seed = 1)
-  data$exposure <- factor(sample(c("a", "b", "c"), nrow(data), replace = TRUE))
+  data <- dgp_categorical(n = 200, seed = 1)
   expect_error(
     check_hat_values(data, exposure, x1),
     class = "positively_error"
@@ -796,10 +795,7 @@ test_that("hat-value autoplot views render as expected", {
 test_that("the continuous-only abort message is stable", {
   local_quiet()
   binary <- dgp_good_positivity(n = 100, seed = 1)
-  categorical <- dgp_structural_subgroup(n = 200, seed = 1)
-  categorical$exposure <- factor(
-    sample(c("a", "b", "c"), nrow(categorical), replace = TRUE)
-  )
+  categorical <- dgp_categorical(n = 200, seed = 1)
 
   expect_snapshot(
     check_hat_values(binary, exposure, c(x1, x2)),

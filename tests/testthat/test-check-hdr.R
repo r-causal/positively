@@ -112,8 +112,7 @@ test_that("check_hdr() aborts on a binary exposure", {
 
 test_that("check_hdr() aborts on a categorical exposure", {
   local_quiet()
-  data <- dgp_structural_subgroup(n = 200, seed = 1)
-  data$exposure <- factor(sample(c("a", "b", "c"), nrow(data), replace = TRUE))
+  data <- dgp_categorical(n = 200, seed = 1)
   expect_error(
     check_hdr(data, exposure, x1),
     class = "positively_error"

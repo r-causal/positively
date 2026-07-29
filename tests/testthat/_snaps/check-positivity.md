@@ -116,7 +116,7 @@
 ---
 
     Code
-      check_positivity(sim_pos_categorical(150), exposure, c(x1, x2), diagnostics = c(
+      check_positivity(dgp_categorical(150), exposure, c(x1, x2), diagnostics = c(
         "port", "extrapolation"), exposure_type = "binary")
     Condition
       Error in `check_positivity()`:
@@ -201,7 +201,7 @@
 ---
 
     Code
-      check_positivity(sim_pos_categorical(150), exposure, c(x1, x2), diagnostics = c(
+      check_positivity(dgp_categorical(150), exposure, c(x1, x2), diagnostics = c(
         "hat_values", "extrapolation"))
     Condition
       Error in `check_positivity()`:

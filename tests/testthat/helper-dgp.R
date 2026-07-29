@@ -80,6 +80,25 @@ dgp_coarse_dose <- function(n = 150, seed = 1) {
   tibble::tibble(exposure = exposure, x1 = x1)
 }
 
+# A three-level categorical exposure with two numeric covariates and no planted
+# structure. The level is drawn independently of both covariates, so there is no
+# positivity violation for a diagnostic to recover. This is the plain categorical
+# exposure to use when the structure under test is elsewhere: the exposure type
+# itself, an argument guard, or the diagnostic set a type composes. Levels are
+# drawn uniformly, so all three are observed at every size the tests use, and
+# messages that count distinct exposure values read 3.
+dgp_categorical <- function(n = 150, seed = 1) {
+  withr::local_seed(seed)
+  x1 <- stats::rnorm(n)
+  x2 <- stats::rnorm(n)
+  level <- sample(c("low", "mid", "high"), n, replace = TRUE)
+  tibble::tibble(
+    exposure = factor(level, levels = c("low", "mid", "high")),
+    x1 = x1,
+    x2 = x2
+  )
+}
+
 # Longitudinal wide-format data over three time points whose exposure is a drug
 # dose dispensed on a thirty-level coarse_dose_grid() at every wave. At the
 # default n of 120 a single wave puts 30 distinct doses against 120

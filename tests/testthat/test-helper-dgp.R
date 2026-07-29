@@ -41,6 +41,9 @@ test_that("dgp_coarse_dose() dispenses eight levels detection misreads", {
   # The grid literal is pinned here and nowhere else, so coarse_dose_grid() has
   # exactly one place that fixes its values.
   expect_setequal(unique(data$exposure), seq(2.5, 20, by = 2.5))
+  # The column is numeric while detection reads it as categorical, and tests that
+  # declare a continuous type on this fixture rest on both halves of that.
+  expect_true(is.numeric(data$exposure))
   # The fixture exists to be misread, so the heuristic itself is the assertion.
   # A hard-coded ratio would keep this test green after a cutoff change that had
   # already stopped detection from misreading the dose.
@@ -48,6 +51,29 @@ test_that("dgp_coarse_dose() dispenses eight levels detection misreads", {
   # The covariate tracks the dose, so a diagnostic run on the declared type has
   # structure to find.
   expect_gt(stats::cor(data$exposure, data$x1), 0.5)
+})
+
+test_that("dgp_categorical() draws three observed exposure levels", {
+  data <- dgp_categorical(n = 150, seed = 1)
+  expect_identical(nrow(data), 150L)
+  expect_s3_class(data$exposure, "factor")
+  expect_identical(levels(data$exposure), c("low", "mid", "high"))
+  # A check_positivity() snapshot pins the message "has 3 distinct values", so
+  # all three levels being drawn is a contract rather than an accident of the
+  # seed.
+  expect_length(unique(data$exposure), 3L)
+  # The fixture stands in for a categorical exposure wherever one is needed, so
+  # the detection path itself is the assertion.
+  expect_identical(
+    detect_exposure_type(data$exposure, announce = FALSE),
+    "categorical"
+  )
+  # Both covariates are numeric and complete, so every diagnostic that takes
+  # them can model on either or on both.
+  expect_true(is.numeric(data$x1))
+  expect_true(is.numeric(data$x2))
+  expect_false(anyNA(data$x1))
+  expect_false(anyNA(data$x2))
 })
 
 test_that("dgp_longitudinal_dose() flips type on the wave count", {
@@ -149,6 +175,7 @@ test_that("each data-generating process is deterministic given its seed", {
     dgp_continuous_support_gap(seed = 7)
   )
   expect_identical(dgp_coarse_dose(seed = 7), dgp_coarse_dose(seed = 7))
+  expect_identical(dgp_categorical(seed = 7), dgp_categorical(seed = 7))
   expect_identical(
     dgp_longitudinal_dose(seed = 7),
     dgp_longitudinal_dose(seed = 7)
