@@ -370,10 +370,7 @@ test_that("check_eta_bias() requires at least two bootstrap draws", {
 test_that("the n_boot floor message is stable", {
   local_quiet()
   data <- sim_eta_good(n = 80, seed = 1)
-  expect_snapshot(
-    check_eta_bias(data, a, y, x1, n_boot = 1),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_eta_bias(data, a, y, x1, n_boot = 1))
 })
 
 test_that("check_eta_bias() accepts explicit model formula overrides", {
@@ -411,14 +408,7 @@ test_that("check_eta_bias() rejects an unsupported covariate type", {
   local_quiet()
   data <- sim_eta_good(n = 60, seed = 1)
   data$bad <- as.list(seq_len(nrow(data)))
-  expect_error(
-    check_eta_bias(data, a, y, c(x1, bad), n_boot = 10),
-    class = "positively_error"
-  )
-  expect_snapshot(
-    check_eta_bias(data, a, y, c(x1, bad), n_boot = 10),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_eta_bias(data, a, y, c(x1, bad), n_boot = 10))
 })
 
 test_that("check_eta_bias() handles a non-syntactic covariate name", {
@@ -1191,13 +1181,9 @@ test_that("the sweep view aborts on a single-run result", {
   local_quiet()
   data <- sim_eta_violation(n = 500, seed = 1)
   single <- fit_eta(data, "ipw", n_boot = 50)
-  expect_error(
+  expect_snapshot_abort(
     ggplot2::autoplot(single, type = "sweep"),
     class = "positively_sweep_absent_error"
-  )
-  expect_snapshot(
-    ggplot2::autoplot(single, type = "sweep"),
-    error = TRUE
   )
 })
 
@@ -1232,94 +1218,96 @@ test_that("the input and exposure validation messages are stable", {
   na_exposure <- good
   na_exposure$a[1] <- NA
 
-  expect_snapshot(
-    check_eta_bias(1:10, a, y, c(x1, x2), n_boot = 10),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_eta_bias(continuous, a, y, c(x1, x2), n_boot = 10),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_eta_bias(categorical, a, y, c(x1, x2), n_boot = 10),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_eta_bias(good, a, y, tidyselect::starts_with("zzz"), n_boot = 10),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_eta_bias(good, a, not_a_column, c(x1, x2), n_boot = 10),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_eta_bias(na_exposure, a, y, c(x1, x2), n_boot = 10),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_eta_bias(good, a, y, c(x1, x2), outcome_type = "binary", n_boot = 10),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_eta_bias(good, a, y, c(a, x1, x2), n_boot = 10),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_eta_bias(1:10, a, y, c(x1, x2), n_boot = 10))
+  expect_snapshot_abort(check_eta_bias(
+    continuous,
+    a,
+    y,
+    c(x1, x2),
+    n_boot = 10
+  ))
+  expect_snapshot_abort(check_eta_bias(
+    categorical,
+    a,
+    y,
+    c(x1, x2),
+    n_boot = 10
+  ))
+  expect_snapshot_abort(check_eta_bias(
+    good,
+    a,
+    y,
+    tidyselect::starts_with("zzz"),
+    n_boot = 10
+  ))
+  expect_snapshot_abort(check_eta_bias(
+    good,
+    a,
+    not_a_column,
+    c(x1, x2),
+    n_boot = 10
+  ))
+  expect_snapshot_abort(check_eta_bias(
+    na_exposure,
+    a,
+    y,
+    c(x1, x2),
+    n_boot = 10
+  ))
+  expect_snapshot_abort(check_eta_bias(
+    good,
+    a,
+    y,
+    c(x1, x2),
+    outcome_type = "binary",
+    n_boot = 10
+  ))
+  expect_snapshot_abort(check_eta_bias(good, a, y, c(a, x1, x2), n_boot = 10))
 })
 
 test_that("the truncation and n_boot validation messages are stable", {
   local_quiet()
   data <- sim_eta_good(n = 80, seed = 1)
 
-  expect_snapshot(
-    check_eta_bias(data, a, y, c(x1, x2), truncation = 0.05, n_boot = 10),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_eta_bias(
-      data,
-      a,
-      y,
-      c(x1, x2),
-      truncation = c(-0.1, 0.95),
-      n_boot = 10
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_eta_bias(
-      data,
-      a,
-      y,
-      c(x1, x2),
-      truncation = c(0.6, 0.4),
-      n_boot = 10
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_eta_bias(
-      data,
-      a,
-      y,
-      c(x1, x2),
-      truncation_grid = c(0.1, 0.6),
-      n_boot = 10
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_eta_bias(
-      data,
-      a,
-      y,
-      c(x1, x2),
-      truncation_grid = c(0.1, NA),
-      n_boot = 10
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_eta_bias(data, a, y, c(x1, x2), n_boot = 2.5),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_eta_bias(
+    data,
+    a,
+    y,
+    c(x1, x2),
+    truncation = 0.05,
+    n_boot = 10
+  ))
+  expect_snapshot_abort(check_eta_bias(
+    data,
+    a,
+    y,
+    c(x1, x2),
+    truncation = c(-0.1, 0.95),
+    n_boot = 10
+  ))
+  expect_snapshot_abort(check_eta_bias(
+    data,
+    a,
+    y,
+    c(x1, x2),
+    truncation = c(0.6, 0.4),
+    n_boot = 10
+  ))
+  expect_snapshot_abort(check_eta_bias(
+    data,
+    a,
+    y,
+    c(x1, x2),
+    truncation_grid = c(0.1, 0.6),
+    n_boot = 10
+  ))
+  expect_snapshot_abort(check_eta_bias(
+    data,
+    a,
+    y,
+    c(x1, x2),
+    truncation_grid = c(0.1, NA),
+    n_boot = 10
+  ))
+  expect_snapshot_abort(check_eta_bias(data, a, y, c(x1, x2), n_boot = 2.5))
 })

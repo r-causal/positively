@@ -1076,85 +1076,86 @@ test_that("check_port_seq() censoring validation messages are stable", {
   local_quiet()
   data <- dgp_longitudinal_binary_censoring(n = 400, seed = 7)
 
-  expect_snapshot(
-    check_port_seq(
-      data,
-      c(a1, a2, a3),
-      list(l0, l1, l2),
-      .censoring = c(c1, c2)
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port_seq(
-      data,
-      c(a1, a2, a3),
-      list(l0, l1, l2),
-      .censoring = c(l0, l1, l2)
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port_seq(
-      data,
-      c(a1, a2, a3),
-      list(l0, l1, l2),
-      .censoring = c(c1, c2, c3),
-      strategy = "pooled"
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2)
+  ))
+  expect_snapshot_abort(check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(l0, l1, l2)
+  ))
+  expect_snapshot_abort(check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    strategy = "pooled"
+  ))
 })
 
 test_that("check_port_seq() argument validation messages are stable", {
   local_quiet()
   data <- sim_port_seq(n = 300, seed = 1)
 
-  expect_snapshot(check_port_seq(1:10, c(a1, a2), list(c1)), error = TRUE)
-  expect_snapshot(
-    check_port_seq(data, tidyselect::starts_with("zzz"), list(c1)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port_seq(data, c(a1, a2, a3), list(c1, x)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port_seq(data, c(a1, a2), list(tidyselect::starts_with("zzz"))),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port_seq(data, c(a1, a2, a3), list(c1), lag = -1),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port_seq(data, c(a1, a2, a3), list(c1), lag = 1.5),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port_seq(data, c(a1, a2, a3), list(c1), lag = "a"),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port_seq(data, c(a1, a2, a3), list(c1), alpha = 1.5),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port_seq(data, c(a1, a2, a3), list(c1), beta = 1.5),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port_seq(data, c(a1, a2, a3), list(c1), beta = 0.6),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port_seq(data, c(a1, a2, a3), list(c1), gamma = 0),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_port_seq(data, c(a1, a2, a3), list(c1), strategy = "pooled"),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_port_seq(1:10, c(a1, a2), list(c1)))
+  expect_snapshot_abort(check_port_seq(
+    data,
+    tidyselect::starts_with("zzz"),
+    list(c1)
+  ))
+  expect_snapshot_abort(check_port_seq(data, c(a1, a2, a3), list(c1, x)))
+  expect_snapshot_abort(check_port_seq(
+    data,
+    c(a1, a2),
+    list(tidyselect::starts_with("zzz"))
+  ))
+  expect_snapshot_abort(check_port_seq(data, c(a1, a2, a3), list(c1), lag = -1))
+  expect_snapshot_abort(check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(c1),
+    lag = 1.5
+  ))
+  expect_snapshot_abort(check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(c1),
+    lag = "a"
+  ))
+  expect_snapshot_abort(check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(c1),
+    alpha = 1.5
+  ))
+  expect_snapshot_abort(check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(c1),
+    beta = 1.5
+  ))
+  expect_snapshot_abort(check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(c1),
+    beta = 0.6
+  ))
+  expect_snapshot_abort(check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(c1),
+    gamma = 0
+  ))
+  expect_snapshot_abort(check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(c1),
+    strategy = "pooled"
+  ))
 })
 
 # ---- Missing covariates ----------------------------------------------------
@@ -1196,7 +1197,7 @@ test_that("check_port_seq() missing-covariate message names the column and time"
   local_quiet()
   data <- sim_port_seq(n = 300, seed = 1)
   data$c1[1] <- NA
-  expect_snapshot(check_port_seq(data, c(a1, a2, a3), list(c1)), error = TRUE)
+  expect_snapshot_abort(check_port_seq(data, c(a1, a2, a3), list(c1)))
 })
 
 # ---- Missing time-t exposure and censoring status -------------------------
@@ -1312,9 +1313,6 @@ test_that("check_port_seq() degenerate pooled-exposure messages are stable", {
   all_missing$a1 <- NA_integer_
   all_missing$a2 <- NA_integer_
 
-  expect_snapshot(check_port_seq(constant, c(a1, a2), list(c1)), error = TRUE)
-  expect_snapshot(
-    check_port_seq(all_missing, c(a1, a2), list(c1)),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_port_seq(constant, c(a1, a2), list(c1)))
+  expect_snapshot_abort(check_port_seq(all_missing, c(a1, a2), list(c1)))
 })
