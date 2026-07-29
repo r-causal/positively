@@ -29,11 +29,12 @@ pak::pak("r-causal/positively")
 
 ## Example
 
-`check_positivity()` detects the exposure type and runs the diagnostics
-appropriate to that type. The bundled `pos_violations` dataset has two
-positivity problems planted in it: a structural subgroup that is never
-exposed, and a practical near-violation where the fitted propensity
-approaches zero or one in the tails of `x1`.
+`check_positivity()` detects the exposure type, or uses the one you
+declare in `exposure_type`, and runs the diagnostics appropriate to that
+type. The bundled `pos_violations` dataset has two positivity problems
+planted in it: a structural subgroup that is never exposed, and a
+practical near-violation where the fitted propensity approaches zero or
+one in the tails of `x1`.
 
 ``` r
 library(positively)

@@ -67,13 +67,14 @@ recover both, and distinguish the empty subgroup from the near-empty tails.
 ## Running check_positivity()
 
 `check_positivity()` is the general entry point. It detects the exposure type,
-then checks positivity with the set of diagnostics appropriate to that type,
-composing the individual `check_*()` functions with their defaults. It does not
-classify or grade results; it collects each diagnostic's output into a container
-you can read and plot. You give it the data, the exposure column, and the
-covariates. The
+or uses the one you declare in `exposure_type`, then checks positivity with the
+set of diagnostics appropriate to that type, composing the individual
+`check_*()` functions with their defaults. It does not classify or grade
+results; it collects each diagnostic's output into a container you can read and
+plot. You give it the data, the exposure column, and the covariates. The
 covariates are required, with no default, so that outcome columns are never
-swept in by accident.
+swept in by accident. `vignette("continuous-exposures")` covers when declaring
+the type is the right call.
 
 ```{r check}
 check <- check_positivity(pos_violations, exposure, c(x1, x2, region))
