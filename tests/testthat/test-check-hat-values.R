@@ -23,9 +23,9 @@ sim_hat_linear <- function(n, beta, q = 1, seed = 1) {
 
 sim_hat_skewed_null <- function(n, seed = 1) {
   withr::local_seed(seed)
-  # A right-skewed dose drawn independently of the covariate. This is the
-  # scenario in which a uniform null fabricates a violation; the shipped null
-  # must stay quiet here.
+  # A right-skewed dose drawn independently of the covariate, so the truth is
+  # no violation and any flag is fabricated. The shipped nulls must stay quiet
+  # here.
   tibble::tibble(
     dose = stats::rlnorm(n),
     x1 = stats::rnorm(n)

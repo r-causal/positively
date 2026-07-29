@@ -100,9 +100,9 @@ resamples them with replacement, and \code{"gaussian"} draws from a normal
 distribution matched to the observed exposure mean and standard deviation.
 The permutation and bootstrap schemes are empirical: they preserve the
 observed exposure distribution exactly. A uniform null is deliberately not
-offered, because a uniform draw combined with a skewed exposure fabricates
-violations that are not present, whereas the empirical and Gaussian nulls
-stay quiet in that case.
+offered, because a uniform draw discards that distribution: on a skewed
+exposure it spreads the draws more evenly than the data are, which inflates
+the null quantile and costs power against a real violation.
 
 The per-candidate \code{high_leverage} flag is a conservative leverage indicator
 that feeds \eqn{\hat{\phi}}, not a calibrated per-unit accept or reject rule.
