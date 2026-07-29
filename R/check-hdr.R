@@ -262,6 +262,7 @@ resolve_seq_exposure_types <- function(
       exposure_type,
       .data[[name]],
       supported = supported,
+      arg = ".exposures",
       announce = FALSE
     )
   })

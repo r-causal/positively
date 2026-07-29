@@ -248,6 +248,21 @@ test_that("the detected type flips with the wave count on one dose column", {
   expect_length(unique(two_waves@results$exposure_level), 30L)
 })
 
+test_that("the announced type names the argument check_port_seq() takes", {
+  withr::local_options(positively.quiet = FALSE)
+  data <- sim_port_seq(n = 3000, seed = 1)
+
+  # Detection runs once on the pooled exposure, so the announcement belongs to
+  # `.exposures`. Naming `.exposure` would point a user at an argument this
+  # function does not have, which is why the announced name is threaded from the
+  # caller rather than fixed in the detector.
+  expect_message(
+    check_port_seq(data, c(a1, a2), list(c1)),
+    "Treating `.exposures` as binary",
+    fixed = TRUE
+  )
+})
+
 test_that("a declared continuous type bins a dose the pooled reading misreads", {
   local_quiet()
   data <- dgp_longitudinal_dose()

@@ -59,6 +59,10 @@ is_categorical <- function(.exposure) {
 #' `options(positively.quiet)` is `TRUE`.
 #'
 #' @param .exposure The exposure vector.
+#' @param arg The argument name the announcement points at. Defaults to
+#'   `".exposure"`; a diagnostic whose exposure argument is named otherwise
+#'   passes its own, so the announcement never names an argument the calling
+#'   function does not have.
 #' @param announce Whether to announce the detected type through `alert_info()`.
 #'   Defaults to `TRUE`; callers that detect several exposures at once pass
 #'   `FALSE` to stay silent.
@@ -66,7 +70,11 @@ is_categorical <- function(.exposure) {
 #' @return A single string: `"binary"`, `"categorical"`, or `"continuous"`.
 #' @keywords internal
 #' @noRd
-detect_exposure_type <- function(.exposure, announce = TRUE) {
+detect_exposure_type <- function(
+  .exposure,
+  arg = ".exposure",
+  announce = TRUE
+) {
   exposure_type <- if (has_two_levels(.exposure)) {
     "binary"
   } else if (is.factor(.exposure) || is.character(.exposure)) {
@@ -82,7 +90,7 @@ detect_exposure_type <- function(.exposure, announce = TRUE) {
   }
 
   if (announce) {
-    alert_info("Treating {.arg .exposure} as {exposure_type}")
+    alert_info("Treating {.arg {arg}} as {exposure_type}")
   }
 
   exposure_type
@@ -232,6 +240,7 @@ validate_exposure_structure <- function(
 #'   the menu.
 #' @param .exposure The exposure vector.
 #' @param supported The exposure types the calling diagnostic can compute.
+#' @param arg The argument name the announcement points at.
 #' @param announce Whether a detected type is announced through `alert_info()`.
 #'   Defaults to `TRUE`; callers that classify several exposures at once pass
 #'   `FALSE` to stay silent.
@@ -247,13 +256,14 @@ classify_exposure_type <- function(
   exposure_type,
   .exposure,
   supported,
+  arg = ".exposure",
   announce = TRUE
 ) {
   detected <- NA_character_
   type <- exposure_type
 
   if (exposure_type == "auto") {
-    detected <- detect_exposure_type(.exposure, announce = announce)
+    detected <- detect_exposure_type(.exposure, arg = arg, announce = announce)
     type <- detected
     if (!detected %in% supported) {
       return(list(type = type, detected = detected, problem = "unsupported"))
@@ -306,6 +316,7 @@ resolve_exposure_type <- function(
     exposure_type,
     .exposure,
     supported = supported,
+    arg = arg,
     announce = announce
   )
 

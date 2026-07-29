@@ -120,6 +120,34 @@ test_that("resolve_exposure_type() suppresses the announcement on request", {
   expect_identical(silent, "continuous")
 })
 
+test_that("the announced argument name is the one the caller resolves", {
+  withr::local_options(positively.quiet = FALSE)
+  # The announcement names an argument, so it has to name the caller's own. A
+  # diagnostic whose exposure argument is `.exposures` would otherwise send
+  # users to an argument it does not have.
+  expect_message(
+    resolve_exposure_type(
+      "auto",
+      c(0, 1, 0, 1),
+      supported = "binary",
+      fn = "check_fake",
+      arg = ".exposures"
+    ),
+    "Treating `.exposures` as binary",
+    fixed = TRUE
+  )
+  expect_message(
+    resolve_exposure_type(
+      "auto",
+      c(0, 1, 0, 1),
+      supported = "binary",
+      fn = "check_fake"
+    ),
+    "Treating `.exposure` as binary",
+    fixed = TRUE
+  )
+})
+
 test_that("resolve_exposure_type() honors an explicit type without announcing", {
   withr::local_options(positively.quiet = FALSE)
   resolved <- expect_silent(
@@ -416,6 +444,130 @@ test_that("exposure_carries_type() agrees with the structural gate", {
         classes = "error"
       )
       expect_identical(exposure_carries_type(column, type), is.null(raised))
+    }
+  }
+})
+
+test_that("classify_exposure_type() reports a supported detection as no problem", {
+  withr::local_options(positively.quiet = TRUE)
+  expect_identical(
+    classify_exposure_type(
+      "auto",
+      c(0, 1, 1, 0),
+      supported = c("binary", "continuous")
+    ),
+    list(type = "binary", detected = "binary", problem = "none")
+  )
+})
+
+test_that("classify_exposure_type() reports a detection outside the supported set", {
+  withr::local_options(positively.quiet = TRUE)
+  expect_identical(
+    classify_exposure_type("auto", c(0, 1, 1, 0), supported = "continuous"),
+    list(type = "binary", detected = "binary", problem = "unsupported")
+  )
+})
+
+test_that("classify_exposure_type() reports a type the column cannot carry", {
+  withr::local_options(positively.quiet = TRUE)
+  expect_identical(
+    classify_exposure_type(
+      "continuous",
+      factor(c("a", "b", "c")),
+      supported = "continuous"
+    ),
+    list(type = "continuous", detected = NA_character_, problem = "structure")
+  )
+  # The same verdict is reachable under detection, where the type came from the
+  # column rather than from the caller: a single-level factor is read as binary
+  # and then cannot carry the binary rule it was read into.
+  expect_identical(
+    classify_exposure_type(
+      "auto",
+      factor(rep("a", 60)),
+      supported = c("binary", "categorical", "continuous")
+    ),
+    list(type = "binary", detected = "binary", problem = "structure")
+  )
+})
+
+test_that("classify_exposure_type() consults detection only on the auto path", {
+  withr::local_options(positively.quiet = FALSE)
+  # `detected` is what lets a caller word a guess differently from a premise, so
+  # a declared type has to leave it missing and announce nothing.
+  declared <- expect_silent(
+    classify_exposure_type(
+      "categorical",
+      seq(0, 1, length.out = 50),
+      supported = c("binary", "categorical", "continuous")
+    )
+  )
+  expect_identical(declared$detected, NA_character_)
+  expect_identical(declared$type, "categorical")
+
+  expect_message(
+    detected <- classify_exposure_type(
+      "auto",
+      seq(0, 1, length.out = 50),
+      supported = c("binary", "categorical", "continuous"),
+      arg = ".exposures"
+    ),
+    "Treating `.exposures` as continuous",
+    fixed = TRUE
+  )
+  expect_identical(detected$detected, "continuous")
+})
+
+test_that("classify_exposure_type() decides exactly what resolve_exposure_type() raises", {
+  withr::local_options(positively.quiet = TRUE)
+  # The classifier is correct only if its verdict is the abort the resolver
+  # would have raised on the same inputs. A caller that reports from the verdict
+  # rather than from the abort, as the sequential HDR resolver does, tells the
+  # user something else the moment the two drift.
+  columns <- list(
+    seq(0, 1, length.out = 50),
+    c(0, 1, 1, 0),
+    rep(1, 4),
+    c("a", "b", "c"),
+    factor(c("a", "b", "a"), levels = c("a", "b", "c")),
+    factor(rep("a", 60)),
+    factor(c("a", "b", "c"), ordered = TRUE),
+    as.Date("2020-01-01") + 0:9,
+    c(TRUE, FALSE, NA),
+    rep(NA_real_, 10),
+    character(0),
+    integer(0)
+  )
+  menus <- list(
+    "continuous",
+    "binary",
+    c("binary", "categorical", "continuous")
+  )
+
+  for (column in columns) {
+    for (supported in menus) {
+      # Only the menu the resolver would accept, since matching against it is
+      # the one question the classifier deliberately does not ask.
+      for (declared in c("auto", supported)) {
+        verdict <- classify_exposure_type(
+          declared,
+          column,
+          supported = supported
+        )
+        resolved <- function() {
+          resolve_exposure_type(
+            declared,
+            column,
+            supported = supported,
+            fn = "check_fake"
+          )
+        }
+        raised <- rlang::catch_cnd(resolved(), classes = "error")
+        expect_identical(verdict$problem == "none", is.null(raised))
+        if (is.null(raised)) {
+          expect_identical(resolved(), verdict$type)
+        }
+      }
     }
   }
 })
