@@ -320,14 +320,12 @@ test_that("check_extrapolation() rejects a Date covariate", {
       d = as.Date("2020-01-01") + seq_len(100)
     )
   })
-  expect_error(
-    check_extrapolation(data, exposure, c(x1, d), hull = FALSE),
-    class = "positively_error"
-  )
-  expect_snapshot(
-    check_extrapolation(data, exposure, c(x1, d), hull = FALSE),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_extrapolation(
+    data,
+    exposure,
+    c(x1, d),
+    hull = FALSE
+  ))
 })
 
 test_that("check_extrapolation() rejects a list-column covariate", {
@@ -966,37 +964,33 @@ test_that("the binary-only abort messages are stable", {
   continuous <- dgp_continuous_support_gap(n = 100, seed = 1)
   categorical <- dgp_categorical(n = 200, seed = 1)
 
-  expect_snapshot(
-    check_extrapolation(continuous, exposure, x1),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_extrapolation(categorical, exposure, c(x1, x2)),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_extrapolation(continuous, exposure, x1))
+  expect_snapshot_abort(check_extrapolation(categorical, exposure, c(x1, x2)))
 })
 
 test_that("the argument validation messages are stable", {
   local_quiet()
   data <- dgp_good_positivity(n = 100, seed = 1)
 
-  expect_snapshot(check_extrapolation(1:10, exposure, x1), error = TRUE)
-  expect_snapshot(
-    check_extrapolation(data, exposure, tidyselect::starts_with("zzz")),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_extrapolation(data, exposure, c(x1, x2), nearby = 0),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_extrapolation(data, exposure, c(x1, x2), hull = "banana"),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_extrapolation(data, c(exposure, x1), x2),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_extrapolation(1:10, exposure, x1))
+  expect_snapshot_abort(check_extrapolation(
+    data,
+    exposure,
+    tidyselect::starts_with("zzz")
+  ))
+  expect_snapshot_abort(check_extrapolation(
+    data,
+    exposure,
+    c(x1, x2),
+    nearby = 0
+  ))
+  expect_snapshot_abort(check_extrapolation(
+    data,
+    exposure,
+    c(x1, x2),
+    hull = "banana"
+  ))
+  expect_snapshot_abort(check_extrapolation(data, c(exposure, x1), x2))
 })
 
 test_that("the missing-value and sample-size abort messages are stable", {
@@ -1005,23 +999,14 @@ test_that("the missing-value and sample-size abort messages are stable", {
 
   na_exposure <- data
   na_exposure$exposure[1] <- NA
-  expect_snapshot(
-    check_extrapolation(na_exposure, exposure, c(x1, x2)),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_extrapolation(na_exposure, exposure, c(x1, x2)))
 
   na_covariate <- data
   na_covariate$x1[1] <- NA
-  expect_snapshot(
-    check_extrapolation(na_covariate, exposure, c(x1, x2)),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_extrapolation(na_covariate, exposure, c(x1, x2)))
 
   too_small <- tibble::tibble(exposure = 1L, x1 = 0.5, x2 = -0.2)
-  expect_snapshot(
-    check_extrapolation(too_small, exposure, c(x1, x2)),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_extrapolation(too_small, exposure, c(x1, x2)))
 
   non_finite <- withr::with_seed(1, {
     data.frame(
@@ -1030,10 +1015,12 @@ test_that("the missing-value and sample-size abort messages are stable", {
       x2 = stats::rnorm(10)
     )
   })
-  expect_snapshot(
-    check_extrapolation(non_finite, exposure, c(x1, x2), hull = FALSE),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_extrapolation(
+    non_finite,
+    exposure,
+    c(x1, x2),
+    hull = FALSE
+  ))
 })
 
 test_that("the hull warning and error messages are stable", {
@@ -1047,15 +1034,12 @@ test_that("the hull warning and error messages are stable", {
     is_installed = function(...) FALSE,
     .package = "rlang"
   )
-  expect_snapshot(
-    check_extrapolation(
-      gaussian,
-      exposure,
-      tidyselect::starts_with("x"),
-      hull = TRUE
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_extrapolation(
+    gaussian,
+    exposure,
+    tidyselect::starts_with("x"),
+    hull = TRUE
+  ))
 })
 
 test_that("the hull-view abort without a hull run is stable", {
@@ -1067,7 +1051,7 @@ test_that("the hull-view abort without a hull run is stable", {
     tidyselect::starts_with("x"),
     hull = FALSE
   )
-  expect_snapshot(ggplot2::autoplot(res, type = "hull"), error = TRUE)
+  expect_snapshot_abort(ggplot2::autoplot(res, type = "hull"))
 })
 
 test_that("the hull-view abort points to the numeric-covariate precondition when hull was skipped", {
@@ -1096,7 +1080,7 @@ test_that("the hull-view abort points to the numeric-covariate precondition when
     ggplot2::autoplot(res, type = "hull"),
     regexp = "numeric covariate"
   )
-  expect_snapshot(ggplot2::autoplot(res, type = "hull"), error = TRUE)
+  expect_snapshot_abort(ggplot2::autoplot(res, type = "hull"))
 })
 
 test_that("the hull-view abort names the numeric precondition when hull was left unset", {
@@ -1121,7 +1105,7 @@ test_that("the hull-view abort names the numeric precondition when hull was left
     ggplot2::autoplot(res, type = "hull"),
     regexp = "numeric covariate"
   )
-  expect_snapshot(ggplot2::autoplot(res, type = "hull"), error = TRUE)
+  expect_snapshot_abort(ggplot2::autoplot(res, type = "hull"))
 })
 
 test_that("the high-dimensional hull messages are stable", {

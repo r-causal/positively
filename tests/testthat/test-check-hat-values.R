@@ -810,54 +810,38 @@ test_that("the continuous-only abort message is stable", {
   binary <- dgp_good_positivity(n = 100, seed = 1)
   categorical <- dgp_categorical(n = 200, seed = 1)
 
-  expect_snapshot(
-    check_hat_values(binary, exposure, c(x1, x2)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hat_values(categorical, exposure, x1),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hat_values(binary, exposure, c(x1, x2)))
+  expect_snapshot_abort(check_hat_values(categorical, exposure, x1))
 })
 
 test_that("the argument validation messages are stable", {
   local_quiet()
   data <- sim_hat_linear(80, beta = 1, seed = 1)
 
-  expect_snapshot(check_hat_values(1:10, dose, x1), error = TRUE)
-  expect_snapshot(
-    check_hat_values(data, dose, tidyselect::starts_with("zzz")),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hat_values(data, dose, x1, probs = c(0.5, 1.5)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hat_values(data, dose, x1, conf_level = 1.5),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hat_values(data, dose, x1, null_method = "uniform"),
-    error = TRUE
-  )
-  expect_snapshot(check_hat_values(data, c(dose, x1), x1), error = TRUE)
-  expect_snapshot(
-    check_hat_values(data, dose, x1, conf_level = c(0.5, 0.9)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hat_values(data, dose, x1, threshold = 0),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hat_values(data, dose, x1, null_reps = 0),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_hat_values(data, dose, x1, probs = numeric(0)),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hat_values(1:10, dose, x1))
+  expect_snapshot_abort(check_hat_values(
+    data,
+    dose,
+    tidyselect::starts_with("zzz")
+  ))
+  expect_snapshot_abort(check_hat_values(data, dose, x1, probs = c(0.5, 1.5)))
+  expect_snapshot_abort(check_hat_values(data, dose, x1, conf_level = 1.5))
+  expect_snapshot_abort(check_hat_values(
+    data,
+    dose,
+    x1,
+    null_method = "uniform"
+  ))
+  expect_snapshot_abort(check_hat_values(data, c(dose, x1), x1))
+  expect_snapshot_abort(check_hat_values(
+    data,
+    dose,
+    x1,
+    conf_level = c(0.5, 0.9)
+  ))
+  expect_snapshot_abort(check_hat_values(data, dose, x1, threshold = 0))
+  expect_snapshot_abort(check_hat_values(data, dose, x1, null_reps = 0))
+  expect_snapshot_abort(check_hat_values(data, dose, x1, probs = numeric(0)))
 })
 
 test_that("the data-integrity error messages are stable", {
@@ -866,26 +850,27 @@ test_that("the data-integrity error messages are stable", {
 
   na_covariate <- data
   na_covariate$x1[1] <- NA
-  expect_snapshot(
-    check_hat_values(na_covariate, dose, x1, null_reps = 2),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hat_values(na_covariate, dose, x1, null_reps = 2))
 
   factor_covariate <- data
   factor_covariate$group <- factor(
     sample(c("a", "b"), nrow(data), replace = TRUE)
   )
-  expect_snapshot(
-    check_hat_values(factor_covariate, dose, group, null_reps = 2),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hat_values(
+    factor_covariate,
+    dose,
+    group,
+    null_reps = 2
+  ))
 
   constant_covariate <- data
   constant_covariate$constant <- 1
-  expect_snapshot(
-    check_hat_values(constant_covariate, dose, constant, null_reps = 2),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hat_values(
+    constant_covariate,
+    dose,
+    constant,
+    null_reps = 2
+  ))
 })
 
 test_that("the print method is stable", {
