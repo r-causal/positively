@@ -286,34 +286,19 @@ test_that("a declared continuous type runs the continuous set on a coarse dose",
 
 # ---- Forwarding the resolved exposure type --------------------------------
 
-test_that("every composed diagnostic accepts each type it can be forwarded", {
-  # check_positivity() forwards the resolved exposure type to every child, so a
-  # type listed for a diagnostic here that the child's own exposure_type
-  # argument does not offer would reach that child as an arg_match() failure and
-  # surface as a composition error rather than as the argument error it is.
-  # Deriving both sides from the package keeps the invariant true of diagnostics
-  # added later, not only of the five composed today.
+test_that("diagnostic_exposure_types() projects the registry in composition order", {
+  # Subsetting a named list by a character vector is what keeps the projection
+  # faithful, so names, order, and values are each asserted rather than assumed.
+  # validate_composed_diagnostics() reads names, and exposure_type_advice()
+  # reads values, so a projection that lost either would misreport rather than
+  # fail loudly.
   offered <- diagnostic_exposure_types()
-  expect_setequal(names(offered), composed_diagnostics())
+  registry <- diagnostic_supported_types()
 
-  unsupported <- vapply(
-    composed_diagnostics(),
-    function(name) {
-      child <- rlang::env_get(
-        rlang::ns_env("positively"),
-        paste0("check_", name)
-      )
-      accepted <- eval(formals(child)$exposure_type)
-      paste(setdiff(offered[[name]], accepted), collapse = ", ")
-    },
-    character(1)
-  )
+  expect_identical(names(offered), composed_diagnostics())
   expect_identical(
-    unsupported,
-    rlang::set_names(
-      rep("", length(composed_diagnostics())),
-      composed_diagnostics()
-    )
+    unname(offered),
+    unname(registry[composed_diagnostics()])
   )
 })
 

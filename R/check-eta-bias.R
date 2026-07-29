@@ -242,7 +242,7 @@ check_eta_bias <- function(
   exposure_type <- resolve_exposure_type(
     exposure_type,
     exposure_vec,
-    supported = "binary",
+    supported = diagnostic_supported_types()[["eta_bias"]],
     fn = "check_eta_bias"
   )
 

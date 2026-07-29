@@ -171,7 +171,7 @@ check_port <- function(
   resolved_type <- resolve_exposure_type(
     exposure_type,
     exposure_vec,
-    supported = c("binary", "categorical", "continuous"),
+    supported = diagnostic_supported_types()[["port"]],
     fn = "check_port"
   )
 

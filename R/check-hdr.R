@@ -129,7 +129,7 @@ check_hdr <- function(
   exposure_type <- resolve_exposure_type(
     exposure_type,
     exposure_vec,
-    supported = "continuous",
+    supported = diagnostic_supported_types()[["hdr"]],
     fn = "check_hdr"
   )
 
@@ -247,7 +247,7 @@ resolve_seq_exposure_types <- function(
     resolve_exposure_type(
       exposure_type,
       .data[[name]],
-      supported = "continuous",
+      supported = diagnostic_supported_types()[["hdr_seq"]],
       fn = "check_hdr_seq",
       arg = name,
       announce = FALSE,

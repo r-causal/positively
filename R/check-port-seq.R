@@ -267,7 +267,7 @@ check_port_seq <- function(
   resolved_type <- resolve_exposure_type(
     exposure_type,
     pooled_exposure,
-    supported = c("binary", "categorical", "continuous"),
+    supported = diagnostic_supported_types()[["port_seq"]],
     fn = "check_port_seq",
     arg = ".exposures"
   )

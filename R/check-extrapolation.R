@@ -198,7 +198,7 @@ check_extrapolation <- function(
   exposure_type <- resolve_exposure_type(
     exposure_type,
     exposure_vec,
-    supported = "binary",
+    supported = diagnostic_supported_types()[["extrapolation"]],
     fn = "check_extrapolation"
   )
 

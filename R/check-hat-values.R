@@ -165,7 +165,7 @@ check_hat_values <- function(
   exposure_type <- resolve_exposure_type(
     exposure_type,
     exposure_vec,
-    supported = "continuous",
+    supported = diagnostic_supported_types()[["hat_values"]],
     fn = "check_hat_values"
   )
 

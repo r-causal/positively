@@ -132,6 +132,38 @@ exposure_carries_type <- function(.exposure, exposure_type) {
   )
 }
 
+#' The exposure types each diagnostic supports
+#'
+#' The one place that records what each diagnostic can compute, keyed by suffix
+#' so that entry `x` belongs to `check_x()`. Every diagnostic that takes an
+#' `exposure_type` argument has an entry; `check_density_ratios()` has none,
+#' because it takes no exposure type.
+#'
+#' Two statements have to agree for every diagnostic: the `exposure_type`
+#' formal, which is the menu the user is offered and what [rlang::arg_match()]
+#' matches against, and the `supported` set handed to `resolve_exposure_type()`,
+#' which is what actually gates the call. Reading the second from here leaves
+#' the formal as the only one of the two that can drift. The formal has to stay
+#' a literal, because roxygen2 derives the usage block by deparsing it and a
+#' call to an unexported function would be printed there instead.
+#'
+#' @return A named list of character vectors of exposure types.
+#' @keywords internal
+#' @noRd
+diagnostic_supported_types <- function() {
+  list(
+    edp = c("binary", "categorical", "continuous"),
+    port = c("binary", "categorical", "continuous"),
+    hat_values = "continuous",
+    hdr = "continuous",
+    extrapolation = "binary",
+    eta_bias = "binary",
+    port_seq = c("binary", "categorical", "continuous"),
+    hdr_seq = "continuous",
+    positivity = c("binary", "categorical", "continuous")
+  )
+}
+
 #' Validate that an exposure vector can carry its resolved type
 #'
 #' Applies `exposure_carries_type()` and explains a failure. The rule itself

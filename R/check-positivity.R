@@ -18,15 +18,11 @@ excluded_diagnostics <- function() {
   c("eta_bias", "density_ratios")
 }
 
-# The exposure types each composable diagnostic accepts.
+# The exposure types each composable diagnostic accepts, projected from the
+# package-wide registry so that this list cannot state anything the diagnostics
+# themselves do not enforce.
 diagnostic_exposure_types <- function() {
-  list(
-    edp = c("binary", "categorical", "continuous"),
-    port = c("binary", "categorical", "continuous"),
-    hat_values = "continuous",
-    hdr = "continuous",
-    extrapolation = "binary"
-  )
+  diagnostic_supported_types()[composed_diagnostics()]
 }
 
 # The default diagnostic set for an exposure type, in design-doc order.
@@ -261,7 +257,7 @@ resolve_composed_exposure_type <- function(
 ) {
   exposure_type <- rlang::arg_match(
     exposure_type,
-    c("auto", "binary", "categorical", "continuous"),
+    c("auto", diagnostic_supported_types()[["positivity"]]),
     error_call = call
   )
 
@@ -301,12 +297,11 @@ run_composed_diagnostic <- function(
   method_args
 ) {
   # The exposure type is forwarded to every diagnostic without exception, so
-  # check_positivity() may only ever forward a type the diagnostic accepts. What
-  # decides that is the `supported` set each diagnostic hands to
-  # resolve_exposure_type(), since that is what gates the arg_match(); a
-  # diagnostic whose `supported` set is narrower than its entry in
-  # diagnostic_exposure_types() would turn an argument error into a composition
-  # failure. validate_composed_diagnostics() has already rejected every
+  # check_positivity() may only ever forward a type the diagnostic accepts. Both
+  # sides read that from diagnostic_supported_types(): the `supported` set each
+  # diagnostic hands to resolve_exposure_type() and the entry
+  # diagnostic_exposure_types() projects here are one and the same, so they
+  # cannot disagree. validate_composed_diagnostics() has already rejected every
   # diagnostic the resolved type does not apply to.
   call_args <- c(
     list(

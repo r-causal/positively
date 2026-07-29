@@ -212,7 +212,7 @@ check_edp <- function(
   exposure_type <- resolve_exposure_type(
     exposure_type,
     exposure_vec,
-    supported = c("binary", "categorical", "continuous"),
+    supported = diagnostic_supported_types()[["edp"]],
     fn = "check_edp"
   )
 

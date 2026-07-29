@@ -420,6 +420,65 @@ test_that("exposure_carries_type() agrees with the structural gate", {
   }
 })
 
+test_that("the supported-type registry covers every diagnostic that takes a type", {
+  # The registry is keyed by suffix, so entry `x` belongs to `check_x()` and a
+  # diagnostic added later finds its entry by name rather than through a second
+  # list to keep in step. check_density_ratios() has no entry because it takes
+  # no exposure type. Deriving both sides from the package is what makes this
+  # true of diagnostics added later, not only of today's nine.
+  exported <- grep("^check_", getNamespaceExports("positively"), value = TRUE)
+  takes_type <- Filter(
+    function(name) {
+      fn <- rlang::env_get(rlang::ns_env("positively"), name)
+      "exposure_type" %in% names(formals(fn))
+    },
+    exported
+  )
+  expect_setequal(
+    paste0("check_", names(diagnostic_supported_types())),
+    takes_type
+  )
+})
+
+test_that("every diagnostic offers exactly the types its registry entry supports", {
+  # The `exposure_type` formal is the menu the user is offered and what
+  # arg_match() matches against; the registry entry is what gates the call
+  # inside the body. A formal wider than the entry would accept a type at the
+  # argument and then abort inside on a set no message shape describes. The two
+  # are separate statements by design, since the formal must stay a literal for
+  # the usage block to deparse, so this is the seam worth pinning.
+  registry <- diagnostic_supported_types()
+  offered <- vapply(
+    names(registry),
+    function(name) {
+      fn <- rlang::env_get(rlang::ns_env("positively"), paste0("check_", name))
+      paste(eval(formals(fn)$exposure_type), collapse = ", ")
+    },
+    character(1)
+  )
+  expected <- vapply(
+    registry,
+    function(types) paste(c("auto", types), collapse = ", "),
+    character(1)
+  )
+  expect_identical(offered, expected)
+})
+
+test_that("check_positivity() supports exactly the union of its children's types", {
+  # Every composed child is handed check_positivity()'s resolved type, so a type
+  # the entry point accepts that no child accepts has nowhere to run, and a type
+  # a child accepts that the entry point rejects is unreachable through
+  # composition. The test above carries this from the registry to the menus the
+  # two sides actually offer.
+  registry <- diagnostic_supported_types()
+  children <- unique(unlist(
+    registry[composed_diagnostics()],
+    use.names = FALSE
+  ))
+  expect_identical(setdiff(registry[["positivity"]], children), character(0))
+  expect_identical(setdiff(children, registry[["positivity"]]), character(0))
+})
+
 test_that("resolve_exposure_type() errors point at the calling function", {
   withr::local_options(positively.quiet = TRUE)
   check_fake <- function(.exposure, exposure_type = "auto") {
