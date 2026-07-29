@@ -148,25 +148,17 @@ test_that("check_density_ratios() aborts on an lmtp fit without a ratio componen
 test_that("thresholds that collapse to one statistic label are rejected", {
   # 1e-9 and 2e-9 are distinct values but round to the same eight-decimal label,
   # so both would name the statistic prop_gt_0.
-  expect_error(
+  expect_snapshot_abort(
     check_density_ratios(c(0.5, 1, 2), thresholds = c(1e-9, 2e-9)),
     class = "positively_duplicate_error"
-  )
-  expect_snapshot(
-    check_density_ratios(c(0.5, 1, 2), thresholds = c(1e-9, 2e-9)),
-    error = TRUE
   )
 })
 
 test_that("probs that collapse to one quantile label are rejected", {
   # 0.5 and 0.5 + 1e-11 are distinct but both map to the quantile_50 label.
-  expect_error(
+  expect_snapshot_abort(
     check_density_ratios(c(0.5, 1, 2), probs = c(0.5, 0.5 + 1e-11)),
     class = "positively_duplicate_error"
-  )
-  expect_snapshot(
-    check_density_ratios(c(0.5, 1, 2), probs = c(0.5, 0.5 + 1e-11)),
-    error = TRUE
   )
 })
 
@@ -463,7 +455,7 @@ test_that("a cumulative product that overflows to Inf aborts with a range error"
 
 test_that("the cumulative-product overflow message is stable", {
   m <- matrix(c(1e200, 1, 1e200, 1), nrow = 2)
-  expect_snapshot(check_density_ratios(m), error = TRUE)
+  expect_snapshot_abort(check_density_ratios(m))
 })
 
 # ---- lmtp accessor ---------------------------------------------------------
@@ -605,57 +597,39 @@ test_that("print omits the quantile block when probs is the maximum alone", {
 # ---- Error snapshots -------------------------------------------------------
 
 test_that("the classed error messages are stable", {
-  expect_snapshot(check_density_ratios(c(1, -0.5, 2)), error = TRUE)
-  expect_snapshot(check_density_ratios(c(1, NA, 2)), error = TRUE)
-  expect_snapshot(check_density_ratios(numeric(0)), error = TRUE)
-  expect_snapshot(check_density_ratios(c("a", "b")), error = TRUE)
-  expect_snapshot(
-    check_density_ratios(tibble::tibble(a = 1:3)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_density_ratios(c(1, 1, 1), probs = c(0.5, 1.5)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_density_ratios(c(1, 1, 1), probs = c(0.5, 0.5)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_density_ratios(c(1, 1, 1), thresholds = c(-1, 50)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_density_ratios(c(1, 1, 1), thresholds = "10"),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_density_ratios(c(1, 1, 1), thresholds = c(10, 10)),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_density_ratios(c(1, -0.5, 2)))
+  expect_snapshot_abort(check_density_ratios(c(1, NA, 2)))
+  expect_snapshot_abort(check_density_ratios(numeric(0)))
+  expect_snapshot_abort(check_density_ratios(c("a", "b")))
+  expect_snapshot_abort(check_density_ratios(tibble::tibble(a = 1:3)))
+  expect_snapshot_abort(check_density_ratios(c(1, 1, 1), probs = c(0.5, 1.5)))
+  expect_snapshot_abort(check_density_ratios(c(1, 1, 1), probs = c(0.5, 0.5)))
+  expect_snapshot_abort(check_density_ratios(
+    c(1, 1, 1),
+    thresholds = c(-1, 50)
+  ))
+  expect_snapshot_abort(check_density_ratios(c(1, 1, 1), thresholds = "10"))
+  expect_snapshot_abort(check_density_ratios(
+    c(1, 1, 1),
+    thresholds = c(10, 10)
+  ))
   malformed <- structure(list(other = 1), class = "lmtp")
-  expect_snapshot(check_density_ratios(malformed), error = TRUE)
+  expect_snapshot_abort(check_density_ratios(malformed))
 
   res_point <- check_density_ratios(gen_lognormal_ratios(50, k = 1))
-  expect_snapshot(
-    ggplot2::autoplot(res_point, type = "cumulative"),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_density_ratios(c(1, 1, 1), thresholds = numeric(0)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_density_ratios(c(1, 1, 1), thresholds = c(10, NA)),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_density_ratios(matrix(c("a", "b", "c", "d"), nrow = 2)),
-    error = TRUE
-  )
-  expect_snapshot(check_density_ratios(c(1, Inf, 2)), error = TRUE)
-  expect_snapshot(
-    check_density_ratios(matrix(c(1, 2, Inf, 3), nrow = 2)),
-    error = TRUE
-  )
+  expect_snapshot_abort(ggplot2::autoplot(res_point, type = "cumulative"))
+  expect_snapshot_abort(check_density_ratios(
+    c(1, 1, 1),
+    thresholds = numeric(0)
+  ))
+  expect_snapshot_abort(check_density_ratios(
+    c(1, 1, 1),
+    thresholds = c(10, NA)
+  ))
+  expect_snapshot_abort(check_density_ratios(matrix(
+    c("a", "b", "c", "d"),
+    nrow = 2
+  )))
+  expect_snapshot_abort(check_density_ratios(c(1, Inf, 2)))
+  expect_snapshot_abort(check_density_ratios(matrix(c(1, 2, Inf, 3), nrow = 2)))
 })

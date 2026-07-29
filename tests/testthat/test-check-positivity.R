@@ -404,7 +404,7 @@ test_that("duplicate args names are rejected", {
   data <- dgp_good_positivity(n = 200)
   # A named list with a repeated name silently keeps only the first entry, so the
   # second set of options would vanish without warning.
-  expect_error(
+  expect_snapshot_abort(
     # jarl-ignore duplicated_arguments: the repeated name is the condition under test
     check_positivity(
       data,
@@ -414,17 +414,6 @@ test_that("duplicate args names are rejected", {
       args = list(port = list(alpha = 0.2), port = list(alpha = 0.4))
     ),
     class = "positively_args_error"
-  )
-  expect_snapshot(
-    # jarl-ignore duplicated_arguments: the repeated name is the condition under test
-    check_positivity(
-      data,
-      exposure,
-      c(x1, x2),
-      diagnostics = "port",
-      args = list(port = list(alpha = 0.2), port = list(alpha = 0.4))
-    ),
-    error = TRUE
   )
 })
 
@@ -918,148 +907,120 @@ test_that("the classed errors are stable", {
   continuous <- dgp_continuous_support_gap(n = 150)
 
   # An unrecognised diagnostic name.
-  expect_snapshot(
-    check_positivity(data, exposure, c(x1, x2), diagnostics = "bogus"),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = "bogus"
+  ))
   # Diagnostics that need an outcome or user-supplied ratios.
-  expect_snapshot(
-    check_positivity(data, exposure, c(x1, x2), diagnostics = "eta_bias"),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_positivity(data, exposure, c(x1, x2), diagnostics = "density_ratios"),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = "eta_bias"
+  ))
+  expect_snapshot_abort(check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = "density_ratios"
+  ))
   # A diagnostic that does not apply to the exposure type. The 0/1 exposure is
   # numeric, so the continuous type hat_values needs is on offer; the continuous
   # exposure has far more than two distinct values, so the binary type
   # extrapolation needs is not.
-  expect_snapshot(
-    check_positivity(data, exposure, c(x1, x2), diagnostics = "hat_values"),
-    error = TRUE
-  )
-  expect_snapshot(
-    check_positivity(continuous, exposure, x1, diagnostics = "extrapolation"),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = "hat_values"
+  ))
+  expect_snapshot_abort(check_positivity(
+    continuous,
+    exposure,
+    x1,
+    diagnostics = "extrapolation"
+  ))
   # An args name that is not being run.
-  expect_snapshot(
-    check_positivity(
-      data,
-      exposure,
-      c(x1, x2),
-      diagnostics = "port",
-      args = list(bogus = list(alpha = 0.2))
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = "port",
+    args = list(bogus = list(alpha = 0.2))
+  ))
   # A duplicated diagnostic name.
-  expect_snapshot(
-    check_positivity(
-      data,
-      exposure,
-      c(x1, x2),
-      diagnostics = c("port", "port")
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = c("port", "port")
+  ))
   # An args entry that is not a list.
-  expect_snapshot(
-    check_positivity(
-      data,
-      exposure,
-      c(x1, x2),
-      diagnostics = "port",
-      args = list(port = "oops")
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = "port",
+    args = list(port = "oops")
+  ))
   # A declared exposure type the exposure column cannot carry.
-  expect_snapshot(
-    check_positivity(
-      dgp_categorical(150),
-      exposure,
-      c(x1, x2),
-      diagnostics = c("port", "extrapolation"),
-      exposure_type = "binary"
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_positivity(
+    dgp_categorical(150),
+    exposure,
+    c(x1, x2),
+    diagnostics = c("port", "extrapolation"),
+    exposure_type = "binary"
+  ))
   # A failing child names the diagnostic and chains the child's condition.
-  expect_snapshot(
-    check_positivity(
-      data,
-      exposure,
-      c(x1, x2),
-      diagnostics = "port",
-      args = list(port = list(alpha = 1.5))
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = "port",
+    args = list(port = list(alpha = 1.5))
+  ))
   # A single-column exposure selection is required.
-  expect_snapshot(
-    check_positivity(data, c(exposure, x1), x2),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_positivity(data, c(exposure, x1), x2))
   # A covariate selection that includes the exposure column.
-  expect_snapshot(
-    check_positivity(data, exposure, tidyselect::everything()),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_positivity(
+    data,
+    exposure,
+    tidyselect::everything()
+  ))
   # tidy() rejects an unknown diagnostic name.
   res <- check_positivity(data, exposure, c(x1, x2), diagnostics = "port")
-  expect_snapshot(
-    generics::tidy(res, diagnostic = "nonexistent"),
-    error = TRUE
-  )
+  expect_snapshot_abort(generics::tidy(res, diagnostic = "nonexistent"))
   # [[ rejects an unknown diagnostic name.
-  expect_snapshot(
-    res[["nonexistent"]],
-    error = TRUE
-  )
+  expect_snapshot_abort(res[["nonexistent"]])
   # [[ rejects an out-of-bounds numeric index.
-  expect_snapshot(
-    res[[5]],
-    error = TRUE
-  )
+  expect_snapshot_abort(res[[5]])
   # [[ rejects a non-scalar index.
-  expect_snapshot(
-    res[[c("port", "extrapolation")]],
-    error = TRUE
-  )
+  expect_snapshot_abort(res[[c("port", "extrapolation")]])
   # Inapplicable diagnostics that all need the same type name it once.
-  expect_snapshot(
-    check_positivity(
-      data,
-      exposure,
-      c(x1, x2),
-      diagnostics = c("hat_values", "hdr")
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = c("hat_values", "hdr")
+  ))
   # Inapplicable diagnostics whose needed types a three-level factor cannot
   # carry, so no type is suggested.
-  expect_snapshot(
-    check_positivity(
-      dgp_categorical(150),
-      exposure,
-      c(x1, x2),
-      diagnostics = c("hat_values", "extrapolation")
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_positivity(
+    dgp_categorical(150),
+    exposure,
+    c(x1, x2),
+    diagnostics = c("hat_values", "extrapolation")
+  ))
   # An exposure_type inside a per-diagnostic option list.
-  expect_snapshot(
-    check_positivity(
-      data,
-      exposure,
-      c(x1, x2),
-      diagnostics = "port",
-      args = list(port = list(exposure_type = "categorical"))
-    ),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = "port",
+    args = list(port = list(exposure_type = "categorical"))
+  ))
 })
 
 # ---- Missing exposure ------------------------------------------------------
@@ -1086,5 +1047,5 @@ test_that("the missing-exposure message is stable", {
   local_quiet()
   data <- dgp_good_positivity(n = 200, seed = 1)
   data$exposure[1] <- NA
-  expect_snapshot(check_positivity(data, exposure, c(x1, x2)), error = TRUE)
+  expect_snapshot_abort(check_positivity(data, exposure, c(x1, x2)))
 })
