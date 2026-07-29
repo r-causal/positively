@@ -282,34 +282,32 @@ test_that("the numeric-grid undefined-cutoff message is stable", {
     frame
   })
 
-  expect_snapshot(
-    check_hdr(df, exposure, l, values = c(0, 1), density_estimator = est),
-    error = TRUE
-  )
+  expect_snapshot_abort(check_hdr(
+    df,
+    exposure,
+    l,
+    values = c(0, 1),
+    density_estimator = est
+  ))
 })
 
 test_that("new_hdr_density() validation messages are stable", {
   good_density <- function(state, a, newdata) rep(1, nrow(newdata))
   good_fit <- function(formula, data) list()
 
-  expect_snapshot(
-    new_hdr_density(fit = "not a function", density = good_density),
-    error = TRUE
-  )
-  expect_snapshot(
-    new_hdr_density(fit = good_fit, density = 1),
-    error = TRUE
-  )
-  expect_snapshot(
-    new_hdr_density(
-      fit = good_fit,
-      density = good_density,
-      hdr_threshold = "not a function"
-    ),
-    error = TRUE
-  )
-  expect_snapshot(
-    new_hdr_density(fit = good_fit, density = good_density, label = 1),
-    error = TRUE
-  )
+  expect_snapshot_abort(new_hdr_density(
+    fit = "not a function",
+    density = good_density
+  ))
+  expect_snapshot_abort(new_hdr_density(fit = good_fit, density = 1))
+  expect_snapshot_abort(new_hdr_density(
+    fit = good_fit,
+    density = good_density,
+    hdr_threshold = "not a function"
+  ))
+  expect_snapshot_abort(new_hdr_density(
+    fit = good_fit,
+    density = good_density,
+    label = 1
+  ))
 })

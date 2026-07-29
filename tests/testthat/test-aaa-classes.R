@@ -159,7 +159,7 @@ test_that("the invalid-index message is stable", {
     checks = list(make_test_diagnostic(), make_test_diagnostic()),
     diagnostics = c("edp", "port")
   )
-  expect_snapshot(res[[1.9]], error = TRUE)
+  expect_snapshot_abort(res[[1.9]])
 })
 
 test_that("printing a diagnostic is stable", {

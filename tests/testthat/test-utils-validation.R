@@ -41,10 +41,10 @@ test_that("validate_prob() rejects non-numeric input", {
 })
 
 test_that("validate_* failures produce stable messages", {
-  expect_snapshot(validate_data_frame(1:10), error = TRUE)
-  expect_snapshot(validate_column_selection(integer(0)), error = TRUE)
-  expect_snapshot(validate_prob(1.5), error = TRUE)
-  expect_snapshot(validate_prob("a"), error = TRUE)
+  expect_snapshot_abort(validate_data_frame(1:10))
+  expect_snapshot_abort(validate_column_selection(integer(0)))
+  expect_snapshot_abort(validate_prob(1.5))
+  expect_snapshot_abort(validate_prob("a"))
 })
 
 test_that("a selection error names the calling check in its message", {
@@ -53,7 +53,7 @@ test_that("a selection error names the calling check in its message", {
   # The classed selection error carries the caller's call, so the rendered
   # message attributes the failure to check_port() rather than to the internal
   # selection helper.
-  expect_snapshot(check_port(df, nope, x1), error = TRUE)
+  expect_snapshot_abort(check_port(df, nope, x1))
 })
 
 # A misspelled column must surface as a classed positively_selection_error from
