@@ -31,8 +31,9 @@ a different geometry of violation.
 
 ## Setup
 
-```{r setup}
+```{r setup, message = FALSE}
 library(positively)
+library(dplyr)
 ```
 
 positively includes `pos_violations_long`, a simulated wide-format longitudinal
@@ -91,7 +92,8 @@ value shows its effective data points are far below those at the supported value
 
 ```{r edp-summary}
 tidy(edp) |>
-  aggregate(edp ~ value, data = _, FUN = function(x) round(mean(x), 1))
+  group_by(value) |>
+  summarize(edp = round(mean(edp), 1))
 ```
 
 The `autoplot()` histogram, faceted by candidate value, shows the same result as

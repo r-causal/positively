@@ -30,8 +30,9 @@ sequential extension `check_port_seq()` for treatment regimes over time.
 
 ## Setup
 
-```{r setup}
+```{r setup, message = FALSE}
 library(positively)
+library(dplyr)
 ```
 
 We use the two simulated datasets that positively provides. `pos_violations`
@@ -63,8 +64,9 @@ below `beta` (the prevalence threshold considered low) or above `1 - beta`, amon
 the sample. Filtering to the flagged rows is the usual first step.
 
 ```{r port-flagged}
-flagged <- tidy(port)
-flagged[flagged$flagged, c("description", "exposure_level", "n", "prevalence")]
+tidy(port) |>
+  filter(flagged) |>
+  select(description, exposure_level, n, prevalence)
 ```
 
 PoRT recovers both planted violations and describes each in the covariates. The
@@ -100,8 +102,9 @@ structural subgroup and leaves only the large lower tail.
 
 ```{r alpha}
 port_alpha <- check_port(pos_violations, exposure, c(x1, x2, region), alpha = 0.10)
-alpha_rows <- tidy(port_alpha)
-alpha_rows[alpha_rows$flagged, c("description", "n", "prevalence")]
+tidy(port_alpha) |>
+  filter(flagged) |>
+  select(description, n, prevalence)
 ```
 
 **`beta`** is the prevalence threshold. A smaller `beta` demands a more extreme
@@ -114,8 +117,9 @@ extreme cut of `x1`.
 
 ```{r beta}
 port_beta <- check_port(pos_violations, exposure, c(x1, x2, region), beta = "gruber")
-beta_rows <- tidy(port_beta)
-beta_rows[beta_rows$flagged, c("description", "n", "prevalence")]
+tidy(port_beta) |>
+  filter(flagged) |>
+  select(description, n, prevalence)
 ```
 
 **`gamma`** is the maximum number of covariates that may jointly define a
@@ -128,8 +132,9 @@ structural cell.
 
 ```{r gamma}
 port_gamma <- check_port(pos_violations, exposure, c(x1, x2, region), gamma = 1)
-gamma_rows <- tidy(port_gamma)
-gamma_rows[gamma_rows$flagged, c("description", "n", "prevalence")]
+tidy(port_gamma) |>
+  filter(flagged) |>
+  select(description, n, prevalence)
 ```
 
 Higher `gamma` finds more, at the cost of more trees, and the combination search
@@ -188,9 +193,10 @@ time-varying covariates, and the earlier exposures. The results carry a leading
 was found.
 
 ```{r sport-flagged}
-sport_rows <- tidy(sport)
-sport_flagged <- sport_rows[sport_rows$flagged, ]
-head(sport_flagged[, c("time", "description", "exposure_level", "n", "prevalence")])
+tidy(sport) |>
+  filter(flagged) |>
+  select(time, description, exposure_level, n, prevalence) |>
+  head()
 ```
 
 For a binary monotone regime the follower restriction changes the risk set at
@@ -228,9 +234,9 @@ sport_lag <- check_port_seq(
   list(c(l0), c(l1), c(l2)),
   lag = 1
 )
-lag_rows <- tidy(sport_lag)
-lag_flagged <- lag_rows[lag_rows$flagged & lag_rows$time == 3, ]
-lag_flagged[, c("time", "description", "exposure_level", "n", "prevalence")]
+tidy(sport_lag) |>
+  filter(flagged, time == 3) |>
+  select(time, description, exposure_level, n, prevalence)
 ```
 
 ### Censoring
@@ -304,9 +310,9 @@ near-certain-to-be-censored subgroup. Reading the `prevalence` column tells the
 two tails apart.
 
 ```{r censoring-flagged}
-cens_rows <- tidy(cens)
-cens_flagged <- cens_rows[cens_rows$type == "censoring" & cens_rows$flagged, ]
-cens_flagged[, c("time", "description", "exposure_level", "n", "prevalence")]
+tidy(cens) |>
+  filter(type == "censoring", flagged) |>
+  select(time, description, exposure_level, n, prevalence)
 ```
 
 ## Where to go next

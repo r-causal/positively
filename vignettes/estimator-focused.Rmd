@@ -31,8 +31,9 @@ trained.
 
 ## Setup
 
-```{r setup}
+```{r setup, message = FALSE}
 library(positively)
+library(dplyr)
 ```
 
 Both examples use `pos_violations`, the simulated dataset described in
@@ -71,11 +72,8 @@ average treatment effect is one.
 
 ```{r outcome}
 set.seed(2024)
-eta_data <- pos_violations
-eta_data$y <- with(
-  eta_data,
-  exposure + x1 + 0.5 * x2 + rnorm(nrow(eta_data))
-)
+eta_data <- pos_violations |>
+  mutate(y = exposure + x1 + 0.5 * x2 + rnorm(n()))
 ```
 
 `check_eta_bias()` accepts numeric, logical, factor, and character covariates;

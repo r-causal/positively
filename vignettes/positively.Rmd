@@ -34,8 +34,9 @@ a violation in addition to measuring its overall severity.
 
 ## Setup
 
-```{r setup}
+```{r setup, message = FALSE}
 library(positively)
+library(dplyr)
 ```
 
 positively includes a small simulated dataset, `pos_violations`, with two known
@@ -137,8 +138,9 @@ prevalence below `beta` or above `1 - beta` among subgroups at least `alpha` of
 the sample. Filtering to the flagged rows shows what PoRT found.
 
 ```{r port-flagged}
-flagged <- tidy(port)
-flagged[flagged$flagged, c("description", "n", "prevalence", "flagged")]
+tidy(port) |>
+  filter(flagged) |>
+  select(description, n, prevalence, flagged)
 ```
 
 PoRT recovers both planted violations and describes them in the covariates. The
@@ -184,27 +186,35 @@ ggplot2::autoplot(edp, type = "histogram")
 The planted regions make the comparison concrete. The following labels each
 unit by the planted problem it belongs to: the structural subgroup is
 `region == "b"` with `x2 > 1`, and the practical tails are the outer five
-percent of `x1`.
+percent of `x1`. The labels are keyed by `.id`, the row identifier carried by
+the per-unit results of `check_edp()` and `check_extrapolation()`, so they can
+be joined to both sets of results below.
 
 ```{r planted-regions}
-structural <- pos_violations$region == "b" & pos_violations$x2 > 1
-x1_cuts <- quantile(pos_violations$x1, c(0.05, 0.95))
-tails <- pos_violations$x1 < x1_cuts[[1]] | pos_violations$x1 > x1_cuts[[2]]
-planted <- ifelse(
-  structural,
-  "structural",
-  ifelse(tails, "x1 tail", "elsewhere")
-)
-table(planted)
+planted <- pos_violations |>
+  mutate(
+    .id = row_number(),
+    planted = case_when(
+      region == "b" & x2 > 1 ~ "structural",
+      x1 < quantile(x1, 0.05) | x1 > quantile(x1, 0.95) ~ "x1 tail",
+      .default = "elsewhere"
+    )
+  ) |>
+  select(.id, planted)
+
+planted |>
+  count(planted)
 ```
 
 Comparing effective data points at the exposed level across those labels shows
 the thin support directly.
 
 ```{r edp-planted}
-edp_rows <- tidy(edp)
-edp_exposed <- edp_rows[edp_rows$value == 1, ]
-tapply(edp_exposed$edp, planted, median)
+tidy(edp) |>
+  filter(value == 1) |>
+  left_join(planted, by = ".id") |>
+  group_by(planted) |>
+  summarize(edp = median(edp))
 ```
 
 The median unit elsewhere in the sample has about 73 effective data points
@@ -237,9 +247,13 @@ extrapolation@summary
 The same planted labels trace the extrapolation results to the unit level.
 
 ```{r extrapolation-planted}
-extrap_rows <- tidy(extrapolation)
-tapply(extrap_rows$frac_nearby, planted, median)
-tapply(extrap_rows$in_hull, planted, mean)
+tidy(extrapolation) |>
+  left_join(planted, by = ".id") |>
+  group_by(planted) |>
+  summarize(
+    frac_nearby = median(frac_nearby),
+    in_hull = mean(in_hull)
+  )
 ```
 
 The `x1` tails are the extreme case on both measures. The median tail unit has
