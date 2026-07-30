@@ -127,8 +127,8 @@ as the `prop_zero` statistic, which the long summary from `tidy()` exposes
 directly.
 
 ```{r degenerate-tidy}
-ratio_stats <- tidy(check_density_ratios(degenerate))
-ratio_stats[ratio_stats$statistic == "prop_zero", ]
+tidy(check_density_ratios(degenerate)) |>
+  dplyr::filter(statistic == "prop_zero")
 ```
 
 ## Time-varying treatments and cumulative products
