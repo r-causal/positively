@@ -83,13 +83,13 @@ exposure prevalence, with dashed reference lines at `beta` and
 `1 - beta` and the flagged subgroups highlighted.
 
 ``` r
-library(ggplot2)
+library(dplyr)
 
 port <- check_port(pos_violations, exposure, c(x1, x2, region)) |>
   tidy()
-#> ℹ Treating `.exposure` as binary
 
-port[port$flagged, ]
+port |>
+  filter(flagged)
 #> # A tibble: 3 × 7
 #>   subgroup   description      exposure_level     n proportion prevalence flagged
 #>   <chr>      <chr>            <chr>          <int>      <dbl>      <dbl> <lgl>  

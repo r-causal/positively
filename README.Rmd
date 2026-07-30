@@ -43,13 +43,14 @@ check
 
 The positivity regression tree (`port`) reports each problem as a rule over the covariates. Its plot draws every reported subgroup as a bar of exposure prevalence, with dashed reference lines at `beta` and `1 - beta` and the flagged subgroups highlighted.
 
-```{r port-plot, fig.alt = "Horizontal bar chart of exposure prevalence for each PoRT subgroup, with flagged subgroups highlighted near prevalence zero and one."}
-library(ggplot2)
+```{r port-flagged, message = FALSE}
+library(dplyr)
 
 port <- check_port(pos_violations, exposure, c(x1, x2, region)) |>
   tidy()
 
-port[port$flagged, ]
+port |>
+  filter(flagged)
 ```
 
 The three flagged subgroups match the planted ground truth. One rule combining `region` and `x2` has an exposure prevalence of zero, the structural violation, and two `x1` rules in the lower and upper tails have prevalence near zero and one, the practical near-violation. positively locates these regions without grading them; the interpretation is yours.
