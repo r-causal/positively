@@ -8,6 +8,14 @@
       i The reading rule needs a threshold below 0.5, but the sample-size-adaptive bound reaches 0.5 or more at small sample sizes.
       i Supply a numeric `beta` below 0.5 for a sample this small.
 
+# autoplot() rejects a non-flag flagged_only as a classed error
+
+    Code
+      ggplot2::autoplot(res, flagged_only = "yes")
+    Condition
+      Error in `ggplot2::autoplot()`:
+      ! `flagged_only` must be `TRUE` or `FALSE`.
+
 # check_port() rejects a dot that is not an rpart.control option
 
     Code

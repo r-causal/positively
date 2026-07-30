@@ -31,6 +31,14 @@
       Error:
       ! `probs` must be numeric, not a <character>.
 
+---
+
+    Code
+      validate_flag("yes", "flagged_only")
+    Condition
+      Error:
+      ! `flagged_only` must be `TRUE` or `FALSE`.
+
 # a selection error names the calling check in its message
 
     Code

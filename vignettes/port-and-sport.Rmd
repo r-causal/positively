@@ -1,8 +1,8 @@
 ---
-title: "Where violations live: PoRT and sPoRT"
+title: "Identifying Violations: PoRT and sPoRT"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Where violations live: PoRT and sPoRT}
+  %\VignetteIndexEntry{Identifying Violations: PoRT and sPoRT}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -59,7 +59,7 @@ exposure the response is the indicator of the higher level, so `exposure_level`
 is `"1"` and `prevalence` is the share exposed within each subgroup. PoRT reports
 every terminal subgroup it examined, most of them unflagged. The `flagged`
 column marks the subgroups that meet the published reading rule: a prevalence
-below `beta` or above `1 - beta`, among subgroups that are at least `alpha` of
+below `beta` (the prevalence threshold considered low) or above `1 - beta`, among subgroups that are at least `alpha` of
 the sample. Filtering to the flagged rows is the usual first step.
 
 ```{r port-flagged}
@@ -77,10 +77,13 @@ subgroup, and the near-zero and near-one prevalences mark the practical tails.
 
 The `autoplot()` method draws the reported subgroups as a horizontal bar chart of
 prevalence, with dashed reference lines at `beta` and `1 - beta` and the flagged
-subgroups highlighted. Bar width is proportional to subgroup size.
+subgroups highlighted. Bar width is proportional to subgroup size. By default
+the chart draws every reported subgroup, a couple of hundred here, which crowds
+the y axis. Setting `flagged_only = TRUE` restricts the chart to the flagged
+rows.
 
-```{r port-plot, fig.alt = "Horizontal bar chart of exposure prevalence for each PoRT subgroup, with flagged subgroups highlighted near prevalence zero and one against dashed reference lines."}
-ggplot2::autoplot(port)
+```{r port-plot, fig.alt = "Horizontal bar chart of exposure prevalence for the three flagged PoRT subgroups, drawn against dashed reference lines near prevalence zero and one."}
+ggplot2::autoplot(port, flagged_only = TRUE)
 ```
 
 ## Tuning the reading rule
@@ -197,10 +200,12 @@ each time point from the size of that risk set, so smaller follower sets are hel
 to a looser bound. The exposures in this dataset are continuous, so every subject
 stays in every risk set, but the per-time trees and conditioning sets are built
 the same way. The `autoplot()` method facets by time point, and each facet shows
-the thresholds applied at its own time point.
+the thresholds applied at its own time point. With `flagged_only = TRUE` only
+the flagged subgroups are drawn, and a facet without bars means nothing was
+flagged at that time point.
 
-```{r sport-plot, fig.height = 8, fig.alt = "Faceted horizontal bar charts of PoRT subgroup prevalence, one facet per time point, with flagged subgroups highlighted against per-time dashed reference lines."}
-ggplot2::autoplot(sport)
+```{r sport-plot, fig.height = 6, fig.alt = "Faceted horizontal bar charts of flagged PoRT subgroup prevalence, one facet per time point, against per-time dashed reference lines."}
+ggplot2::autoplot(sport, flagged_only = TRUE)
 ```
 
 ### Limiting the history with lag

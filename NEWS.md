@@ -1,5 +1,10 @@
 # positively (development version)
 
+* The PoRT `autoplot()` and `plot()` methods gain a `flagged_only` argument.
+  Setting it to `TRUE` draws only the flagged subgroups and drops the fill
+  legend, while the facets and reference lines are kept, so a facet without
+  bars means nothing was flagged at that time point.
+
 * First development version of positively, the positivity and extrapolation
   member of the r-causal family. positively reports diagnostics for positivity
   violations and extrapolation in causal inference. Each function returns a

@@ -846,6 +846,112 @@ test_that("plot() draws the PoRT view and returns the result invisibly", {
   expect_identical(plot(res), res)
 })
 
+test_that("flagged_only draws only the flagged subgroups", {
+  local_quiet()
+  data <- sim_port_structural(n = 500, seed = 1)
+  res <- check_port(data, exposure, c(x3, x1))
+
+  full <- port_plot_data(res)
+  flagged_data <- port_plot_data(res, flagged_only = TRUE)
+  expect_gt(nrow(flagged_data), 0)
+  expect_lt(nrow(flagged_data), nrow(full))
+  expect_identical(flagged_data$label, full$label[full$flagged == "TRUE"])
+  expect_true(all(flagged_data$flagged == "TRUE"))
+
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(res, flagged_only = TRUE))
+  expect_identical(nrow(built$data[[1]]), nrow(flagged_data))
+})
+
+test_that("flagged_only recomputes widths relative to the shown subgroups", {
+  local_quiet()
+  data <- sim_port_structural(n = 500, seed = 1)
+  res <- check_port(data, exposure, c(x3, x1))
+
+  flagged_data <- port_plot_data(res, flagged_only = TRUE)
+  expect_equal(
+    flagged_data$width,
+    flagged_data$n / max(flagged_data$n),
+    tolerance = 1e-8
+  )
+  expect_equal(max(flagged_data$width), 1, tolerance = 1e-8)
+})
+
+test_that("flagged_only suppresses the fill legend", {
+  local_quiet()
+  data <- sim_port_structural(n = 500, seed = 1)
+  res <- check_port(data, exposure, c(x3, x1))
+
+  flagged_plot <- ggplot2::autoplot(res, flagged_only = TRUE)
+  expect_identical(flagged_plot$scales$get_scales("fill")$guide, "none")
+
+  default_plot <- ggplot2::autoplot(res)
+  expect_identical(default_plot$scales$get_scales("fill")$guide, "legend")
+})
+
+test_that("flagged_only with nothing flagged draws the empty panel", {
+  local_quiet()
+  data <- sim_port_structural(n = 500, seed = 1)
+  res <- check_port(data, exposure, c(x3, x1))
+  results <- res@results
+  results$flagged <- FALSE
+  res@results <- results
+
+  expect_identical(nrow(port_plot_data(res, flagged_only = TRUE)), 0L)
+
+  built <- NULL
+  expect_no_error(
+    built <- ggplot2::ggplot_build(ggplot2::autoplot(res, flagged_only = TRUE))
+  )
+  # The reference lines survive the empty bar frame.
+  expect_identical(nrow(built$data[[2]]), 2L)
+})
+
+test_that("autoplot() rejects a non-flag flagged_only as a classed error", {
+  local_quiet()
+  data <- sim_port_structural(n = 500, seed = 1)
+  res <- check_port(data, exposure, c(x3, x1))
+
+  expect_error(
+    ggplot2::autoplot(res, flagged_only = "yes"),
+    class = "positively_type_error"
+  )
+  expect_error(
+    ggplot2::autoplot(res, flagged_only = NA),
+    class = "positively_type_error"
+  )
+  expect_error(
+    ggplot2::autoplot(res, flagged_only = c(TRUE, FALSE)),
+    class = "positively_type_error"
+  )
+  expect_snapshot_abort(
+    ggplot2::autoplot(res, flagged_only = "yes"),
+    class = "positively_type_error"
+  )
+})
+
+test_that("PoRT flagged-only autoplot renders as expected", {
+  local_quiet()
+  data <- sim_port_structural(n = 500, seed = 1)
+  res <- check_port(data, exposure, c(x3, x1))
+  expect_doppelganger(
+    "PoRT flagged subgroups only",
+    ggplot2::autoplot(res, flagged_only = TRUE)
+  )
+})
+
+test_that("plot() forwards flagged_only", {
+  local_quiet()
+  local_null_device()
+  data <- sim_port_structural(n = 500, seed = 1)
+  res <- check_port(data, exposure, c(x3, x1))
+
+  expect_identical(plot(res, flagged_only = TRUE), res)
+  expect_error(
+    plot(res, flagged_only = "yes"),
+    class = "positively_type_error"
+  )
+})
+
 # ---- rpart controls and passthrough ---------------------------------------
 
 test_that("the fitted trees pin the PoRT rpart controls", {

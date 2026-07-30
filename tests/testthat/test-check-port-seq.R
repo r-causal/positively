@@ -558,6 +558,33 @@ test_that("each facet shows its own resolved beta reference lines", {
   expect_gt(length(unique(vlines$xintercept)), 2)
 })
 
+test_that("flagged_only keeps a facet for a time point with nothing flagged", {
+  local_quiet()
+  data <- sim_port_seq(n = 1000, seed = 1)
+  res <- check_port_seq(data, c(a1, a2, a3), list(c1))
+
+  # Pin the shape under test: time 2 carries no flagged rows, time 1 carries at
+  # least one.
+  results <- res@results
+  results$flagged[results$time == 2] <- FALSE
+  results$flagged[which(results$time == 1)[1]] <- TRUE
+  res@results <- results
+
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(res, flagged_only = TRUE))
+  layout <- built$layout$layout
+  expect_setequal(layout$time, 1:3)
+
+  bars <- built$data[[1]]
+  bar_times <- layout$time[match(bars$PANEL, layout$PANEL)]
+  expect_true(any(bar_times == 1))
+  expect_false(any(bar_times == 2))
+
+  # The time-2 facet still shows its reference lines.
+  vlines <- built$data[[2]]
+  vline_times <- layout$time[match(vlines$PANEL, layout$PANEL)]
+  expect_true(any(vline_times == 2))
+})
+
 # ---- Censoring autoplot -----------------------------------------------------
 
 test_that("the censoring run stores resolved per-time censoring thresholds", {
@@ -678,6 +705,27 @@ test_that("the censoring run carries a family-neutral prevalence axis label", {
     ggplot2::autoplot(exposure_only)$labels$x,
     "Exposure prevalence in subgroup"
   )
+})
+
+test_that("flagged_only keeps both type facets on a censoring run", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring()
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    cp = 0.01
+  )
+
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(res, flagged_only = TRUE))
+  layout <- built$layout$layout
+  expect_setequal(unique(layout$type), c("exposure", "censoring"))
+
+  # Every drawn bar is one of the deduplicated flagged rows.
+  flagged_data <- port_plot_data(res, flagged_only = TRUE)
+  expect_identical(nrow(built$data[[1]]), nrow(flagged_data))
+  expect_true(all(flagged_data$flagged == "TRUE"))
 })
 
 # ---- Degenerate risk sets -------------------------------------------------

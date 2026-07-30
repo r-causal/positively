@@ -13,9 +13,11 @@ positively provides diagnostics for positivity violations and
 extrapolation in causal inference. Causal effect estimates rest on the
 positivity assumption: every unit must have a non-zero probability of
 receiving each level of the exposure within every stratum of the
-covariates. Where that probability is zero, or close to it, an estimate
-comes from the model extrapolating rather than from observed
-comparisons.
+covariates. Where that probability is zero, or close to it, you face of
+two problems: 1) for an exposure-based model, like Inverse Probability
+Weighting, you get a biased and unstable estimate or 2) for an
+outcome-based model, like a regression model, an estimate comes from the
+model extrapolating rather than from observed comparisons.
 
 ## Installation
 
@@ -83,12 +85,18 @@ exposure prevalence, with dashed reference lines at `beta` and
 ``` r
 library(ggplot2)
 
-port <- check_port(pos_violations, exposure, c(x1, x2, region))
+port <- check_port(pos_violations, exposure, c(x1, x2, region)) |>
+  tidy()
 #> ℹ Treating `.exposure` as binary
-autoplot(port)
-```
 
-<img src="man/figures/README-port-plot-1.png" alt="Horizontal bar chart of exposure prevalence for each PoRT subgroup, with flagged subgroups highlighted near prevalence zero and one." width="100%" />
+port[port$flagged, ]
+#> # A tibble: 3 × 7
+#>   subgroup   description      exposure_level     n proportion prevalence flagged
+#>   <chr>      <chr>            <chr>          <int>      <dbl>      <dbl> <lgl>  
+#> 1 x1         x1<-0.5027       1                305      0.305     0.0459 TRUE   
+#> 2 x1         x1>=0.9626 & x1… 1                 53      0.053     0.962  TRUE   
+#> 3 x2, region x2>=1.063 & reg… 1                 69      0.069     0      TRUE
+```
 
 The three flagged subgroups match the planted ground truth. One rule
 combining `region` and `x2` has an exposure prevalence of zero, the

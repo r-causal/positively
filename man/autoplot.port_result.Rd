@@ -7,6 +7,9 @@
 \arguments{
 \item{object}{A \code{port_result} from \code{\link[=check_port]{check_port()}} or \code{\link[=check_port_seq]{check_port_seq()}}.}
 
+\item{flagged_only}{If \code{TRUE}, draw only the flagged subgroups. Defaults to
+\code{FALSE}, which draws every reported subgroup.}
+
 \item{...}{Not used.}
 }
 \value{
@@ -22,6 +25,12 @@ type, so the exposure and censoring subgroups are separated, the censoring
 facets plot censoring prevalence, and each facet's reference lines are drawn
 from the thresholds that family was judged against.
 }
+\details{
+A full result can report hundreds of subgroups, which crowds the y axis.
+Setting \code{flagged_only = TRUE} draws only the flagged subgroups and drops the
+fill legend, while the facets and reference lines are kept, so a facet
+without bars means nothing was flagged at that time point.
+}
 \examples{
 set.seed(1)
 n <- 400
@@ -31,5 +40,6 @@ df <- data.frame(exposure = exposure, x1 = x1)
 result <- check_port(df, exposure, x1)
 
 ggplot2::autoplot(result)
+ggplot2::autoplot(result, flagged_only = TRUE)
 
 }

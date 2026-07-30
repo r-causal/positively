@@ -11,7 +11,14 @@
 #' facets plot censoring prevalence, and each facet's reference lines are drawn
 #' from the thresholds that family was judged against.
 #'
+#' A full result can report hundreds of subgroups, which crowds the y axis.
+#' Setting `flagged_only = TRUE` draws only the flagged subgroups and drops the
+#' fill legend, while the facets and reference lines are kept, so a facet
+#' without bars means nothing was flagged at that time point.
+#'
 #' @param object A `port_result` from [check_port()] or [check_port_seq()].
+#' @param flagged_only If `TRUE`, draw only the flagged subgroups. Defaults to
+#'   `FALSE`, which draws every reported subgroup.
 #' @param ... Not used.
 #'
 #' @return A [ggplot2::ggplot] object.
@@ -25,13 +32,15 @@
 #' result <- check_port(df, exposure, x1)
 #'
 #' ggplot2::autoplot(result)
+#' ggplot2::autoplot(result, flagged_only = TRUE)
 #'
 #' @name autoplot.port_result
 #' @aliases plot.port_result
 NULL
 
-method(autoplot, port_result) <- function(object, ...) {
-  plot_data <- port_plot_data(object)
+method(autoplot, port_result) <- function(object, flagged_only = FALSE, ...) {
+  validate_flag(flagged_only, arg_name = "flagged_only")
+  plot_data <- port_plot_data(object, flagged_only = flagged_only)
   reference <- port_beta_reference(object)
   sequential <- "time" %in% names(object@results)
   has_type <- "type" %in% names(object@results)
@@ -67,11 +76,14 @@ method(autoplot, port_result) <- function(object, ...) {
 
   # The manual fill scale has no levels to match when there are no bars, and a
   # discrete scale with an all-empty column warns; the empty panel needs no fill.
+  # Under flagged_only every drawn bar is flagged, so a legend would only
+  # restate the filter.
   if (nrow(plot_data) > 0) {
     plot <- plot +
       ggplot2::scale_fill_manual(
         values = c("FALSE" = "grey70", "TRUE" = "#B2182B"),
-        drop = FALSE
+        drop = FALSE,
+        guide = if (flagged_only) "none" else "legend"
       )
   }
 
@@ -102,16 +114,21 @@ method(autoplot, port_result) <- function(object, ...) {
 #' Duplicate rows, which arise when the same leaf is reported by more than one
 #' tree in the combination search, are collapsed to one bar so that prevalences
 #' are drawn rather than summed. The duplicates remain in `@results`. Bar width
-#' is set proportional to subgroup size.
+#' is set proportional to subgroup size; under `flagged_only` the widths are
+#' computed relative to the largest shown subgroup.
 #'
 #' @param object A `port_result`.
+#' @param flagged_only Draw only the flagged rows when `TRUE`.
 #'
 #' @return A data frame of the unique reported subgroups with a display `label`,
 #'   a `width` column, and a factor `flagged` column.
 #' @keywords internal
 #' @noRd
-port_plot_data <- function(object) {
+port_plot_data <- function(object, flagged_only = FALSE) {
   plot_data <- object@results
+  if (flagged_only) {
+    plot_data <- plot_data[plot_data$flagged, , drop = FALSE]
+  }
   key_cols <- intersect(
     c(
       "time",

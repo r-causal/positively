@@ -291,7 +291,7 @@ check_positivity(coarse, dose, l, exposure_type = "binary")
 exposure, one time point at a time, fitting the conditional density of each
 exposure on the history that enters its conditioning set. It accepts the same
 wide-format data used above, with an ordered selection of exposure columns and a
-per-time-point list of covariates. The *Where violations live: PoRT and sPoRT*
+per-time-point list of covariates. The *Identifying violations: PoRT and sPoRT*
 vignette covers the sequential diagnostics in full, including conditioning-set
 construction and the longitudinal support structure of `pos_violations_long`.
 

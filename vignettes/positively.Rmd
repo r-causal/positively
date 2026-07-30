@@ -17,16 +17,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-Causal effect estimates rest on the positivity assumption: every unit must have
-a non-zero probability of receiving each level of the exposure within every
-stratum of the covariates. Where that probability is zero, or close to it, the
-data carry no information about what would have happened under the missing
-exposure level, and any estimate for that region comes from the model
-extrapolating rather than from observed comparisons. positively is the
-positivity and extrapolation member of the r-causal family, alongside
-propensity for weighting and halfmoon for balance. It reports diagnostics only.
-It computes numbers that describe where support is thin and leaves the judgment
-of what to do about it to you.
+positively provides diagnostics for positivity violations and extrapolation in causal inference. Causal effect estimates rest on the positivity assumption: every unit must have a non-zero probability of receiving each level of the exposure within every stratum of the covariates. Where that probability is zero, or close to it, you face of two problems: 1) for an exposure-based model, like Inverse Probability Weighting, you get a biased and unstable estimate or 2) for an outcome-based model, like a regression model, an estimate comes from the model extrapolating rather than from observed comparisons.
 
 Positivity violations come in two kinds, and they call for different responses.
 A structural violation is one where treatment is impossible for a subgroup, so
@@ -157,10 +148,12 @@ rules, one in the lower tail with prevalence near 0.05 and one in the upper tail
 with prevalence near 0.96, are the practical near-violation, where exposure is
 almost but not entirely determined by `x1`. The `autoplot()` method draws the
 reported subgroups as a bar chart of prevalence, with dashed reference lines at
-`beta` and `1 - beta` and the flagged subgroups highlighted.
+`beta` and `1 - beta` and the flagged subgroups highlighted. The default draws
+every reported subgroup; `flagged_only = TRUE` restricts the chart to the
+flagged subgroups.
 
-```{r port-plot, fig.alt = "Horizontal bar chart of exposure prevalence for each PoRT subgroup, with flagged subgroups highlighted near prevalence zero and one."}
-ggplot2::autoplot(port)
+```{r port-plot, fig.alt = "Horizontal bar chart of exposure prevalence for the flagged PoRT subgroups, drawn near prevalence zero and one against dashed reference lines."}
+ggplot2::autoplot(port, flagged_only = TRUE)
 ```
 
 ## Effective data points: how much support surrounds each intervention
@@ -188,6 +181,37 @@ set of units with little observed support under that intervention.
 ggplot2::autoplot(edp, type = "histogram")
 ```
 
+The planted regions make the comparison concrete. The following labels each
+unit by the planted problem it belongs to: the structural subgroup is
+`region == "b"` with `x2 > 1`, and the practical tails are the outer five
+percent of `x1`.
+
+```{r planted-regions}
+structural <- pos_violations$region == "b" & pos_violations$x2 > 1
+x1_cuts <- quantile(pos_violations$x1, c(0.05, 0.95))
+tails <- pos_violations$x1 < x1_cuts[[1]] | pos_violations$x1 > x1_cuts[[2]]
+planted <- ifelse(
+  structural,
+  "structural",
+  ifelse(tails, "x1 tail", "elsewhere")
+)
+table(planted)
+```
+
+Comparing effective data points at the exposed level across those labels shows
+the thin support directly.
+
+```{r edp-planted}
+edp_rows <- tidy(edp)
+edp_exposed <- edp_rows[edp_rows$value == 1, ]
+tapply(edp_exposed$edp, planted, median)
+```
+
+The median unit elsewhere in the sample has about 73 effective data points
+under the exposed intervention. The planted regions carry a fraction of that:
+about 21 in the structural subgroup and about 11 in the `x1` tails, the same
+regions PoRT reported as rules.
+
 ## Extrapolation: distance and the convex hull
 
 The extrapolation check follows the logic of King and Zeng (2006): a unit whose
@@ -210,11 +234,24 @@ and the share of units inside the opposite group's hull.
 extrapolation@summary
 ```
 
-The units with the lowest `frac_nearby` are the ones sitting in the covariate
-tails and in the structural subgroup, the same regions PoRT flagged. The
-`type = "distribution"` plot shows the distribution of `frac_nearby` within each
-exposure group; the mass near zero is the set of units with no opposite-group
-neighbor close by.
+The same planted labels trace the extrapolation results to the unit level.
+
+```{r extrapolation-planted}
+extrap_rows <- tidy(extrapolation)
+tapply(extrap_rows$frac_nearby, planted, median)
+tapply(extrap_rows$in_hull, planted, mean)
+```
+
+The `x1` tails are the extreme case on both measures. The median tail unit has
+about a tenth of the opposite group nearby, against a third elsewhere, and
+about a fifth of tail units fall inside the opposite group's hull, against 86
+percent elsewhere. The structural subgroup sits between the two: its units
+have fewer opposite-group neighbors than the rest of the sample, but the hull
+test runs on the numeric covariates alone, so a subgroup defined partly by
+`region` separates less sharply here than in PoRT, which searches the
+categorical covariate directly. The `type = "distribution"` plot shows the
+distribution of `frac_nearby` within each exposure group; the mass near zero is
+the set of units with no opposite-group neighbor close by.
 
 ```{r extrapolation-distribution, fig.alt = "Histograms of the fraction of nearby opposite-group units, faceted by exposure group, each with a spike near zero."}
 ggplot2::autoplot(extrapolation, type = "distribution")
@@ -228,11 +265,14 @@ extrapolation by construction.
 ggplot2::autoplot(extrapolation, type = "hull")
 ```
 
-The three diagnostics agree, and their results match the planted ground truth.
-PoRT names the structural subgroup and the practical tails as explicit rules,
-effective data points measure the thin support those regions carry under the
-rare intervention, and the extrapolation check identifies the same units as far
-from any opposite-group neighbor and outside the hull.
+The three diagnostics tell one story about the planted problems, each at its
+own resolution. PoRT names the structural subgroup and the practical tails as
+explicit rules. Effective data points shrink to a fraction of the sample
+median in both regions under the exposed intervention. The extrapolation check
+places the `x1` tails far from any opposite-group neighbor and largely outside
+the hull, and it ranks the structural subgroup below the rest of the sample on
+nearby support, with the caveat that its hull test reads only the numeric
+covariates.
 
 ## Choosing diagnostics beyond the defaults
 

@@ -262,6 +262,30 @@ validate_probability <- function(
   invisible(x)
 }
 
+#' Validate a single logical flag
+#'
+#' @param x A candidate flag value.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `x`, invisibly, when it is a single non-missing logical.
+#' @keywords internal
+#' @noRd
+validate_flag <- function(
+  x,
+  arg_name,
+  call = rlang::caller_env()
+) {
+  if (!is.logical(x) || length(x) != 1 || is.na(x)) {
+    abort(
+      "{.arg {arg_name}} must be {.code TRUE} or {.code FALSE}.",
+      error_class = "positively_type_error",
+      call = call
+    )
+  }
+  invisible(x)
+}
+
 #' Validate a single positive number
 #'
 #' @param x A candidate value.
