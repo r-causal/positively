@@ -78,9 +78,10 @@ check
 ```
 
 The positivity regression tree (`port`) reports each problem as a rule
-over the covariates. Its plot draws every reported subgroup as a bar of
-exposure prevalence, with dashed reference lines at `beta` and
-`1 - beta` and the flagged subgroups highlighted.
+over the covariates. `tidy()` gives one row per reported subgroup, and
+the `flagged` column marks those whose exposure prevalence falls below
+`beta` or above `1 - beta` among subgroups at least `alpha` of the
+sample.
 
 ``` r
 library(dplyr)
