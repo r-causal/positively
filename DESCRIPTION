@@ -33,7 +33,7 @@ Imports:
     utils,
     vctrs
 Suggests: 
-    dplyr,
+    dplyr (>= 1.1.0),
     halfmoon,
     knitr,
     lmtp,
