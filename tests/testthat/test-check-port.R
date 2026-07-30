@@ -898,10 +898,7 @@ test_that("flagged_only with nothing flagged draws the empty panel", {
 
   expect_identical(nrow(port_plot_data(res, flagged_only = TRUE)), 0L)
 
-  built <- NULL
-  expect_no_error(
-    built <- ggplot2::ggplot_build(ggplot2::autoplot(res, flagged_only = TRUE))
-  )
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(res, flagged_only = TRUE))
   # The reference lines survive the empty bar frame.
   expect_identical(nrow(built$data[[2]]), 2L)
 })
