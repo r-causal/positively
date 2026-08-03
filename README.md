@@ -86,10 +86,8 @@ sample.
 ``` r
 library(dplyr)
 
-port <- check_port(pos_violations, exposure, c(x1, x2, region)) |>
-  tidy()
-
-port |>
+check[["port"]] |>
+  tidy() |>
   filter(flagged)
 #> # A tibble: 3 × 7
 #>   subgroup   description      exposure_level     n proportion prevalence flagged

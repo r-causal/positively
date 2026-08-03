@@ -46,10 +46,8 @@ The positivity regression tree (`port`) reports each problem as a rule over the 
 ```{r port-flagged, message = FALSE}
 library(dplyr)
 
-port <- check_port(pos_violations, exposure, c(x1, x2, region)) |>
-  tidy()
-
-port |>
+check[["port"]] |>
+  tidy() |>
   filter(flagged)
 ```
 

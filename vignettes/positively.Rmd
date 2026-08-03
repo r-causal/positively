@@ -315,7 +315,7 @@ The other vignettes go deeper into each area:
 
 - *Positivity for continuous exposures* covers effective data points, hat
   values, and highest density region non-overlap, and when each one applies.
-- *Where violations live: PoRT and sPoRT* covers subgroup trees, tuning `alpha`,
+- *Identifying Violations: PoRT and sPoRT* covers subgroup trees, tuning `alpha`,
   `beta`, and `gamma`, and the longitudinal and censoring variants.
 - *Estimator-focused diagnostics* covers ETA.Bias with the truncation sweep and
   g-computation extrapolation.
