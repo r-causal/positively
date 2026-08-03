@@ -64,7 +64,9 @@ extrapolation_result <- new_class(
 #' `prop_supported`, and the `prop_supported` statistic in [glance()] and the
 #' print method, share one fixed definition: the fraction of units whose nearest
 #' opposite-group unit lies within one geometric variability
-#' (`gower_min <= geometric_variability`), independent of `nearby`.
+#' (`gower_min <= geometric_variability`), independent of `nearby`. The per-unit
+#' `low_support` column is the complement of that condition, so `prop_supported`
+#' is the fraction of rows whose `low_support` is `FALSE`.
 #'
 #' When every covariate is constant, all rows coincide, the geometric
 #' variability is zero, and each observation is at distance zero from the
@@ -112,14 +114,16 @@ extrapolation_result <- new_class(
 #' @return An `extrapolation_result` object, an S7 subclass of
 #'   [positivity_diagnostic]. Its `@results` tibble has one row per observation
 #'   with columns `.id` (the row index), `exposure` (the exposure value),
-#'   `frac_nearby`, `gower_min`, `gower_mean`, and `in_hull` (the hull membership
-#'   flag, or `NA` when the hull test did not run). It also carries the scalar
-#'   properties `@geometric_variability` and `@hull_run`, and a per-group
-#'   `@summary` tibble with one row per exposure level and columns `exposure`,
-#'   `n`, `mean_frac_nearby`, `mean_gower_min`, `prop_supported` (the one
-#'   geometric variability fraction described in Details), and `prop_in_hull`
-#'   (the fraction inside the opposite group's hull, `NA` when the hull test did
-#'   not run).
+#'   `frac_nearby`, `gower_min`, `gower_mean`, `in_hull` (the hull membership
+#'   flag, or `NA` when the hull test did not run), and `low_support` (`TRUE`
+#'   when the nearest opposite-group unit lies farther away than one geometric
+#'   variability). It also carries the scalar properties
+#'   `@geometric_variability` and `@hull_run`, and a per-group `@summary` tibble
+#'   with one row per exposure level and columns `exposure`, `n`,
+#'   `mean_frac_nearby`, `mean_gower_min`, `prop_supported` (the one geometric
+#'   variability fraction described in Details), and `prop_in_hull` (the
+#'   fraction inside the opposite group's hull, `NA` when the hull test did not
+#'   run).
 #'
 #' @references
 #' King G, Zeng L (2006). The Dangers of Extreme Counterfactuals.
@@ -274,7 +278,14 @@ check_extrapolation <- function(
     frac_nearby = stats$frac_nearby,
     gower_min = stats$gower_min,
     gower_mean = stats$gower_mean,
-    in_hull = in_hull
+    in_hull = in_hull,
+    # The single definition of per-unit support: the per-group summary,
+    # glance(), and the print method all derive prop_supported from the
+    # complement of this column. It reads the Gower distance rather than the
+    # hull so that it is always defined, since the hull test is skipped by
+    # default above hull_max_p and a hull-derived column would then be missing
+    # entirely.
+    low_support = stats$gower_min > gv
   )
 
   extrapolation_result(
@@ -374,7 +385,6 @@ resolve_hull <- function(hull, n_numeric, call = rlang::caller_env()) {
 #' @noRd
 extrapolation_summary <- function(self) {
   results <- self@results
-  gv <- self@geometric_variability
   levels_exposure <- sort(unique(results$exposure))
   rows <- lapply(levels_exposure, function(level) {
     in_group <- results$exposure == level
@@ -383,7 +393,7 @@ extrapolation_summary <- function(self) {
       n = sum(in_group),
       mean_frac_nearby = mean(results$frac_nearby[in_group]),
       mean_gower_min = mean(results$gower_min[in_group]),
-      prop_supported = mean(results$gower_min[in_group] <= gv),
+      prop_supported = mean(!results$low_support[in_group]),
       prop_in_hull = mean(results$in_hull[in_group])
     )
   })
@@ -399,7 +409,7 @@ method(glance, extrapolation_result) <- function(x, ...) {
     n = x@n,
     nearby = x@params$nearby,
     geometric_variability = x@geometric_variability,
-    prop_supported = mean(x@results$gower_min <= x@geometric_variability),
+    prop_supported = mean(!x@results$low_support),
     hull_run = x@hull_run
   )
 }
@@ -407,7 +417,7 @@ method(glance, extrapolation_result) <- function(x, ...) {
 method(print, extrapolation_result) <- function(x, ...) {
   results <- x@results
   gv <- x@geometric_variability
-  n_supported <- sum(results$gower_min <= gv)
+  n_supported <- sum(!results$low_support)
   cat_cli({
     cli::cli_h1("{S7::S7_class(x)@name}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")

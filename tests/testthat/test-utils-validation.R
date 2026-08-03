@@ -41,19 +41,25 @@ test_that("validate_prob() rejects non-numeric input", {
 })
 
 test_that("validate_flag() accepts a single logical flag", {
-  expect_identical(validate_flag(TRUE, "flagged_only"), TRUE)
-  expect_identical(validate_flag(FALSE, "flagged_only"), FALSE)
+  expect_identical(validate_flag(TRUE, "low_support_only"), TRUE)
+  expect_identical(validate_flag(FALSE, "low_support_only"), FALSE)
 })
 
 test_that("validate_flag() rejects anything but a single non-missing logical", {
-  expect_error(validate_flag(NA, "flagged_only"), class = "positively_error")
-  expect_error(validate_flag("yes", "flagged_only"), class = "positively_error")
   expect_error(
-    validate_flag(c(TRUE, FALSE), "flagged_only"),
+    validate_flag(NA, "low_support_only"),
     class = "positively_error"
   )
   expect_error(
-    validate_flag(logical(0), "flagged_only"),
+    validate_flag("yes", "low_support_only"),
+    class = "positively_error"
+  )
+  expect_error(
+    validate_flag(c(TRUE, FALSE), "low_support_only"),
+    class = "positively_error"
+  )
+  expect_error(
+    validate_flag(logical(0), "low_support_only"),
     class = "positively_error"
   )
 })
@@ -63,7 +69,7 @@ test_that("validate_* failures produce stable messages", {
   expect_snapshot_abort(validate_column_selection(integer(0)))
   expect_snapshot_abort(validate_prob(1.5))
   expect_snapshot_abort(validate_prob("a"))
-  expect_snapshot_abort(validate_flag("yes", "flagged_only"))
+  expect_snapshot_abort(validate_flag("yes", "low_support_only"))
 })
 
 test_that("a selection error names the calling check in its message", {

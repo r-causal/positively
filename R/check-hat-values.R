@@ -352,7 +352,7 @@ null_phi_distribution <- function(
 # ---- Methods --------------------------------------------------------------
 
 method(print, hat_values_result) <- function(x, ...) {
-  n_flagged <- sum(x@results$high_leverage)
+  n_high_leverage <- sum(x@results$high_leverage)
   n_candidates <- nrow(x@results)
   cat_cli({
     cli::cli_h1("{S7::S7_class(x)@name}")
@@ -367,7 +367,7 @@ method(print, hat_values_result) <- function(x, ...) {
     )
     cli::cli_text("Exceeds null: {x@exceeds_null}")
     cli::cli_text(
-      "High-leverage candidates: {n_flagged} of {n_candidates}"
+      "High-leverage candidates: {n_high_leverage} of {n_candidates}"
     )
   })
   invisible(x)

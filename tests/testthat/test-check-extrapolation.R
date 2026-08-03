@@ -399,13 +399,50 @@ test_that("extrapolation_result has the fixed results columns", {
   expect_s3_class(res@results, "tbl_df")
   expect_setequal(
     names(res@results),
-    c(".id", "exposure", "frac_nearby", "gower_min", "gower_mean", "in_hull")
+    c(
+      ".id",
+      "exposure",
+      "frac_nearby",
+      "gower_min",
+      "gower_mean",
+      "in_hull",
+      "low_support"
+    )
   )
   expect_type(res@results$frac_nearby, "double")
   expect_type(res@results$gower_min, "double")
   expect_type(res@results$gower_mean, "double")
   expect_type(res@results$in_hull, "logical")
+  expect_type(res@results$low_support, "logical")
+  expect_false(anyNA(res@results$low_support))
   expect_identical(nrow(res@results), 200L)
+})
+
+test_that("extrapolation carries a per-unit low_support column", {
+  local_quiet()
+  # The column has to be there whether or not the hull ran, since the hull is
+  # optional and skipped outright above hull_max_p. The hull-run shape is
+  # covered by the fixed-columns test above.
+  data <- sim_extrap_gaussian(150, p = 4, sep = 0, seed = 1)
+  res <- check_extrapolation(
+    data,
+    exposure,
+    tidyselect::starts_with("x"),
+    hull = FALSE
+  )
+
+  expect_true("low_support" %in% names(res@results))
+  expect_type(res@results$low_support, "logical")
+  expect_false(anyNA(res@results$low_support))
+  expect_length(res@results$low_support, 150L)
+
+  # The column means "the nearest opposite-group unit lies farther away than one
+  # geometric variability", and every prop_supported in the package is its
+  # complement. Pin that sign directly. The comparison is exact rather than
+  # tolerant because the two sides are complements of a single inequality.
+  supported <- res@results$gower_min <= res@geometric_variability
+  expect_identical(res@results$low_support, !supported)
+  expect_equal(mean(res@results$low_support), 1 - glance(res)$prop_supported)
 })
 
 test_that("the per-group summary getter returns one row per exposure level", {
@@ -416,6 +453,14 @@ test_that("the per-group summary getter returns one row per exposure level", {
   expect_s3_class(res@summary, "tbl_df")
   expect_identical(nrow(res@summary), 2L)
   expect_true("exposure" %in% names(res@summary))
+
+  # The summary derives prop_supported from low_support instead of repeating
+  # the Gower comparison, so pin the per-group values against that comparison.
+  supported <- res@results$gower_min <= res@geometric_variability
+  expect_equal(
+    res@summary$prop_supported,
+    as.numeric(tapply(supported, res@results$exposure, mean))
+  )
 })
 
 test_that("tidy() and glance() follow the shared diagnostic contract", {
@@ -521,6 +566,8 @@ test_that("frac_nearby grows with the nearby radius", {
   # A wider nearby radius counts more opposite-group neighbors as support, so the
   # mean frac_nearby rises with it. The Gower distances themselves do not depend
   # on the radius, so gower_min and gower_mean are identical across the sweep.
+  # low_support is fixed at one geometric variability rather than the nearby
+  # radius, so it is identical across the sweep as well.
   data <- sim_extrap_gaussian(100, p = 2, sep = 0, seed = 1)
   results <- lapply(c(0.5, 1, 2), function(nb) {
     check_extrapolation(
@@ -539,6 +586,8 @@ test_that("frac_nearby grows with the nearby radius", {
   expect_identical(results[[3]]$gower_min, results[[1]]$gower_min)
   expect_identical(results[[2]]$gower_mean, results[[1]]$gower_mean)
   expect_identical(results[[3]]$gower_mean, results[[1]]$gower_mean)
+  expect_identical(results[[2]]$low_support, results[[1]]$low_support)
+  expect_identical(results[[3]]$low_support, results[[1]]$low_support)
 })
 
 test_that("frac_nearby is stable across n under overlap", {
@@ -820,6 +869,10 @@ test_that("all-constant covariates give gv zero and full nearby support", {
   expect_equal(res@geometric_variability, 0)
   expect_true(all(res@results$gower_min == 0))
   expect_true(all(res@results$frac_nearby == 1))
+  # The degenerate case where the strict inequality behind low_support carries
+  # its weight: a distance of zero is within a radius of zero, so no row is
+  # unsupported even though gower_min and the geometric variability are equal.
+  expect_false(any(res@results$low_support))
 })
 
 test_that("the chunked large-n Gower path matches the unchunked result", {

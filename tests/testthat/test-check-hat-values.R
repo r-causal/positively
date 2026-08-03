@@ -249,7 +249,7 @@ test_that("a declared continuous type runs the diagnostic on a coarse dose", {
   # violation. Pinning that, rather than the absence of an error, is what keeps
   # the declared type from merely reaching degenerate arithmetic. The upper
   # bound rules out the other degenerate outcome, every point at every grid
-  # value flagged, which exceeding the null does not.
+  # value marked high leverage, which exceeding the null does not.
   expect_true(res@exceeds_null)
   expect_lt(res@phi_hat, 1)
 })
@@ -580,9 +580,9 @@ test_that("flags localize to where the extreme dose is unobserved", {
   top <- res@results[res@results$prob == max(res@results$prob), ]
   cov <- data$x1[top$.id]
 
-  flagged <- cov[top$high_leverage]
-  unflagged <- cov[!top$high_leverage]
-  expect_lt(mean(flagged), mean(unflagged) - stats::sd(cov))
+  high_leverage <- cov[top$high_leverage]
+  rest <- cov[!top$high_leverage]
+  expect_lt(mean(high_leverage), mean(rest) - stats::sd(cov))
 
   rank_corr <- stats::cor(top$hat_value, cov, method = "spearman")
   expect_lt(rank_corr, -0.5)
@@ -709,7 +709,7 @@ test_that("every null method flags a strong violation", {
   withr::local_seed(2024)
   methods <- c("permutation", "bootstrap", "gaussian")
   for (method in methods) {
-    flagged <- vapply(
+    exceeded <- vapply(
       1:3,
       function(s) {
         res <- check_hat_values(
@@ -723,7 +723,7 @@ test_that("every null method flags a strong violation", {
       },
       logical(1)
     )
-    expect_true(all(flagged))
+    expect_true(all(exceeded))
   }
 })
 

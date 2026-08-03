@@ -23,7 +23,7 @@
       Observations: 200
       Reading rule: alpha = 0.05, gamma = 2
       Prevalence threshold beta: 0.05
-      Subgroups: 32 reported, 1 flagged
+      Subgroups: 32 reported, 1 with low support
       
       -- extrapolation --
       

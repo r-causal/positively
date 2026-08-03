@@ -47,14 +47,16 @@ accepted so that every diagnostic takes the same argument.}
 An \code{extrapolation_result} object, an S7 subclass of
 \link{positivity_diagnostic}. Its \verb{@results} tibble has one row per observation
 with columns \code{.id} (the row index), \code{exposure} (the exposure value),
-\code{frac_nearby}, \code{gower_min}, \code{gower_mean}, and \code{in_hull} (the hull membership
-flag, or \code{NA} when the hull test did not run). It also carries the scalar
-properties \verb{@geometric_variability} and \verb{@hull_run}, and a per-group
-\verb{@summary} tibble with one row per exposure level and columns \code{exposure},
-\code{n}, \code{mean_frac_nearby}, \code{mean_gower_min}, \code{prop_supported} (the one
-geometric variability fraction described in Details), and \code{prop_in_hull}
-(the fraction inside the opposite group's hull, \code{NA} when the hull test did
-not run).
+\code{frac_nearby}, \code{gower_min}, \code{gower_mean}, \code{in_hull} (the hull membership
+flag, or \code{NA} when the hull test did not run), and \code{low_support} (\code{TRUE}
+when the nearest opposite-group unit lies farther away than one geometric
+variability). It also carries the scalar properties
+\verb{@geometric_variability} and \verb{@hull_run}, and a per-group \verb{@summary} tibble
+with one row per exposure level and columns \code{exposure}, \code{n},
+\code{mean_frac_nearby}, \code{mean_gower_min}, \code{prop_supported} (the one geometric
+variability fraction described in Details), and \code{prop_in_hull} (the
+fraction inside the opposite group's hull, \code{NA} when the hull test did not
+run).
 }
 \description{
 \code{check_extrapolation()} implements the extrapolation diagnostics of King and
@@ -89,7 +91,9 @@ variabilities). A planted support gap raises \code{gower_min} and lowers
 \code{prop_supported}, and the \code{prop_supported} statistic in \code{\link[=glance]{glance()}} and the
 print method, share one fixed definition: the fraction of units whose nearest
 opposite-group unit lies within one geometric variability
-(\code{gower_min <= geometric_variability}), independent of \code{nearby}.
+(\code{gower_min <= geometric_variability}), independent of \code{nearby}. The per-unit
+\code{low_support} column is the complement of that condition, so \code{prop_supported}
+is the fraction of rows whose \code{low_support} is \code{FALSE}.
 
 When every covariate is constant, all rows coincide, the geometric
 variability is zero, and each observation is at distance zero from the

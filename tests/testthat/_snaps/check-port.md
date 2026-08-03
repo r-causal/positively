@@ -8,13 +8,13 @@
       i The reading rule needs a threshold below 0.5, but the sample-size-adaptive bound reaches 0.5 or more at small sample sizes.
       i Supply a numeric `beta` below 0.5 for a sample this small.
 
-# autoplot() rejects a non-flag flagged_only as a classed error
+# autoplot() rejects a non-flag low_support_only as a classed error
 
     Code
-      ggplot2::autoplot(res, flagged_only = "yes")
+      ggplot2::autoplot(res, low_support_only = "yes")
     Condition
       Error in `ggplot2::autoplot()`:
-      ! `flagged_only` must be `TRUE` or `FALSE`.
+      ! `low_support_only` must be `TRUE` or `FALSE`.
 
 # check_port() rejects a dot that is not an rpart.control option
 
@@ -37,7 +37,7 @@
       Observations: 1000
       Reading rule: alpha = 0.05, gamma = 2
       Prevalence threshold beta: 0.05
-      Subgroups: 2 reported, 1 flagged
+      Subgroups: 2 reported, 1 with low support
 
 # the print method reports an unresolved beta
 
@@ -50,7 +50,7 @@
       Observations: 1
       Reading rule: alpha = 0.05, gamma = 2
       Prevalence threshold beta: not resolved
-      Subgroups: 0 reported, 0 flagged
+      Subgroups: 0 reported, 0 with low support
 
 # check_port() argument validation messages are stable
 

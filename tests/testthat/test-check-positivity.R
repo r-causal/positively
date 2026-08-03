@@ -251,8 +251,8 @@ test_that("a declared type the exposure can carry is honoured", {
   # appear: an empty result, or one where every subgroup reads the same way,
   # would satisfy the type assertion above just as well while proving nothing was
   # computed.
-  expect_true(any(port@results$flagged))
-  expect_true(!all(port@results$flagged))
+  expect_true(any(port@results$low_support))
+  expect_true(!all(port@results$low_support))
 })
 
 test_that("a declared continuous type runs the continuous set on a coarse dose", {

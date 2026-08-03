@@ -61,7 +61,7 @@ Its \verb{@results} tibble has one row per reported subgroup with columns
 \code{subgroup} (the covariates defining the rule), \code{description} (the
 human-readable rule), \code{exposure_level} (the exposure level examined), \code{n}
 (the subgroup size), \code{proportion} (its share of the sample), \code{prevalence}
-(the exposure prevalence in the subgroup), and \code{flagged} (the logical
+(the exposure prevalence in the subgroup), and \code{low_support} (the logical
 reading-rule outcome). It also carries the \verb{@trees}, \verb{@alpha}, \verb{@beta}, and
 \verb{@gamma} properties.
 }
@@ -91,19 +91,19 @@ states a minimum leaf size of six; \code{rpart}'s own default of
 paper. This affects only the smallest leaves and is immaterial at realistic
 sample sizes, where the \code{alpha} size gate dominates.
 
-The reading rule (Danelian et al., section 2.3) flags a node when its
-exposure prevalence is extreme, below \code{beta} or above \code{1 - beta}, and its
-size is at least \code{alpha} of the sample. Once a node is flagged its
-descendants are suppressed, so the flag is reported at the coarsest subgroup
-that isolates the violation. Because the rule is deterministic given a tree,
-only the tree carries stochasticity.
+The reading rule (Danelian et al., section 2.3) marks a node as low support
+when its exposure prevalence is extreme, below \code{beta} or above \code{1 - beta},
+and its size is at least \code{alpha} of the sample. Once a node is marked its
+descendants are suppressed, so the reading is reported at the coarsest
+subgroup that isolates the violation. Because the rule is deterministic given
+a tree, only the tree carries stochasticity.
 
 The combination search controls how many covariates may jointly define a
 subgroup (Danelian et al., section 2.4). Step one grows one tree per single
-covariate; covariates that produce a flagged subgroup are removed, and step
-\code{k} grows one tree per \code{k}-covariate combination of the remaining covariates,
-up to \code{gamma}. Raising \code{gamma} uncovers joint violations that no single
-covariate isolates, at the cost of more trees.
+covariate; covariates that produce a low-support subgroup are removed, and
+step \code{k} grows one tree per \code{k}-covariate combination of the remaining
+covariates, up to \code{gamma}. Raising \code{gamma} uncovers joint violations that no
+single covariate isolates, at the cost of more trees.
 
 Setting \code{beta = "gruber"} resolves the threshold to
 \eqn{5 / (\sqrt{n} \, \ln n)}, the sample-size-adaptive bound used by sPoRT.

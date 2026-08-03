@@ -144,7 +144,7 @@ exposure trees flag a subgroup nearly certain to be treated; the lower tail
 flags a subgroup nearly certain to remain uncensored, the never-censored
 subgroups on which the counterfactual under no censoring rests (Chatton et
 al. 2025, page 11). Because real censoring is light in most subgroups, the
-lower tail usually accounts for most of the flagged censoring rows. The
+lower tail usually accounts for most of the low-support censoring rows. The
 censoring tree at time \eqn{t} runs on the subjects uncensored through the
 previous time point, the never-censored risk set, which is the full uncensored
 cohort rather than the treatment-regime followers, since the treatment rule

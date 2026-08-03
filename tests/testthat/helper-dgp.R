@@ -162,8 +162,8 @@ dgp_longitudinal <- function(n = 500, seed = 5) {
 # current covariate l1 is above 1, and never initiates where the lagged
 # covariate l0 is above 1. Each region is defined by a single covariate, so the
 # reading rule surfaces both. The l0 region enters the t = 2 conditioning set
-# only when the lag window reaches back one time point, so it is flagged under
-# the full history and absent under a lag of zero.
+# only when the lag window reaches back one time point, so it reads as low
+# support under the full history and absent under a lag of zero.
 dgp_longitudinal_binary <- function(n = 2000, seed = 6) {
   withr::local_seed(seed)
   l0 <- stats::rnorm(n)

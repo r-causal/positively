@@ -7,8 +7,8 @@
 \arguments{
 \item{object}{A \code{port_result} from \code{\link[=check_port]{check_port()}} or \code{\link[=check_port_seq]{check_port_seq()}}.}
 
-\item{flagged_only}{If \code{TRUE}, draw only the flagged subgroups. Defaults to
-\code{FALSE}, which draws every reported subgroup.}
+\item{low_support_only}{If \code{TRUE}, draw only the low-support subgroups.
+Defaults to \code{FALSE}, which draws every reported subgroup.}
 
 \item{...}{Not used.}
 }
@@ -18,8 +18,8 @@ A \link[ggplot2:ggplot]{ggplot2::ggplot} object.
 \description{
 Draws the reported subgroups as a horizontal bar chart of exposure
 prevalence, with dashed reference lines at \code{beta} and \code{1 - beta}. Bar width
-is proportional to subgroup size, and flagged subgroups are highlighted. A
-sequential result is faceted by time point, and each facet carries its own
+is proportional to subgroup size, and low-support subgroups are highlighted.
+A sequential result is faceted by time point, and each facet carries its own
 resolved thresholds. A censoring run is faceted by both time point and row
 type, so the exposure and censoring subgroups are separated, the censoring
 facets plot censoring prevalence, and each facet's reference lines are drawn
@@ -27,9 +27,9 @@ from the thresholds that family was judged against.
 }
 \details{
 A full result can report hundreds of subgroups, which crowds the y axis.
-Setting \code{flagged_only = TRUE} draws only the flagged subgroups and drops the
-fill legend, while the facets and reference lines are kept, so a facet
-without bars means nothing was flagged at that time point.
+Setting \code{low_support_only = TRUE} draws only the low-support subgroups and
+drops the fill legend, while the facets and reference lines are kept, so a
+facet without bars means nothing read as low support at that time point.
 }
 \examples{
 set.seed(1)
@@ -40,6 +40,6 @@ df <- data.frame(exposure = exposure, x1 = x1)
 result <- check_port(df, exposure, x1)
 
 ggplot2::autoplot(result)
-ggplot2::autoplot(result, flagged_only = TRUE)
+ggplot2::autoplot(result, low_support_only = TRUE)
 
 }

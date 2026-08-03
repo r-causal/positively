@@ -58,19 +58,19 @@ port_result <- new_class(
 #' paper. This affects only the smallest leaves and is immaterial at realistic
 #' sample sizes, where the `alpha` size gate dominates.
 #'
-#' The reading rule (Danelian et al., section 2.3) flags a node when its
-#' exposure prevalence is extreme, below `beta` or above `1 - beta`, and its
-#' size is at least `alpha` of the sample. Once a node is flagged its
-#' descendants are suppressed, so the flag is reported at the coarsest subgroup
-#' that isolates the violation. Because the rule is deterministic given a tree,
-#' only the tree carries stochasticity.
+#' The reading rule (Danelian et al., section 2.3) marks a node as low support
+#' when its exposure prevalence is extreme, below `beta` or above `1 - beta`,
+#' and its size is at least `alpha` of the sample. Once a node is marked its
+#' descendants are suppressed, so the reading is reported at the coarsest
+#' subgroup that isolates the violation. Because the rule is deterministic given
+#' a tree, only the tree carries stochasticity.
 #'
 #' The combination search controls how many covariates may jointly define a
 #' subgroup (Danelian et al., section 2.4). Step one grows one tree per single
-#' covariate; covariates that produce a flagged subgroup are removed, and step
-#' `k` grows one tree per `k`-covariate combination of the remaining covariates,
-#' up to `gamma`. Raising `gamma` uncovers joint violations that no single
-#' covariate isolates, at the cost of more trees.
+#' covariate; covariates that produce a low-support subgroup are removed, and
+#' step `k` grows one tree per `k`-covariate combination of the remaining
+#' covariates, up to `gamma`. Raising `gamma` uncovers joint violations that no
+#' single covariate isolates, at the cost of more trees.
 #'
 #' Setting `beta = "gruber"` resolves the threshold to
 #' \eqn{5 / (\sqrt{n} \, \ln n)}, the sample-size-adaptive bound used by sPoRT.
@@ -111,7 +111,7 @@ port_result <- new_class(
 #'   `subgroup` (the covariates defining the rule), `description` (the
 #'   human-readable rule), `exposure_level` (the exposure level examined), `n`
 #'   (the subgroup size), `proportion` (its share of the sample), `prevalence`
-#'   (the exposure prevalence in the subgroup), and `flagged` (the logical
+#'   (the exposure prevalence in the subgroup), and `low_support` (the logical
 #'   reading-rule outcome). It also carries the `@trees`, `@alpha`, `@beta`, and
 #'   `@gamma` properties.
 #'
@@ -556,7 +556,7 @@ run_port <- function(
 
 #' The PoRT combination search for one exposure-level response
 #'
-#' Grows single-covariate trees, removes covariates that produce a flagged
+#' Grows single-covariate trees, removes covariates that produce a low-support
 #' subgroup, then grows trees over `k`-covariate combinations of the survivors
 #' up to `gamma`.
 #'
@@ -586,17 +586,17 @@ port_search <- function(
       break
     }
     combos <- utils::combn(remaining, k, simplify = FALSE)
-    flagged_predictors <- character(0)
+    low_support_predictors <- character(0)
     for (combo in combos) {
       tree <- fit_port_tree(response, covariate_data[combo], control)
       report <- read_port_tree(tree, n_total, alpha, beta_value)
       trees[[length(trees) + 1]] <- tree
       rows[[length(rows) + 1]] <- report$rows
-      if (report$any_flagged) {
-        flagged_predictors <- union(flagged_predictors, combo)
+      if (report$any_low_support) {
+        low_support_predictors <- union(low_support_predictors, combo)
       }
     }
-    remaining <- setdiff(remaining, flagged_predictors)
+    remaining <- setdiff(remaining, low_support_predictors)
   }
 
   list(rows = rows, trees = trees)
@@ -632,10 +632,10 @@ fit_port_tree <- function(response, covariate_data, control) {
 #' Read the PoRT rule off one tree
 #'
 #' Walks the tree from the root and collects reported subgroups: a node that
-#' meets the reading rule is reported as flagged and its descendants are
-#' suppressed; a leaf that is not flagged is reported with a `FALSE` flag. The
-#' whole-sample root is never reported as a subgroup unless the tree made no
-#' split, in which case the single root node is returned.
+#' meets the reading rule is reported as low support and its descendants are
+#' suppressed; a leaf that does not meet it is reported with `low_support` set
+#' to `FALSE`. The whole-sample root is never reported as a subgroup unless the
+#' tree made no split, in which case the single root node is returned.
 #'
 #' @param tree A fitted `rpart` object.
 #' @param n_total The sample size the size gate is measured against.
@@ -643,7 +643,7 @@ fit_port_tree <- function(response, covariate_data, control) {
 #' @param beta The numeric prevalence threshold.
 #'
 #' @return A list with `rows` (a tibble of reported subgroups, without the
-#'   `exposure_level` column) and `any_flagged` (a single logical).
+#'   `exposure_level` column) and `any_low_support` (a single logical).
 #' @keywords internal
 #' @noRd
 read_port_tree <- function(tree, n_total, alpha, beta) {
@@ -653,7 +653,7 @@ read_port_tree <- function(tree, n_total, alpha, beta) {
   prevalence <- frame$yval
   size_n <- frame$n
   size_fraction <- size_n / n_total
-  flagged <- (prevalence < beta | prevalence > 1 - beta) &
+  low_support <- (prevalence < beta | prevalence > 1 - beta) &
     (size_fraction >= alpha)
 
   collected <- integer(0)
@@ -664,7 +664,7 @@ read_port_tree <- function(tree, n_total, alpha, beta) {
       collected <<- c(collected, node)
       return(invisible())
     }
-    if (!node_is_root && (flagged[idx] || is_leaf[idx])) {
+    if (!node_is_root && (low_support[idx] || is_leaf[idx])) {
       collected <<- c(collected, node)
       return(invisible())
     }
@@ -686,9 +686,9 @@ read_port_tree <- function(tree, n_total, alpha, beta) {
     size_n,
     size_fraction,
     prevalence,
-    flagged
+    low_support
   )
-  list(rows = rows, any_flagged = any(rows$flagged))
+  list(rows = rows, any_low_support = any(rows$low_support))
 }
 
 #' Build the subgroup rows for a set of collected nodes
@@ -699,7 +699,7 @@ read_port_tree <- function(tree, n_total, alpha, beta) {
 #' @param size_n The per-node observation counts.
 #' @param size_fraction The per-node sample-size fractions.
 #' @param prevalence The per-node exposure prevalences.
-#' @param flagged The per-node reading-rule outcomes.
+#' @param low_support The per-node reading-rule outcomes.
 #'
 #' @return A tibble of subgroup rows.
 #' @keywords internal
@@ -711,7 +711,7 @@ port_tree_rows <- function(
   size_n,
   size_fraction,
   prevalence,
-  flagged
+  low_support
 ) {
   if (length(nodes) == 0) {
     return(empty_port_tibble(sequential = FALSE))
@@ -726,7 +726,7 @@ port_tree_rows <- function(
       n = as.integer(size_n[idx]),
       proportion = size_fraction[idx],
       prevalence = prevalence[idx],
-      flagged = flagged[idx]
+      low_support = low_support[idx]
     )
   })
   vctrs::vec_rbind(!!!described)
@@ -826,7 +826,7 @@ empty_port_tibble <- function(sequential) {
     n = integer(0),
     proportion = double(0),
     prevalence = double(0),
-    flagged = logical(0)
+    low_support = logical(0)
   )
   if (sequential) {
     return(vctrs::vec_cbind(tibble::tibble(time = integer(0)), base))
@@ -850,7 +850,7 @@ assemble_port_results <- function(rows, sequential) {
     "n",
     "proportion",
     "prevalence",
-    "flagged"
+    "low_support"
   )
   cols <- if (sequential) c("time", base_cols) else base_cols
   populated <- rows[vapply(rows, nrow, integer(1)) > 0]
@@ -864,7 +864,7 @@ assemble_port_results <- function(rows, sequential) {
 # ---- Methods --------------------------------------------------------------
 
 method(print, port_result) <- function(x, ...) {
-  flagged_count <- sum(x@results$flagged)
+  low_support_count <- sum(x@results$low_support)
   cat_cli({
     cli::cli_h1("{S7::S7_class(x)@name}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")
@@ -891,14 +891,14 @@ method(print, port_result) <- function(x, ...) {
       exposure_res <- x@results[!is_censoring, , drop = FALSE]
       censoring_res <- x@results[is_censoring, , drop = FALSE]
       cli::cli_text(
-        "Exposure subgroups: {nrow(exposure_res)} reported, {sum(exposure_res$flagged)} flagged"
+        "Exposure subgroups: {nrow(exposure_res)} reported, {sum(exposure_res$low_support)} with low support"
       )
       cli::cli_text(
-        "Censoring subgroups: {nrow(censoring_res)} reported, {sum(censoring_res$flagged)} flagged"
+        "Censoring subgroups: {nrow(censoring_res)} reported, {sum(censoring_res$low_support)} with low support"
       )
     } else {
       cli::cli_text(
-        "Subgroups: {nrow(x@results)} reported, {flagged_count} flagged"
+        "Subgroups: {nrow(x@results)} reported, {low_support_count} with low support"
       )
     }
   })

@@ -84,12 +84,12 @@ check
 Each section reports a numeric summary.
 The `edp` section reports the range of effective data points across the sample.
 The `port` section reports how many covariate subgroups were examined and how
-many were flagged by the algorithm's published rule. The `extrapolation` section
-reports the geometric scale used to judge nearness, the average share of the
-opposite exposure group lying nearby each unit, and how many units fall inside
-the opposite group's convex hull. The three flagged subgroups and the units that
-sit far from any opposite-group neighbor are the first signals that this dataset
-has positivity problems.
+many read as low support under the algorithm's published rule. The
+`extrapolation` section reports the geometric scale used to judge nearness, the
+average share of the opposite exposure group lying nearby each unit, and how many
+units fall inside the opposite group's convex hull. The three low-support
+subgroups and the units that sit far from any opposite-group neighbor are the
+first signals that this dataset has positivity problems.
 
 ## Reading the container
 
@@ -133,14 +133,14 @@ port <- check_port(pos_violations, exposure, c(x1, x2, region))
 port
 ```
 
-The `flagged` column marks subgroups meeting the algorithm's published rule: a
-prevalence below `beta` or above `1 - beta` among subgroups at least `alpha` of
-the sample. Filtering to the flagged rows shows what PoRT found.
+The `low_support` column marks subgroups meeting the algorithm's published rule:
+a prevalence below `beta` or above `1 - beta` among subgroups at least `alpha` of
+the sample. Filtering to the low-support rows shows what PoRT found.
 
-```{r port-flagged}
+```{r port-low-support}
 tidy(port) |>
-  filter(flagged) |>
-  select(description, n, prevalence, flagged)
+  filter(low_support) |>
+  select(description, n, prevalence, low_support)
 ```
 
 PoRT recovers both planted violations and describes them in the covariates. The
@@ -150,12 +150,12 @@ rules, one in the lower tail with prevalence near 0.05 and one in the upper tail
 with prevalence near 0.96, are the practical near-violation, where exposure is
 almost but not entirely determined by `x1`. The `autoplot()` method draws the
 reported subgroups as a bar chart of prevalence, with dashed reference lines at
-`beta` and `1 - beta` and the flagged subgroups highlighted. The default draws
-every reported subgroup; `flagged_only = TRUE` restricts the chart to the
-flagged subgroups.
+`beta` and `1 - beta` and the low-support subgroups highlighted. The default
+draws every reported subgroup; `low_support_only = TRUE` restricts the chart to
+the low-support subgroups.
 
-```{r port-plot, fig.alt = "Horizontal bar chart of exposure prevalence for the flagged PoRT subgroups, drawn near prevalence zero and one against dashed reference lines."}
-ggplot2::autoplot(port, flagged_only = TRUE)
+```{r port-plot, fig.alt = "Horizontal bar chart of exposure prevalence for the low-support PoRT subgroups, drawn near prevalence zero and one against dashed reference lines."}
+ggplot2::autoplot(port, low_support_only = TRUE)
 ```
 
 ## Effective data points: how much support surrounds each intervention

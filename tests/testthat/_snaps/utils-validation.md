@@ -34,10 +34,10 @@
 ---
 
     Code
-      validate_flag("yes", "flagged_only")
+      validate_flag("yes", "low_support_only")
     Condition
       Error:
-      ! `flagged_only` must be `TRUE` or `FALSE`.
+      ! `low_support_only` must be `TRUE` or `FALSE`.
 
 # a selection error names the calling check in its message
 

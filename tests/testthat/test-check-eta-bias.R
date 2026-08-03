@@ -903,7 +903,7 @@ test_that("eta_bias_result has the fixed results columns", {
     names(res@results),
     c("truncation_lower", "truncation_upper", "bias", "mc_se", "boot_mean")
   )
-  expect_false("flagged" %in% names(res@results))
+  expect_false("low_support" %in% names(res@results))
 })
 
 # ---- Results shape (single run versus truncation grid) --------------------

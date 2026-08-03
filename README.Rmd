@@ -41,17 +41,17 @@ check <- check_positivity(pos_violations, exposure, c(x1, x2, region))
 check
 ```
 
-The positivity regression tree (`port`) reports each problem as a rule over the covariates. `tidy()` gives one row per reported subgroup, and the `flagged` column marks those whose exposure prevalence falls below `beta` or above `1 - beta` among subgroups at least `alpha` of the sample.
+The positivity regression tree (`port`) reports each problem as a rule over the covariates. `tidy()` gives one row per reported subgroup, and the `low_support` column marks those whose exposure prevalence falls below `beta` or above `1 - beta` among subgroups at least `alpha` of the sample.
 
-```{r port-flagged, message = FALSE}
+```{r port-low-support, message = FALSE}
 library(dplyr)
 
 check[["port"]] |>
   tidy() |>
-  filter(flagged)
+  filter(low_support)
 ```
 
-The three flagged subgroups match the planted ground truth. One rule combining `region` and `x2` has an exposure prevalence of zero, the structural violation, and two `x1` rules in the lower and upper tails have prevalence near zero and one, the practical near-violation.
+The three low-support subgroups match the planted ground truth. One rule combining `region` and `x2` has an exposure prevalence of zero, the structural violation, and two `x1` rules in the lower and upper tails have prevalence near zero and one, the practical near-violation.
 
 ## Learn more
 

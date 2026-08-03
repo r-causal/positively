@@ -63,7 +63,7 @@ check
 #> Observations: 1000
 #> Reading rule: alpha = 0.05, gamma = 2
 #> Prevalence threshold beta: 0.05
-#> Subgroups: 231 reported, 3 flagged
+#> Subgroups: 231 reported, 3 with low support
 #> 
 #> ── extrapolation ──
 #> 
@@ -79,8 +79,8 @@ check
 
 The positivity regression tree (`port`) reports each problem as a rule
 over the covariates. `tidy()` gives one row per reported subgroup, and
-the `flagged` column marks those whose exposure prevalence falls below
-`beta` or above `1 - beta` among subgroups at least `alpha` of the
+the `low_support` column marks those whose exposure prevalence falls
+below `beta` or above `1 - beta` among subgroups at least `alpha` of the
 sample.
 
 ``` r
@@ -88,16 +88,16 @@ library(dplyr)
 
 check[["port"]] |>
   tidy() |>
-  filter(flagged)
+  filter(low_support)
 #> # A tibble: 3 × 7
-#>   subgroup   description      exposure_level     n proportion prevalence flagged
-#>   <chr>      <chr>            <chr>          <int>      <dbl>      <dbl> <lgl>  
-#> 1 x1         x1<-0.5027       1                305      0.305     0.0459 TRUE   
-#> 2 x1         x1>=0.9626 & x1… 1                 53      0.053     0.962  TRUE   
-#> 3 x2, region x2>=1.063 & reg… 1                 69      0.069     0      TRUE
+#>   subgroup   description  exposure_level     n proportion prevalence low_support
+#>   <chr>      <chr>        <chr>          <int>      <dbl>      <dbl> <lgl>      
+#> 1 x1         x1<-0.5027   1                305      0.305     0.0459 TRUE       
+#> 2 x1         x1>=0.9626 … 1                 53      0.053     0.962  TRUE       
+#> 3 x2, region x2>=1.063 &… 1                 69      0.069     0      TRUE
 ```
 
-The three flagged subgroups match the planted ground truth. One rule
+The three low-support subgroups match the planted ground truth. One rule
 combining `region` and `x2` has an exposure prevalence of zero, the
 structural violation, and two `x1` rules in the lower and upper tails
 have prevalence near zero and one, the practical near-violation.

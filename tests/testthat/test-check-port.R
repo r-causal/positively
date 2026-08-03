@@ -1,15 +1,15 @@
-# PoRT reads a fixed rule off a regression tree: a terminal subgroup is flagged
-# when its exposure prevalence falls below beta or above 1 - beta AND its size is
-# at least alpha of the sample. The reading rule is deterministic given the tree;
-# only the tree carries stochasticity, so magnitude claims use tolerances while
-# the hand-built anchor uses exact fields. Every assertion about which subgroups
-# were found is written against the flagged-row subset of @results, so it holds
-# whether @results reports only flagged subgroups or every terminal leaf with its
-# status.
+# PoRT reads a fixed rule off a regression tree: a terminal subgroup has low
+# support when its exposure prevalence falls below beta or above 1 - beta AND its
+# size is at least alpha of the sample. The reading rule is deterministic given
+# the tree; only the tree carries stochasticity, so magnitude claims use
+# tolerances while the hand-built anchor uses exact fields. Every assertion about
+# which subgroups were found is written against the low-support subset of
+# @results, so it holds whether @results reports only the low-support subgroups
+# or every terminal leaf with its status.
 
 # Rows of @results that met the PoRT reading rule.
-flagged_rows <- function(res) {
-  res@results[res@results$flagged, , drop = FALSE]
+low_support_rows <- function(res) {
+  res@results[res@results$low_support, , drop = FALSE]
 }
 
 # All numbers appearing in a rule description, used only where a test asserts a
@@ -317,10 +317,10 @@ test_that("empty_port_tibble carries the fixed schema", {
       "n",
       "proportion",
       "prevalence",
-      "flagged"
+      "low_support"
     )
   )
-  expect_type(point$flagged, "logical")
+  expect_type(point$low_support, "logical")
 
   sequential <- empty_port_tibble(sequential = TRUE)
   expect_identical(names(sequential)[[1]], "time")
@@ -330,7 +330,7 @@ test_that("empty_port_tibble carries the fixed schema", {
 test_that("assemble_port_results returns the empty schema when no rows survive", {
   from_nothing <- assemble_port_results(list(), sequential = FALSE)
   expect_identical(nrow(from_nothing), 0L)
-  expect_true("flagged" %in% names(from_nothing))
+  expect_true("low_support" %in% names(from_nothing))
 
   from_empties <- assemble_port_results(
     list(empty_port_tibble(sequential = TRUE)),
@@ -399,10 +399,10 @@ test_that("port_result has the fixed point results columns", {
       "n",
       "proportion",
       "prevalence",
-      "flagged"
+      "low_support"
     )
   )
-  expect_type(res@results$flagged, "logical")
+  expect_type(res@results$low_support, "logical")
 })
 
 test_that("tidy() returns the results tibble and glance() a one-row summary", {
@@ -423,13 +423,13 @@ test_that("the reading rule flags exactly the hand-built subgroup", {
   data <- port_anchor_data()
   res <- check_port(data, exposure, g, alpha = 0.05, beta = 0.05)
 
-  flagged <- flagged_rows(res)
-  expect_identical(nrow(flagged), 1L)
-  expect_identical(flagged$n, 300L)
-  expect_equal(flagged$proportion, 0.30, tolerance = 1e-6)
-  expect_equal(flagged$prevalence, 0.01, tolerance = 1e-6)
-  expect_true(flagged$flagged)
-  expect_match(flagged$description, "g")
+  low_support <- low_support_rows(res)
+  expect_identical(nrow(low_support), 1L)
+  expect_identical(low_support$n, 300L)
+  expect_equal(low_support$proportion, 0.30, tolerance = 1e-6)
+  expect_equal(low_support$prevalence, 0.01, tolerance = 1e-6)
+  expect_true(low_support$low_support)
+  expect_match(low_support$description, "g")
 })
 
 test_that("the alpha boundary gates the anchor subgroup out", {
@@ -437,7 +437,7 @@ test_that("the alpha boundary gates the anchor subgroup out", {
   data <- port_anchor_data()
   # The anchor subgroup has size 0.30, so alpha = 0.31 excludes it.
   res <- check_port(data, exposure, g, alpha = 0.31, beta = 0.05)
-  expect_identical(nrow(flagged_rows(res)), 0L)
+  expect_identical(nrow(low_support_rows(res)), 0L)
 })
 
 test_that("the beta boundary gates the anchor subgroup out", {
@@ -445,7 +445,7 @@ test_that("the beta boundary gates the anchor subgroup out", {
   data <- port_anchor_data()
   # The anchor subgroup has prevalence 0.01, so beta = 0.005 no longer flags it.
   res <- check_port(data, exposure, g, alpha = 0.05, beta = 0.005)
-  expect_identical(nrow(flagged_rows(res)), 0L)
+  expect_identical(nrow(low_support_rows(res)), 0L)
 })
 
 # ---- Structural recovery --------------------------------------------------
@@ -455,10 +455,10 @@ test_that("check_port() recovers a planted single-covariate violation", {
   data <- sim_port_structural(n = 2000, seed = 1)
   res <- check_port(data, exposure, c(x3, x1))
 
-  flagged <- flagged_rows(res)
-  on_x3 <- grepl("x3", flagged$description)
+  low_support <- low_support_rows(res)
+  on_x3 <- grepl("x3", low_support$description)
   expect_true(any(on_x3))
-  expect_true(all(flagged$prevalence[on_x3] < res@beta))
+  expect_true(all(low_support$prevalence[on_x3] < res@beta))
 })
 
 test_that("the recovered split threshold sits near the planted value", {
@@ -466,8 +466,8 @@ test_that("the recovered split threshold sits near the planted value", {
   data <- sim_port_structural(n = 2000, seed = 1)
   res <- check_port(data, exposure, c(x3, x1))
 
-  flagged <- flagged_rows(res)
-  on_x3 <- flagged[grepl("x3", flagged$description), , drop = FALSE]
+  low_support <- low_support_rows(res)
+  on_x3 <- low_support[grepl("x3", low_support$description), , drop = FALSE]
   # The planted threshold is 70; recovered splits cluster just above it. If the
   # description exposes the split, at least one number should sit within 1 of 70.
   numbers <- unlist(lapply(on_x3$description, rule_numbers))
@@ -481,7 +481,7 @@ test_that("check_port() stays quiet under good positivity at n = 1000", {
   local_quiet()
   data <- dgp_good_positivity(n = 1000, seed = 1)
   res <- check_port(data, exposure, c(x1, x2), alpha = 0.05, beta = 0.05)
-  expect_equal(sum(res@results$flagged), 0)
+  expect_equal(sum(res@results$low_support), 0)
 })
 
 test_that("average flags stay low across seeds under good positivity", {
@@ -494,7 +494,7 @@ test_that("average flags stay low across seeds under good positivity", {
         exposure,
         c(x1, x2)
       )
-      sum(res@results$flagged)
+      sum(res@results$low_support)
     },
     numeric(1)
   )
@@ -514,7 +514,7 @@ test_that("spurious flags are more common at small n than large n", {
           exposure,
           c(x1, x2)
         )
-        sum(res@results$flagged)
+        sum(res@results$low_support)
       },
       numeric(1)
     ))
@@ -531,8 +531,8 @@ test_that("a subgroup near 6 percent is gated by alpha", {
   at_05 <- check_port(data, exposure, c(z, x1), alpha = 0.05)
   at_10 <- check_port(data, exposure, c(z, x1), alpha = 0.10)
 
-  expect_true(any(grepl("z", flagged_rows(at_05)$description)))
-  expect_false(any(grepl("z", flagged_rows(at_10)$description)))
+  expect_true(any(grepl("z", low_support_rows(at_05)$description)))
+  expect_false(any(grepl("z", low_support_rows(at_10)$description)))
 })
 
 test_that("flag counts are non-increasing across an increasing alpha grid", {
@@ -542,7 +542,7 @@ test_that("flag counts are non-increasing across an increasing alpha grid", {
   counts <- vapply(
     alphas,
     function(a) {
-      sum(check_port(data, exposure, c(z, x1), alpha = a)@results$flagged)
+      sum(check_port(data, exposure, c(z, x1), alpha = a)@results$low_support)
     },
     numeric(1)
   )
@@ -551,13 +551,13 @@ test_that("flag counts are non-increasing across an increasing alpha grid", {
 
 # ---- beta bound -----------------------------------------------------------
 
-test_that("a near-beta subgroup is flagged reliably at the looser bound", {
+test_that("a near-beta subgroup reliably has low support at the looser beta", {
   local_quiet()
-  # Prevalence 0.051 straddles beta = 0.05, so it is flagged at beta = 0.10 but
-  # only a coin flip at 0.05. Assert the reliable side.
+  # Prevalence 0.051 straddles beta = 0.05, so it reads as low support at
+  # beta = 0.10 but only a coin flip at 0.05. Assert the reliable side.
   data <- sim_port_prev(n = 4000, prev = 0.051, seed = 1)
   at_10 <- check_port(data, exposure, c(b, x1), beta = 0.10)
-  expect_true(any(grepl("b", flagged_rows(at_10)$description)))
+  expect_true(any(grepl("b", low_support_rows(at_10)$description)))
 })
 
 test_that("detection is non-decreasing across an increasing beta grid", {
@@ -569,7 +569,7 @@ test_that("detection is non-decreasing across an increasing beta grid", {
   detected <- vapply(
     betas,
     function(bt) {
-      any(check_port(data, exposure, c(b, x1), beta = bt)@results$flagged)
+      any(check_port(data, exposure, c(b, x1), beta = bt)@results$low_support)
     },
     logical(1)
   )
@@ -583,7 +583,7 @@ test_that("a joint violation needs gamma = 2 to be found", {
   data <- sim_port_joint(n = 3000, seed = 1)
 
   uses_both <- function(res) {
-    desc <- flagged_rows(res)$description
+    desc <- low_support_rows(res)$description
     any(grepl("x1", desc) & grepl("x2", desc))
   }
 
@@ -658,54 +658,54 @@ test_that("a Gruber bound below 0.5 still runs", {
   expect_equal(res@beta, 5 / (sqrt(15) * log(15)), tolerance = 1e-8)
 })
 
-# ---- Practical and structural flagged identically -------------------------
+# ---- Practical and structural read identically ----------------------------
 
-test_that("a low-prevalence subgroup is flagged like an empty one", {
+test_that("a low-prevalence subgroup has low support like an empty one", {
   local_quiet()
   empty <- sim_port_prev(n = 3000, prev = 0.00, seed = 1)
   practical <- sim_port_prev(n = 3000, prev = 0.03, seed = 1)
 
   expect_true(any(grepl(
     "b",
-    flagged_rows(check_port(empty, exposure, c(b, x1)))$description
+    low_support_rows(check_port(empty, exposure, c(b, x1)))$description
   )))
   expect_true(any(grepl(
     "b",
-    flagged_rows(check_port(practical, exposure, c(b, x1)))$description
+    low_support_rows(check_port(practical, exposure, c(b, x1)))$description
   )))
 })
 
-test_that("a subgroup above beta is not flagged", {
+test_that("a subgroup above beta does not have low support", {
   local_quiet()
   # Prevalence 0.12 is above beta = 0.05 and below 1 - beta, so it never flags.
   data <- sim_port_prev(n = 3000, prev = 0.12, seed = 1)
   res <- check_port(data, exposure, c(b, x1), beta = 0.05)
-  expect_false(any(grepl("b", flagged_rows(res)$description)))
+  expect_false(any(grepl("b", low_support_rows(res)$description)))
 })
 
 # ---- Categorical exposure per level ---------------------------------------
 
-test_that("a never-assigned level in a subgroup is flagged at that level", {
+test_that("a never-assigned level makes a subgroup low support there", {
   local_quiet()
   data <- sim_port_categorical(n = 3000, seed = 1)
   res <- check_port(data, exposure, x2)
 
   expect_identical(res@exposure_type, "categorical")
-  flagged <- flagged_rows(res)
-  high_flag <- flagged[flagged$exposure_level == "high", , drop = FALSE]
-  expect_gte(nrow(high_flag), 1)
-  expect_true(all(high_flag$prevalence < res@beta))
-  expect_true(any(grepl("x2", high_flag$description)))
+  low_support <- low_support_rows(res)
+  high_rows <- low_support[low_support$exposure_level == "high", , drop = FALSE]
+  expect_gte(nrow(high_rows), 1)
+  expect_true(all(high_rows$prevalence < res@beta))
+  expect_true(any(grepl("x2", high_rows$description)))
 })
 
-test_that("both extremes of a binary exposure are flagged", {
+test_that("both extremes of a binary exposure read as low support", {
   local_quiet()
   data <- sim_port_extremes(n = 3000, seed = 1)
   res <- check_port(data, exposure, w)
 
-  flagged <- flagged_rows(res)
-  expect_true(any(flagged$prevalence < res@beta))
-  expect_true(any(flagged$prevalence > 1 - res@beta))
+  low_support <- low_support_rows(res)
+  expect_true(any(low_support$prevalence < res@beta))
+  expect_true(any(low_support$prevalence > 1 - res@beta))
 })
 
 # ---- Threshold granularity failure mode -----------------------------------
@@ -717,7 +717,7 @@ test_that("a continuous predictor recovers a threshold a coarse binning misses",
   # The exposure is binary; n_bins applies to a continuous exposure, so here the
   # granularity caveat is exercised on the predictor by pre-binning it coarsely.
   fine <- check_port(data, exposure, x3)
-  expect_true(any(grepl("x3", flagged_rows(fine)$description)))
+  expect_true(any(grepl("x3", low_support_rows(fine)$description)))
 
   coarse <- data
   # A two-way split at 0.5 puts treated (0.5 to 0.7) and never-treated (above
@@ -725,7 +725,7 @@ test_that("a continuous predictor recovers a threshold a coarse binning misses",
   # rule can no longer isolate the violation.
   coarse$x3 <- cut(data$x3, breaks = c(-Inf, 0.5, Inf), labels = FALSE)
   coarse_res <- check_port(coarse, exposure, x3)
-  expect_false(any(grepl("x3", flagged_rows(coarse_res)$description)))
+  expect_false(any(grepl("x3", low_support_rows(coarse_res)$description)))
 })
 
 # ---- Continuous binning ----------------------------------------------------
@@ -747,10 +747,10 @@ test_that("explicit breaks bin a continuous exposure", {
 
   # The lowest exposure bin "[0,2]" carries a covariate subgroup on x1 whose
   # exposure prevalence falls below beta, so it flags with an x1 description.
-  low_flag <- flagged_rows(res)
-  low_flag <- low_flag[low_flag$exposure_level == "[0,2]", , drop = FALSE]
-  expect_gte(nrow(low_flag), 1L)
-  expect_true(any(grepl("x1", low_flag$description)))
+  lowest_bin <- low_support_rows(res)
+  lowest_bin <- lowest_bin[lowest_bin$exposure_level == "[0,2]", , drop = FALSE]
+  expect_gte(nrow(lowest_bin), 1L)
+  expect_true(any(grepl("x1", lowest_bin$description)))
 })
 
 test_that("quantile bins recover the continuous support gap", {
@@ -762,15 +762,16 @@ test_that("quantile bins recover the continuous support gap", {
   data <- dgp_continuous_support_gap(n = 1000, seed = 4)
   res <- check_port(data, exposure, x1, exposure_type = "continuous")
 
-  flagged <- flagged_rows(res)
-  expect_identical(nrow(flagged), 2L)
-  # Every flagged subgroup sits below beta.
-  expect_true(all(flagged$prevalence < res@beta))
+  low_support <- low_support_rows(res)
+  expect_identical(nrow(low_support), 2L)
+  # Every low-support subgroup sits below beta.
+  expect_true(all(low_support$prevalence < res@beta))
 
   # An interval label like "[0.00102,1.27]" whose bounds both fall in [0, 2] is a
-  # low exposure bin. At least one flagged low bin carries a high x1 lower bound.
+  # low exposure bin. At least one low-support low bin carries a high x1 lower
+  # bound.
   bounds <- lapply(
-    flagged$exposure_level,
+    low_support$exposure_level,
     function(level) {
       as.numeric(regmatches(
         level,
@@ -779,7 +780,7 @@ test_that("quantile bins recover the continuous support gap", {
     }
   )
   low_bin <- vapply(bounds, function(b) all(b >= 0 & b <= 2), logical(1))
-  high_x1 <- grepl("x1>=", flagged$description, fixed = TRUE)
+  high_x1 <- grepl("x1>=", low_support$description, fixed = TRUE)
   expect_true(any(low_bin & high_x1))
 })
 
@@ -830,11 +831,11 @@ test_that("bar width is proportional to subgroup size", {
 
 test_that("port_plot_data returns the display columns for an empty result", {
   # With no reported subgroups the plotting frame keeps the label, width, and
-  # flagged columns but carries no rows.
+  # low_support columns but carries no rows.
   plot_data <- port_plot_data(make_port_result())
   expect_identical(nrow(plot_data), 0L)
-  expect_true(all(c("label", "width", "flagged") %in% names(plot_data)))
-  expect_identical(levels(plot_data$flagged), c("FALSE", "TRUE"))
+  expect_true(all(c("label", "width", "low_support") %in% names(plot_data)))
+  expect_identical(levels(plot_data$low_support), c("FALSE", "TRUE"))
 })
 
 test_that("plot() draws the PoRT view and returns the result invisibly", {
@@ -846,105 +847,114 @@ test_that("plot() draws the PoRT view and returns the result invisibly", {
   expect_identical(plot(res), res)
 })
 
-test_that("flagged_only draws only the flagged subgroups", {
+test_that("low_support_only draws only the low-support subgroups", {
   local_quiet()
   data <- sim_port_structural(n = 500, seed = 1)
   res <- check_port(data, exposure, c(x3, x1))
 
   full <- port_plot_data(res)
-  flagged_data <- port_plot_data(res, flagged_only = TRUE)
-  expect_gt(nrow(flagged_data), 0)
-  expect_lt(nrow(flagged_data), nrow(full))
-  expect_identical(flagged_data$label, full$label[full$flagged == "TRUE"])
-  expect_true(all(flagged_data$flagged == "TRUE"))
+  low_support_data <- port_plot_data(res, low_support_only = TRUE)
+  expect_gt(nrow(low_support_data), 0)
+  expect_lt(nrow(low_support_data), nrow(full))
+  expect_identical(
+    low_support_data$label,
+    full$label[full$low_support == "TRUE"]
+  )
+  expect_true(all(low_support_data$low_support == "TRUE"))
 
-  built <- ggplot2::ggplot_build(ggplot2::autoplot(res, flagged_only = TRUE))
-  expect_identical(nrow(built$data[[1]]), nrow(flagged_data))
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(
+    res,
+    low_support_only = TRUE
+  ))
+  expect_identical(nrow(built$data[[1]]), nrow(low_support_data))
 })
 
-test_that("flagged_only recomputes widths relative to the shown subgroups", {
+test_that("low_support_only recomputes widths relative to the shown subgroups", {
   local_quiet()
   data <- sim_port_structural(n = 500, seed = 1)
   res <- check_port(data, exposure, c(x3, x1))
 
-  flagged_data <- port_plot_data(res, flagged_only = TRUE)
+  low_support_data <- port_plot_data(res, low_support_only = TRUE)
   expect_equal(
-    flagged_data$width,
-    flagged_data$n / max(flagged_data$n),
+    low_support_data$width,
+    low_support_data$n / max(low_support_data$n),
     tolerance = 1e-8
   )
-  expect_equal(max(flagged_data$width), 1, tolerance = 1e-8)
+  expect_equal(max(low_support_data$width), 1, tolerance = 1e-8)
 })
 
-test_that("flagged_only suppresses the fill legend", {
+test_that("low_support_only suppresses the fill legend", {
   local_quiet()
   data <- sim_port_structural(n = 500, seed = 1)
   res <- check_port(data, exposure, c(x3, x1))
 
-  flagged_plot <- ggplot2::autoplot(res, flagged_only = TRUE)
-  expect_identical(flagged_plot$scales$get_scales("fill")$guide, "none")
+  low_support_plot <- ggplot2::autoplot(res, low_support_only = TRUE)
+  expect_identical(low_support_plot$scales$get_scales("fill")$guide, "none")
 
   default_plot <- ggplot2::autoplot(res)
   expect_identical(default_plot$scales$get_scales("fill")$guide, "legend")
 })
 
-test_that("flagged_only with nothing flagged draws the empty panel", {
+test_that("low_support_only with no low-support rows draws the empty panel", {
   local_quiet()
   data <- sim_port_structural(n = 500, seed = 1)
   res <- check_port(data, exposure, c(x3, x1))
   results <- res@results
-  results$flagged <- FALSE
+  results$low_support <- FALSE
   res@results <- results
 
-  expect_identical(nrow(port_plot_data(res, flagged_only = TRUE)), 0L)
+  expect_identical(nrow(port_plot_data(res, low_support_only = TRUE)), 0L)
 
-  built <- ggplot2::ggplot_build(ggplot2::autoplot(res, flagged_only = TRUE))
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(
+    res,
+    low_support_only = TRUE
+  ))
   # The reference lines survive the empty bar frame.
   expect_identical(nrow(built$data[[2]]), 2L)
 })
 
-test_that("autoplot() rejects a non-flag flagged_only as a classed error", {
+test_that("autoplot() rejects a non-flag low_support_only as a classed error", {
   local_quiet()
   data <- sim_port_structural(n = 500, seed = 1)
   res <- check_port(data, exposure, c(x3, x1))
 
   expect_error(
-    ggplot2::autoplot(res, flagged_only = "yes"),
+    ggplot2::autoplot(res, low_support_only = "yes"),
     class = "positively_type_error"
   )
   expect_error(
-    ggplot2::autoplot(res, flagged_only = NA),
+    ggplot2::autoplot(res, low_support_only = NA),
     class = "positively_type_error"
   )
   expect_error(
-    ggplot2::autoplot(res, flagged_only = c(TRUE, FALSE)),
+    ggplot2::autoplot(res, low_support_only = c(TRUE, FALSE)),
     class = "positively_type_error"
   )
   expect_snapshot_abort(
-    ggplot2::autoplot(res, flagged_only = "yes"),
+    ggplot2::autoplot(res, low_support_only = "yes"),
     class = "positively_type_error"
   )
 })
 
-test_that("PoRT flagged-only autoplot renders as expected", {
+test_that("PoRT low-support-only autoplot renders as expected", {
   local_quiet()
   data <- sim_port_structural(n = 500, seed = 1)
   res <- check_port(data, exposure, c(x3, x1))
   expect_doppelganger(
-    "PoRT flagged subgroups only",
-    ggplot2::autoplot(res, flagged_only = TRUE)
+    "PoRT low-support subgroups only",
+    ggplot2::autoplot(res, low_support_only = TRUE)
   )
 })
 
-test_that("plot() forwards flagged_only", {
+test_that("plot() forwards low_support_only", {
   local_quiet()
   local_null_device()
   data <- sim_port_structural(n = 500, seed = 1)
   res <- check_port(data, exposure, c(x3, x1))
 
-  expect_identical(plot(res, flagged_only = TRUE), res)
+  expect_identical(plot(res, low_support_only = TRUE), res)
   expect_error(
-    plot(res, flagged_only = "yes"),
+    plot(res, low_support_only = "yes"),
     class = "positively_type_error"
   )
 })
@@ -981,7 +991,7 @@ test_that("check_port() rejects a dot that is not an rpart.control option", {
   )
 })
 
-test_that("correlated covariates surface a flagged subgroup for each near-copy", {
+test_that("correlated covariates surface a low-support subgroup per near-copy", {
   local_quiet()
   withr::local_seed(1)
   n <- 3000
@@ -992,10 +1002,10 @@ test_that("correlated covariates surface a flagged subgroup for each near-copy",
   data <- tibble::tibble(exposure = exposure, xa = xa, xb = xb)
 
   res <- check_port(data, exposure, c(xa, xb))
-  flagged <- flagged_rows(res)
+  low_support <- low_support_rows(res)
   # Duplicates are surfaced, not de-duplicated: both near-copies flag.
-  expect_true(any(grepl("xa", flagged$description)))
-  expect_true(any(grepl("xb", flagged$description)))
+  expect_true(any(grepl("xa", low_support$description)))
+  expect_true(any(grepl("xb", low_support$description)))
 })
 
 # ---- Description simplification -------------------------------------------
@@ -1246,8 +1256,12 @@ test_that("a covariate named .port_response is handled like any other", {
   })
   res <- check_port(data, exposure, tidyselect::all_of(".port_response"))
 
-  flagged <- flagged_rows(res)
-  expect_true(any(grepl(".port_response", flagged$description, fixed = TRUE)))
+  low_support <- low_support_rows(res)
+  expect_true(any(grepl(
+    ".port_response",
+    low_support$description,
+    fixed = TRUE
+  )))
 })
 
 # ---- Degenerate binning snapshots -----------------------------------------

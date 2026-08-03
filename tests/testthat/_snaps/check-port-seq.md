@@ -10,7 +10,7 @@
       Time points: 3
       Reading rule: alpha = 0.05, gamma = 2
       Prevalence threshold beta: 3 per-time values (0.0229 to 0.0389)
-      Subgroups: 262 reported, 1 flagged
+      Subgroups: 262 reported, 1 with low support
 
 # the sequential print is stable on the binary longitudinal fixture
 
@@ -24,7 +24,7 @@
       Time points: 3
       Reading rule: alpha = 0.05, gamma = 2
       Prevalence threshold beta: 0.05
-      Subgroups: 45 reported, 2 flagged
+      Subgroups: 45 reported, 2 with low support
 
 # the sequential print reports censoring subgroups distinctly
 
@@ -38,8 +38,8 @@
       Time points: 3
       Reading rule: alpha = 0.05, gamma = 2
       Prevalence threshold beta: 0.05
-      Exposure subgroups: 21 reported, 1 flagged
-      Censoring subgroups: 32 reported, 1 flagged
+      Exposure subgroups: 21 reported, 1 with low support
+      Censoring subgroups: 32 reported, 1 with low support
 
 # check_port_seq() censoring validation messages are stable
 

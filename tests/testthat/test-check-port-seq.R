@@ -6,8 +6,8 @@
 # the already-initiated would otherwise mask, so these tests contrast the
 # stratified fit against a naive point fit on the full sample.
 
-flagged_rows <- function(res) {
-  res@results[res@results$flagged, , drop = FALSE]
+low_support_rows <- function(res) {
+  res@results[res@results$low_support, , drop = FALSE]
 }
 
 # Monotone binary treatment over three time points with a planted sequential
@@ -165,7 +165,7 @@ test_that("check_port_seq() returns a port_result with a time column", {
       "n",
       "proportion",
       "prevalence",
-      "flagged"
+      "low_support"
     )
   )
 })
@@ -417,16 +417,19 @@ test_that("a declared non-binary type drops the monotone follower restriction", 
   # The restriction is what exposes the planted time-2 violation, so dropping it
   # loses the flag: the already-initiated carry their treatment forward and the
   # trees flag that carry-forward instead.
-  detected_flagged <- flagged_rows(detected)
-  declared_flagged <- flagged_rows(declared)
+  detected_low_support <- low_support_rows(detected)
+  declared_low_support <- low_support_rows(declared)
   expect_true(any(
-    detected_flagged$time == 2 & grepl("l1", detected_flagged$description)
+    detected_low_support$time == 2 &
+      grepl("l1", detected_low_support$description)
   ))
   expect_false(any(
-    declared_flagged$time == 2 & grepl("l1", declared_flagged$description)
+    declared_low_support$time == 2 &
+      grepl("l1", declared_low_support$description)
   ))
   expect_true(any(
-    declared_flagged$time == 2 & grepl("a1", declared_flagged$description)
+    declared_low_support$time == 2 &
+      grepl("a1", declared_low_support$description)
   ))
 })
 
@@ -476,11 +479,11 @@ test_that("flags localize to the time point of the planted violation", {
   data <- sim_port_seq(n = 3000, seed = 1)
   res <- check_port_seq(data, c(a1, a2, a3), list(c1))
 
-  flagged <- flagged_rows(res)
-  expect_true(any(flagged$time == 2))
-  expect_false(any(flagged$time %in% c(1, 3)))
+  low_support <- low_support_rows(res)
+  expect_true(any(low_support$time == 2))
+  expect_false(any(low_support$time %in% c(1, 3)))
   # The planted region is defined by the baseline covariate c1.
-  expect_true(any(grepl("c1", flagged$description[flagged$time == 2])))
+  expect_true(any(grepl("c1", low_support$description[low_support$time == 2])))
 })
 
 # ---- History subsetting guard ---------------------------------------------
@@ -492,14 +495,16 @@ test_that("stratified subsetting reveals a violation that naive pooling masks", 
   # The stratified strategy subsets to followers (a1 == 0) at t = 2 and flags
   # region C, whose treated prevalence among followers is zero.
   seq_res <- check_port_seq(data, c(a1, a2, a3), list(c1))
-  seq_flagged <- flagged_rows(seq_res)
-  expect_true(any(seq_flagged$time == 2 & grepl("c1", seq_flagged$description)))
+  seq_low_support <- low_support_rows(seq_res)
+  expect_true(any(
+    seq_low_support$time == 2 & grepl("c1", seq_low_support$description)
+  ))
 
   # A naive point fit on the full sample sees the already-initiated carrying
   # a2 == 1 forward, which inflates the region-C prevalence above beta, so the
-  # violation is not flagged.
+  # violation does not read as low support.
   naive <- check_port(data, a2, c1)
-  expect_false(any(grepl("c1", flagged_rows(naive)$description)))
+  expect_false(any(grepl("c1", low_support_rows(naive)$description)))
 })
 
 # ---- Risk-set shrinkage and per-time Gruber beta --------------------------
@@ -558,19 +563,22 @@ test_that("each facet shows its own resolved beta reference lines", {
   expect_gt(length(unique(vlines$xintercept)), 2)
 })
 
-test_that("flagged_only keeps a facet for a time point with nothing flagged", {
+test_that("low_support_only keeps a facet for a time point it empties", {
   local_quiet()
   data <- sim_port_seq(n = 1000, seed = 1)
   res <- check_port_seq(data, c(a1, a2, a3), list(c1))
 
-  # Pin the shape under test: time 2 carries no flagged rows, time 1 carries at
-  # least one.
+  # Pin the shape under test: time 2 carries no low-support rows, time 1 carries
+  # at least one.
   results <- res@results
-  results$flagged[results$time == 2] <- FALSE
-  results$flagged[which(results$time == 1)[1]] <- TRUE
+  results$low_support[results$time == 2] <- FALSE
+  results$low_support[which(results$time == 1)[1]] <- TRUE
   res@results <- results
 
-  built <- ggplot2::ggplot_build(ggplot2::autoplot(res, flagged_only = TRUE))
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(
+    res,
+    low_support_only = TRUE
+  ))
   layout <- built$layout$layout
   expect_setequal(layout$time, 1:3)
 
@@ -707,7 +715,7 @@ test_that("the censoring run carries a family-neutral prevalence axis label", {
   )
 })
 
-test_that("flagged_only keeps both type facets on a censoring run", {
+test_that("low_support_only keeps both type facets on a censoring run", {
   local_quiet()
   data <- dgp_longitudinal_binary_censoring()
   res <- check_port_seq(
@@ -718,14 +726,17 @@ test_that("flagged_only keeps both type facets on a censoring run", {
     cp = 0.01
   )
 
-  built <- ggplot2::ggplot_build(ggplot2::autoplot(res, flagged_only = TRUE))
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(
+    res,
+    low_support_only = TRUE
+  ))
   layout <- built$layout$layout
   expect_setequal(unique(layout$type), c("exposure", "censoring"))
 
-  # Every drawn bar is one of the deduplicated flagged rows.
-  flagged_data <- port_plot_data(res, flagged_only = TRUE)
-  expect_identical(nrow(built$data[[1]]), nrow(flagged_data))
-  expect_true(all(flagged_data$flagged == "TRUE"))
+  # Every drawn bar is one of the deduplicated low-support rows.
+  low_support_data <- port_plot_data(res, low_support_only = TRUE)
+  expect_identical(nrow(built$data[[1]]), nrow(low_support_data))
+  expect_true(all(low_support_data$low_support == "TRUE"))
 })
 
 # ---- Degenerate risk sets -------------------------------------------------
@@ -836,17 +847,17 @@ test_that("the stratified risk set shrinks over time in the tidy output", {
   expect_true(all(diff(per_time_n) < 0))
 })
 
-test_that("the planted time-2 subgroup is flagged", {
+test_that("the planted time-2 subgroup reads as low support", {
   local_quiet()
   data <- dgp_longitudinal_binary()
   res <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2))
 
-  flagged <- flagged_rows(res)
+  low_support <- low_support_rows(res)
   # Among the t = 2 followers, treatment is deterministic in the l1 region, so
   # the reading rule surfaces it.
-  expect_true(any(flagged$time == 2 & grepl("l1", flagged$description)))
+  expect_true(any(low_support$time == 2 & grepl("l1", low_support$description)))
   # The quiet first and last waves carry no flag.
-  expect_false(any(flagged$time %in% c(1, 3)))
+  expect_false(any(low_support$time %in% c(1, 3)))
 })
 
 test_that("the lag argument changes the conditioning set", {
@@ -854,21 +865,21 @@ test_that("the lag argument changes the conditioning set", {
   data <- dgp_longitudinal_binary()
 
   # With the full history the t = 2 conditioning set holds the lagged covariate
-  # l0, and its deterministic region is flagged.
+  # l0, and its deterministic region reads as low support.
   full <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2))
   full_t2 <- full@results$description[full@results$time == 2]
   expect_true(any(grepl("l0", full_t2)))
-  expect_true(any(grepl("l0", flagged_rows(full)$description)))
+  expect_true(any(grepl("l0", low_support_rows(full)$description)))
 
   # With lag zero the t = 2 conditioning set drops l0, so it appears in no
-  # subgroup, and only the l1 region remains flagged.
+  # subgroup, and only the l1 region still reads as low support.
   lagged <- check_port_seq(data, c(a1, a2, a3), list(l0, l1, l2), lag = 0)
   lagged_t2 <- lagged@results$description[lagged@results$time == 2]
   expect_false(any(grepl("l0", lagged_t2)))
-  lagged_flagged <- flagged_rows(lagged)
-  expect_false(any(grepl("l0", lagged_flagged$description)))
+  lagged_low_support <- low_support_rows(lagged)
+  expect_false(any(grepl("l0", lagged_low_support$description)))
   expect_true(any(
-    lagged_flagged$time == 2 & grepl("l1", lagged_flagged$description)
+    lagged_low_support$time == 2 & grepl("l1", lagged_low_support$description)
   ))
 })
 
@@ -917,7 +928,7 @@ test_that("a censoring result distinguishes censoring rows from exposure rows", 
   expect_setequal(unique(res@results$type), c("exposure", "censoring"))
 })
 
-test_that("the planted censoring subgroup is flagged at its time point", {
+test_that("the planted censoring subgroup has low support at its time", {
   local_quiet()
   data <- dgp_longitudinal_binary_censoring()
   res <- check_port_seq(
@@ -927,14 +938,15 @@ test_that("the planted censoring subgroup is flagged at its time point", {
     .censoring = c(c1, c2, c3)
   )
 
-  censoring_flagged <- res@results[
-    res@results$type == "censoring" & res@results$flagged,
+  censoring_low_support <- res@results[
+    res@results$type == "censoring" & res@results$low_support,
     ,
     drop = FALSE
   ]
   # Censoring is near-certain where l0 > 1 among the uncensored-so-far at t = 2.
   expect_true(any(
-    censoring_flagged$time == 2 & grepl("l0", censoring_flagged$description)
+    censoring_low_support$time == 2 &
+      grepl("l0", censoring_low_support$description)
   ))
 })
 
@@ -1046,16 +1058,19 @@ test_that("check_port_seq() reads factor-coded binary exposures like integers", 
   expect_identical(factor_res@exposure_type, "binary")
 
   # The planted time-2 violation and its localization survive the factor coding.
-  factor_flagged <- flagged_rows(factor_res)
-  expect_true(any(factor_flagged$time == 2))
-  expect_false(any(factor_flagged$time %in% c(1, 3)))
+  factor_low_support <- low_support_rows(factor_res)
+  expect_true(any(factor_low_support$time == 2))
+  expect_false(any(factor_low_support$time %in% c(1, 3)))
 
-  # The flags land on the same time points and subgroups as the integer run.
-  flag_keys <- function(res) {
-    flagged <- flagged_rows(res)
-    sort(paste(flagged$time, flagged$description))
+  # The readings fall on the same time points and subgroups as the integer run.
+  low_support_keys <- function(res) {
+    low_support <- low_support_rows(res)
+    sort(paste(low_support$time, low_support$description))
   }
-  expect_identical(flag_keys(factor_res), flag_keys(integer_res))
+  expect_identical(
+    low_support_keys(factor_res),
+    low_support_keys(integer_res)
+  )
 
   # The per-time follower risk set, read as the largest reported subgroup at
   # each time, is identical to the integer-coded run.

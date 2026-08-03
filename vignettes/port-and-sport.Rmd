@@ -58,14 +58,15 @@ port
 The message reports that the exposure was detected as binary. For a binary
 exposure the response is the indicator of the higher level, so `exposure_level`
 is `"1"` and `prevalence` is the share exposed within each subgroup. PoRT reports
-every terminal subgroup it examined, most of them unflagged. The `flagged`
-column marks the subgroups that meet the published reading rule: a prevalence
-below `beta` (the prevalence threshold considered low) or above `1 - beta`, among subgroups that are at least `alpha` of
-the sample. Filtering to the flagged rows is the usual first step.
+every terminal subgroup it examined, most of them well supported. The
+`low_support` column marks the subgroups that meet the published reading rule: a
+prevalence below `beta` (the prevalence threshold considered low) or above
+`1 - beta`, among subgroups that are at least `alpha` of the sample. Filtering to
+the low-support rows is the usual first step.
 
-```{r port-flagged}
+```{r port-low-support}
 tidy(port) |>
-  filter(flagged) |>
+  filter(low_support) |>
   select(description, exposure_level, n, prevalence)
 ```
 
@@ -78,19 +79,19 @@ entirely determined by `x1`. The prevalence of exactly zero marks the structural
 subgroup, and the near-zero and near-one prevalences mark the practical tails.
 
 The `autoplot()` method draws the reported subgroups as a horizontal bar chart of
-prevalence, with dashed reference lines at `beta` and `1 - beta` and the flagged
-subgroups highlighted. Bar width is proportional to subgroup size. By default
-the chart draws every reported subgroup, a couple of hundred here, which crowds
-the y axis. Setting `flagged_only = TRUE` restricts the chart to the flagged
-rows.
+prevalence, with dashed reference lines at `beta` and `1 - beta` and the
+low-support subgroups highlighted. Bar width is proportional to subgroup size. By
+default the chart draws every reported subgroup, a couple of hundred here, which
+crowds the y axis. Setting `low_support_only = TRUE` restricts the chart to the
+low-support rows.
 
-```{r port-plot, fig.alt = "Horizontal bar chart of exposure prevalence for the three flagged PoRT subgroups, drawn against dashed reference lines near prevalence zero and one."}
-ggplot2::autoplot(port, flagged_only = TRUE)
+```{r port-plot, fig.alt = "Horizontal bar chart of exposure prevalence for the three low-support PoRT subgroups, drawn against dashed reference lines near prevalence zero and one."}
+ggplot2::autoplot(port, low_support_only = TRUE)
 ```
 
 ## Tuning the reading rule
 
-Three parameters govern which subgroups are flagged and how the trees are
+Three parameters govern which subgroups read as low support and how the trees are
 searched. Reasoning about them is the core of using PoRT, because the same data
 report different subgroups under different settings.
 
@@ -103,7 +104,7 @@ structural subgroup and leaves only the large lower tail.
 ```{r alpha}
 port_alpha <- check_port(pos_violations, exposure, c(x1, x2, region), alpha = 0.10)
 tidy(port_alpha) |>
-  filter(flagged) |>
+  filter(low_support) |>
   select(description, n, prevalence)
 ```
 
@@ -118,7 +119,7 @@ extreme cut of `x1`.
 ```{r beta}
 port_beta <- check_port(pos_violations, exposure, c(x1, x2, region), beta = "gruber")
 tidy(port_beta) |>
-  filter(flagged) |>
+  filter(low_support) |>
   select(description, n, prevalence)
 ```
 
@@ -133,7 +134,7 @@ structural cell.
 ```{r gamma}
 port_gamma <- check_port(pos_violations, exposure, c(x1, x2, region), gamma = 1)
 tidy(port_gamma) |>
-  filter(flagged) |>
+  filter(low_support) |>
   select(description, n, prevalence)
 ```
 
@@ -189,12 +190,12 @@ sport
 At each time point the diagnostic runs the PoRT search with the current exposure
 as the response and a conditioning set built from the baseline covariates, the
 time-varying covariates, and the earlier exposures. The results carry a leading
-`time` column, and the flagged rows report the time point at which each subgroup
-was found.
+`time` column, and the low-support rows report the time point at which each
+subgroup was found.
 
-```{r sport-flagged}
+```{r sport-low-support}
 tidy(sport) |>
-  filter(flagged) |>
+  filter(low_support) |>
   select(time, description, exposure_level, n, prevalence) |>
   head()
 ```
@@ -206,12 +207,12 @@ each time point from the size of that risk set, so smaller follower sets are hel
 to a looser bound. The exposures in this dataset are continuous, so every subject
 stays in every risk set, but the per-time trees and conditioning sets are built
 the same way. The `autoplot()` method facets by time point, and each facet shows
-the thresholds applied at its own time point. With `flagged_only = TRUE` only
-the flagged subgroups are drawn, and a facet without bars means nothing was
-flagged at that time point.
+the thresholds applied at its own time point. With `low_support_only = TRUE` only
+the low-support subgroups are drawn, and a facet without bars means nothing read
+as low support at that time point.
 
-```{r sport-plot, fig.height = 6, fig.alt = "Faceted horizontal bar charts of flagged PoRT subgroup prevalence, one facet per time point, against per-time dashed reference lines."}
-ggplot2::autoplot(sport, flagged_only = TRUE)
+```{r sport-plot, fig.height = 6, fig.alt = "Faceted horizontal bar charts of low-support PoRT subgroup prevalence, one facet per time point, against per-time dashed reference lines."}
+ggplot2::autoplot(sport, low_support_only = TRUE)
 ```
 
 ### Limiting the history with lag
@@ -223,9 +224,9 @@ produces smaller conditioning sets and can drop rules that depend on distant
 history. Setting `lag = 1` here keeps each time point's own covariates plus the
 covariates and exposure of the one preceding time point, so the time-3 trees
 condition on `l2`, `l1`, and `a2` alone. The time-1 covariate `l0` and exposure
-`a1` leave the time-3 conditioning set, so flagged rules that referred to `a1`
-can no longer appear, and the trees, refit on the smaller pool, flag a different
-set of subgroups.
+`a1` leave the time-3 conditioning set, so low-support rules that referred to
+`a1` can no longer appear, and the trees, refit on the smaller pool, report a
+different set of subgroups.
 
 ```{r lag}
 sport_lag <- check_port_seq(
@@ -235,7 +236,7 @@ sport_lag <- check_port_seq(
   lag = 1
 )
 tidy(sport_lag) |>
-  filter(flagged, time == 3) |>
+  filter(low_support, time == 3) |>
   select(time, description, exposure_level, n, prevalence)
 ```
 
@@ -253,7 +254,7 @@ as the exposure trees flag a subgroup nearly certain to be treated. The lower
 tail flags a subgroup nearly certain to remain uncensored, the never-censored
 subgroups on which the counterfactual under no censoring rests (Chatton et al.
 2025). Because censoring is light in most subgroups, the lower tail usually
-accounts for most of the flagged censoring rows. Following Chatton et al. (2025),
+accounts for most of the low-support censoring rows. Following Chatton et al. (2025),
 the censoring tree at each time point runs on the subjects uncensored through the
 previous time point, the never-censored risk set, and adds the current treatment
 to its conditioning set. The treatment rule plays no role in the censoring
@@ -301,17 +302,17 @@ cens <- check_port_seq(
 cens
 ```
 
-Filtering to the flagged censoring rows surfaces the planted subgroup at the
+Filtering to the low-support censoring rows surfaces the planted subgroup at the
 upper tail: at time 2, censoring is near-certain where `l0` is above 1, with a
-prevalence close to 1. The remaining flagged rows sit at the lower tail, with
+prevalence close to 1. The remaining low-support rows sit at the lower tail, with
 prevalences below `beta`. These are the never-censored subgroups, in which almost
 no one is censored, and the two-sided rule reports them alongside the
 near-certain-to-be-censored subgroup. Reading the `prevalence` column tells the
 two tails apart.
 
-```{r censoring-flagged}
+```{r censoring-low-support}
 tidy(cens) |>
-  filter(type == "censoring", flagged) |>
+  filter(type == "censoring", low_support) |>
   select(time, description, exposure_level, n, prevalence)
 ```
 
