@@ -74,8 +74,7 @@ also carries the \verb{@variant} and \verb{@bandwidths} properties.
 of Ring and Schomaker (2026) for binary, categorical, and continuous
 exposures. For every observation moved to a candidate intervention value, it
 sums a product kernel over the sample to measure how much observed support
-surrounds that intervened-on point. It reports a diagnostic only and assigns
-no severity grade.
+surrounds that intervened-on point.
 }
 \details{
 For each observation \eqn{i} the diagnostic forms the intervened-on point

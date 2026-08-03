@@ -59,8 +59,7 @@ carries the properties \verb{@mass} and \verb{@density_estimator}.
 Bao and Schomaker (2025) for continuous exposures. For a common target
 exposure value, it reports the fraction of covariate profiles whose
 highest-density region excludes that value, that is, the share of the
-population for which the target dose is not supported. It reports a diagnostic
-only and assigns no severity grade.
+population for which the target dose is not supported.
 }
 \details{
 For a continuous exposure \eqn{A} with covariates \eqn{L}, fix a probability

@@ -56,7 +56,7 @@ positivity_diagnostic <- new_class(
 #' `positivity_check` is the S7 container returned by [check_positivity()]. It
 #' bundles one or more [positivity_diagnostic] children with the names of the
 #' diagnostics that produced them. Its print method shows each child's summary
-#' in its own section. It renders no verdicts.
+#' in its own section.
 #'
 #' @details
 #' The container has [generics::tidy()] and [generics::glance()] methods.

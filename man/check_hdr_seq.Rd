@@ -68,7 +68,7 @@ columns \code{time}, \code{value}, and \code{nonoverlap}.
 each time point it fits the conditional density of that exposure on the
 history entering its conditioning set, following the sequential-support logic
 of sPoRT (Chatton et al.), and reports the non-overlap ratio at the target
-values. It reports a diagnostic only and assigns no severity grade.
+values.
 }
 \details{
 Data are supplied in wide form, one row per subject with one exposure column

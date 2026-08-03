@@ -47,8 +47,7 @@ per diagnostic, aligned with the \verb{@diagnostics} names.
 exposure type, detecting it from the data unless you declare one, runs the
 diagnostics that apply to that type with their defaults, and returns a
 \link{positivity_check} container whose print method shows each diagnostic's
-summary in its own section. Like every positively function, it is diagnostic
-only: it reports numbers, not verdicts.
+summary in its own section.
 }
 \details{
 \code{check_positivity()} resolves the exposure type a single time and hands the

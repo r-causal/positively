@@ -32,8 +32,7 @@ density_ratios_result <- new_class(
 #' a numeric vector is treated as a point treatment, an n-by-T matrix as a
 #' time-varying treatment whose cumulative products across time points are
 #' summarized alongside the per-time ratios, and an \pkg{lmtp} fit is read for
-#' its density-ratio component. It reports a diagnostic only and assigns no
-#' severity grade.
+#' its density-ratio component.
 #'
 #' @details
 #' A density ratio is \eqn{r = g^*(a \mid h) / g(a \mid h)}, the intervention

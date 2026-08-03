@@ -32,8 +32,7 @@ hdr_result <- new_class(
 #' Bao and Schomaker (2025) for continuous exposures. For a common target
 #' exposure value, it reports the fraction of covariate profiles whose
 #' highest-density region excludes that value, that is, the share of the
-#' population for which the target dose is not supported. It reports a diagnostic
-#' only and assigns no severity grade.
+#' population for which the target dose is not supported.
 #'
 #' @details
 #' For a continuous exposure \eqn{A} with covariates \eqn{L}, fix a probability
@@ -716,7 +715,7 @@ hdr_ratios <- function(density_estimator, fitted, analysis, targets) {
 #' each time point it fits the conditional density of that exposure on the
 #' history entering its conditioning set, following the sequential-support logic
 #' of sPoRT (Chatton et al.), and reports the non-overlap ratio at the target
-#' values. It reports a diagnostic only and assigns no severity grade.
+#' values.
 #'
 #' @details
 #' Data are supplied in wide form, one row per subject with one exposure column
@@ -889,7 +888,8 @@ check_hdr_seq <- function(
   # Each wave is fitted on its own conditioning set, so its flat-at-one reading
   # is taken on a probe grid spanning that wave's own observed range. The shared
   # target grid spans the pooled range instead, which can leave a wave with one
-  # target of its own, or none, and no verdict can rest on that.
+  # target of its own, or none, too few points to tell a degenerate fit from a
+  # genuine support gap.
   seq_call <- rlang::current_env()
   per_time <- purrr::map(seq_len(n_times), function(t) {
     conditioning <- conditioning_sets[[t]]

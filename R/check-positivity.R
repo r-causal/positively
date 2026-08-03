@@ -1,9 +1,8 @@
 # check_positivity() is the top-level entry point. It resolves the exposure type
 # once, announces it once, composes the applicable check_*() diagnostics with
 # their defaults (overridable through `args`), and returns a positivity_check
-# container. It renders no verdicts. The container's tidy(), glance(), and
-# print() methods live here alongside it; the container class itself is defined
-# in aaa-classes.R.
+# container. The container's tidy(), glance(), and print() methods live here
+# alongside it; the container class itself is defined in aaa-classes.R.
 
 # The diagnostics check_positivity() can dispatch, in design-doc order.
 # check_eta_bias() and check_density_ratios() are deliberately absent: they need
@@ -41,8 +40,7 @@ default_diagnostics <- function(exposure_type) {
 #' exposure type, detecting it from the data unless you declare one, runs the
 #' diagnostics that apply to that type with their defaults, and returns a
 #' [positivity_check] container whose print method shows each diagnostic's
-#' summary in its own section. Like every positively function, it is diagnostic
-#' only: it reports numbers, not verdicts.
+#' summary in its own section.
 #'
 #' @details
 #' `check_positivity()` resolves the exposure type a single time and hands the

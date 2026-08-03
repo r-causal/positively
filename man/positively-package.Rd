@@ -6,7 +6,7 @@
 \alias{positively-package}
 \title{positively: Diagnose Positivity Violations and Extrapolation in Causal Inference}
 \description{
-Provides diagnostics for positivity violations and extrapolation in causal inference. Includes methods based on effective data points, positivity regression trees, hat values, highest density regions, density ratios, and parametric bootstrap bias estimates, covering binary, categorical, and continuous exposures as well as time-varying treatments. Each diagnostic returns a tidy result object and an optional plot. The package reports diagnostics only and does not assign severity grades or recommend remediation.
+Provides diagnostics for positivity violations and extrapolation in causal inference. Includes methods based on effective data points, positivity regression trees, hat values, highest density regions, density ratios, and parametric bootstrap bias estimates, covering binary, categorical, and continuous exposures as well as time-varying treatments. Each diagnostic returns a tidy result object and an optional plot.
 }
 \seealso{
 Useful links:

@@ -38,8 +38,7 @@ hat_values_result <- new_class(
 #' of candidate exposure-covariate combinations sits from the observed data by
 #' the leverage those combinations would exert on a linear model, then compares
 #' the observed leverage profile against a null in which the exposure is drawn
-#' independently of the covariates. It reports a diagnostic only and assigns no
-#' severity grade.
+#' independently of the covariates.
 #'
 #' @details
 #' The method (the paper's Box 1) fits the linear design matrix

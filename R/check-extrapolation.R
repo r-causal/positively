@@ -36,8 +36,7 @@ extrapolation_result <- new_class(
 #' Zeng (2006) for binary point exposures. It measures, for every observation,
 #' how well the opposite exposure group covers its position in covariate space,
 #' using Gower distances that handle mixed numeric and categorical covariates,
-#' and it optionally tests convex-hull membership against the opposite group. It
-#' reports a diagnostic only and assigns no severity grade.
+#' and it optionally tests convex-hull membership against the opposite group.
 #'
 #' @details
 #' Estimating a causal contrast requires comparing treated and untreated units

@@ -101,8 +101,6 @@ The three flagged subgroups match the planted ground truth. One rule
 combining `region` and `x2` has an exposure prevalence of zero, the
 structural violation, and two `x1` rules in the lower and upper tails
 have prevalence near zero and one, the practical near-violation.
-positively locates these regions without grading them; the
-interpretation is yours.
 
 ## Learn more
 

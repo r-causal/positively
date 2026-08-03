@@ -25,7 +25,7 @@ one-row-per-diagnostic tibble.
 \code{positivity_check} is the S7 container returned by \code{\link[=check_positivity]{check_positivity()}}. It
 bundles one or more \link{positivity_diagnostic} children with the names of the
 diagnostics that produced them. Its print method shows each child's summary
-in its own section. It renders no verdicts.
+in its own section.
 }
 \details{
 The container has \code{\link[generics:tidy]{generics::tidy()}} and \code{\link[generics:glance]{generics::glance()}} methods.

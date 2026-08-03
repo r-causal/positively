@@ -7,8 +7,7 @@
 #' along a treatment regime, the sequential Positivity Regression Tree (sPoRT)
 #' algorithm of Chatton et al. Under the stratified strategy it fits a tree at
 #' each time point among the subjects still following the regime, so that a
-#' violation masked by already-treated subjects is exposed. It reports a
-#' diagnostic only and assigns no severity grade.
+#' violation masked by already-treated subjects is exposed.
 #'
 #' @details
 #' Data are supplied in wide form, one row per subject with one exposure column

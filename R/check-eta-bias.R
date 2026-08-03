@@ -35,8 +35,7 @@ eta_bias_result <- new_class(
 #' Petersen et al. (2012) for binary point exposures. It estimates the bias that
 #' a chosen causal estimator would incur under the data's own fitted treatment
 #' and outcome mechanisms, isolating the component of bias that stems from
-#' positivity violations, weight truncation, and finite-sample sparsity. It
-#' reports a diagnostic only and assigns no severity grade.
+#' positivity violations, weight truncation, and finite-sample sparsity.
 #'
 #' @details
 #' The diagnostic (the paper's Section 4.1) treats the fitted data-generating

@@ -36,8 +36,7 @@ port_result <- new_class(
 #' `check_port()` runs the Positivity Regression Tree (PoRT) algorithm of
 #' Danelian et al. (2023). It grows regression trees on the covariates with the
 #' exposure as the response, then reads a fixed rule off each tree to flag
-#' subgroups in which one exposure level is rare or absent. It reports a
-#' diagnostic only and assigns no severity grade.
+#' subgroups in which one exposure level is rare or absent.
 #'
 #' @details
 #' PoRT searches for subgroups, defined by covariate splits, in which positivity

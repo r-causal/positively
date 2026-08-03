@@ -31,7 +31,7 @@ diagnostic for the policy.
 vector for a point treatment, an n-by-T matrix whose columns are time points
 for a time-varying treatment, and a fitted lmtp object whose
 density-ratio component it reads. A `propensity::psw` weight vector is also
-accepted. The function reports a diagnostic only and assigns no severity grade.
+accepted.
 
 ## Setup
 

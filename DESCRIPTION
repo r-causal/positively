@@ -11,8 +11,7 @@ Description: Provides diagnostics for positivity violations and
     regions, density ratios, and parametric bootstrap bias estimates,
     covering binary, categorical, and continuous exposures as well as
     time-varying treatments. Each diagnostic returns a tidy result object
-    and an optional plot. The package reports diagnostics only and does
-    not assign severity grades or recommend remediation.
+    and an optional plot.
 License: MIT + file LICENSE
 URL: https://r-causal.github.io/positively/,
     https://github.com/r-causal/positively
