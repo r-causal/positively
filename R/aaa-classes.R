@@ -196,12 +196,23 @@ method(glance, positivity_diagnostic) <- function(x, ...) {
 # The glance() columns that get no summary() row. `n` is sample-size metadata,
 # which a container states once rather than once per child. alpha through n_boot
 # are settings the caller chose rather than findings the run produced.
-# null_quantile is neither: it is dropped because phi_hat already reports it as
-# a threshold, and a column that appears in the threshold column would otherwise
-# be stated twice. Being a cut is not on its own grounds for dropping a column:
-# geometric_variability is one, is paired with nothing here, and keeps its row.
+# null_quantile and geometric_variability are neither: each is derived from the
+# data, and each is dropped because another statistic already reports it as its
+# threshold, so a row of its own would state the same number twice. The list is
+# a union across classes, so a name only one diagnostic computes belongs here as
+# readily as one they share.
 non_statistic_columns <- function() {
-  c("n", "alpha", "beta", "gamma", "nearby", "mass", "n_boot", "null_quantile")
+  c(
+    "n",
+    "alpha",
+    "beta",
+    "gamma",
+    "nearby",
+    "mass",
+    "n_boot",
+    "null_quantile",
+    "geometric_variability"
+  )
 }
 
 #' The cut behind each of a diagnostic's statistics
@@ -217,8 +228,8 @@ non_statistic_columns <- function() {
 #' A statistic absent from the returned vector reports `NA`, and absence is not
 #' a claim that no cut exists. It covers a raw magnitude with nothing behind it,
 #' a statistic governed by several parameters with no single cut, and a
-#' statistic whose cut is real but unpaired here: `prop_supported` is the
-#' fraction of units within one `@geometric_variability` and is not paired. A
+#' statistic whose comparison is not numeric at all: `prop_in_hull` reports a
+#' containment test, which no number stands behind. A
 #' named entry can also resolve to `NA` on its own: `common_beta()` returns `NA`
 #' when a sequential run settled on a different prevalence threshold at each
 #' wave, so there is no one number to state.

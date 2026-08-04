@@ -50,11 +50,18 @@ A reading contributes a row only when it fires, meaning at least one unit
 falls on the wrong side of it. A run in which every unit is supported reports
 nothing rather than reporting how well supported it was.
 
-\code{threshold} carries the number behind a row so that a reader can see the cut
-came from an argument they passed rather than from the package. It is \code{NA}
-where a reading has no such number: \code{\link[=check_extrapolation]{check_extrapolation()}} compares each
-unit against a geometric variability computed from the data, which is a
-property of the sample rather than a choice.
+\code{threshold} carries the one number behind a row, stated in the units of the
+quantity it cuts, which are not always the units of \code{value}. Where the
+statistic is itself a reading, the cut applies to that reading: \code{phi_hat}
+sits beside the null quantile it was compared against, and a subgroup's
+prevalence beside the prevalence it was cut at. Where the statistic
+aggregates a per-row quantity, the cut applies to that quantity rather than
+to the aggregate, so \code{prop_supported} sits beside a Gower distance, which is
+what each unit was measured against, rather than beside a proportion. The
+number is the run's own resolved value rather than a package default, so a
+reader can see where a cut came from. It is \code{NA} only where no number stands
+behind the reading at all, as for the convex hull test, which reports
+containment rather than a comparison.
 }
 \examples{
 set.seed(1)

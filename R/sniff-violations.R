@@ -30,11 +30,18 @@
 #' falls on the wrong side of it. A run in which every unit is supported reports
 #' nothing rather than reporting how well supported it was.
 #'
-#' `threshold` carries the number behind a row so that a reader can see the cut
-#' came from an argument they passed rather than from the package. It is `NA`
-#' where a reading has no such number: [check_extrapolation()] compares each
-#' unit against a geometric variability computed from the data, which is a
-#' property of the sample rather than a choice.
+#' `threshold` carries the one number behind a row, stated in the units of the
+#' quantity it cuts, which are not always the units of `value`. Where the
+#' statistic is itself a reading, the cut applies to that reading: `phi_hat`
+#' sits beside the null quantile it was compared against, and a subgroup's
+#' prevalence beside the prevalence it was cut at. Where the statistic
+#' aggregates a per-row quantity, the cut applies to that quantity rather than
+#' to the aggregate, so `prop_supported` sits beside a Gower distance, which is
+#' what each unit was measured against, rather than beside a proportion. The
+#' number is the run's own resolved value rather than a package default, so a
+#' reader can see where a cut came from. It is `NA` only where no number stands
+#' behind the reading at all, as for the convex hull test, which reports
+#' containment rather than a comparison.
 #'
 #' @param x A [positivity_diagnostic] or a [positivity_check].
 #' @param scope The kinds of row to report, any of `"subgroup"`, `"overall"`,
@@ -263,7 +270,9 @@ method(sniff_violations, hat_values_result) <- function(
         n = NA_integer_,
         statistic = "hat_value",
         value = high_leverage$hat_value,
-        threshold = x@params$threshold * x@p / x@n
+        # Read from the summary's pairing rather than derived a second time, so
+        # the two statements of the same cut cannot drift apart.
+        threshold = statistic_thresholds(x)[["n_high_leverage"]]
       )
     }
   }
@@ -291,7 +300,7 @@ method(sniff_violations, extrapolation_result) <- function(
         n = sum(beyond),
         statistic = "prop_supported",
         value = mean(!beyond),
-        threshold = NA_real_
+        threshold = x@geometric_variability
       )
     }
     if (any(outside_hull)) {
@@ -318,7 +327,7 @@ method(sniff_violations, extrapolation_result) <- function(
         n = NA_integer_,
         statistic = "gower_min",
         value = results$gower_min[beyond],
-        threshold = NA_real_
+        threshold = x@geometric_variability
       )
     }
     if (any(outside_hull)) {

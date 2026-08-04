@@ -644,14 +644,12 @@ test_that("summary() on the container reports the statistics of each child", {
     summarized$statistic[summarized$diagnostic == "port"],
     c("n_subgroups", "n_low_support")
   )
+  # The geometric variability is absent because prop_supported reports it as
+  # its threshold, and a column that reaches the threshold column would
+  # otherwise be stated twice.
   expect_identical(
     summarized$statistic[summarized$diagnostic == "extrapolation"],
-    c(
-      "geometric_variability",
-      "mean_frac_nearby",
-      "prop_supported",
-      "prop_in_hull"
-    )
+    c("mean_frac_nearby", "prop_supported", "prop_in_hull")
   )
   expect_identical(
     summarized$statistic[summarized$diagnostic == "edp"],
@@ -693,10 +691,20 @@ test_that("the container's summary values come from the children's results", {
   )
 
   extrapolation <- child_named(res, "extrapolation")
+
+  # The geometric variability reaches the reader in the threshold column of the
+  # row it cuts rather than as a value of its own, so it is pinned there.
+  gv_row <- summarized$diagnostic == "extrapolation" &
+    summarized$statistic == "prop_supported"
+  expect_false(
+    "geometric_variability" %in%
+      summarized$statistic[summarized$diagnostic == "extrapolation"]
+  )
   expect_equal(
-    value_of("extrapolation", "geometric_variability"),
+    summarized$threshold[gv_row],
     extrapolation@geometric_variability
   )
+
   expect_equal(
     value_of("extrapolation", "mean_frac_nearby"),
     mean(extrapolation@results$frac_nearby)
@@ -747,10 +755,22 @@ test_that("the container's summary pairs a statistic with the cut behind it", {
   # number of subgroups has no threshold.
   expect_identical(threshold_of("port", "n_subgroups"), NA_real_)
 
-  # The extrapolation and edp statistics are raw magnitudes with nothing
-  # user-set behind them.
-  not_port <- summarized$diagnostic != "port"
-  expect_true(all(is.na(summarized$threshold[not_port])))
+  # prop_supported is the fraction of units whose nearest opposite unit lies
+  # within one geometric variability, so the cut behind it is that distance.
+  expect_identical(
+    threshold_of("extrapolation", "prop_supported"),
+    child_named(res, "extrapolation")@geometric_variability
+  )
+
+  # The radius governing frac_nearby is in different units from the fraction
+  # itself, and hull membership is a containment test with no numeric cut, so
+  # neither states one.
+  expect_identical(threshold_of("extrapolation", "mean_frac_nearby"), NA_real_)
+  expect_identical(threshold_of("extrapolation", "prop_in_hull"), NA_real_)
+
+  # The edp statistics are raw magnitudes with nothing behind them.
+  is_edp <- summarized$diagnostic == "edp"
+  expect_true(all(is.na(summarized$threshold[is_edp])))
 })
 
 test_that("summary() keeps value numeric where the statistics are not", {

@@ -1356,3 +1356,91 @@ test_that("the extrapolation label and headline are stable", {
     writeLines(diagnostic_headline(res))
   })
 })
+
+# ---- The cut behind each statistic ------------------------------------------
+
+test_that("statistic_thresholds() pairs prop_supported with the geometric variability", {
+  local_quiet()
+  # prop_supported is the fraction of units whose nearest opposite unit lies
+  # within one geometric variability, so the cut behind it is that distance,
+  # stated in the units of the per-unit quantity it cuts rather than as a
+  # proportion of its own.
+  data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
+  res <- check_extrapolation(data, exposure, tidyselect::starts_with("x"))
+
+  expect_identical(
+    statistic_thresholds(res)[["prop_supported"]],
+    res@geometric_variability
+  )
+})
+
+test_that("the geometric variability paired is the run's own", {
+  local_quiet()
+  # The geometric variability is half the mean of the full Gower matrix, so two
+  # runs over different covariates resolve different values and a fixed number
+  # would pair with neither.
+  wide <- check_extrapolation(
+    sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1),
+    exposure,
+    tidyselect::starts_with("x")
+  )
+  narrow <- check_extrapolation(
+    dgp_good_positivity(n = 400, seed = 1),
+    exposure,
+    c(x1, x2)
+  )
+
+  # A relative margin, because the geometric variability is a Gower distance
+  # whose scale is set by the covariates, so an absolute bar would say nothing
+  # about how far apart these two runs really are.
+  gap <- abs(wide@geometric_variability - narrow@geometric_variability)
+  expect_gt(
+    gap / min(wide@geometric_variability, narrow@geometric_variability),
+    0.05
+  )
+  expect_identical(
+    statistic_thresholds(wide)[["prop_supported"]],
+    wide@geometric_variability
+  )
+  expect_identical(
+    statistic_thresholds(narrow)[["prop_supported"]],
+    narrow@geometric_variability
+  )
+})
+
+test_that("the other extrapolation statistics state no cut", {
+  local_quiet()
+  data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
+  res <- check_extrapolation(data, exposure, tidyselect::starts_with("x"))
+  thresholds <- statistic_thresholds(res)
+
+  # The radius decides which pairs are counted at all rather than being a line a
+  # value crossed. It cuts a pairwise distance two levels below the fraction,
+  # where the geometric variability cuts the per-unit quantity prop_supported
+  # aggregates directly.
+  expect_false("mean_frac_nearby" %in% names(thresholds))
+
+  # Hull membership is a containment test with no numeric cut behind it.
+  expect_false("prop_in_hull" %in% names(thresholds))
+})
+
+test_that("the geometric variability is a cut rather than a statistic of its own", {
+  local_quiet()
+  data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
+  res <- check_extrapolation(data, exposure, tidyselect::starts_with("x"))
+  statistics <- glance_statistics(res)
+
+  # It reaches the reader in the threshold column of the row it cuts, so a row
+  # of its own would state the same number twice.
+  expect_false("geometric_variability" %in% statistics$statistic)
+  expect_identical(
+    statistics$threshold[statistics$statistic == "prop_supported"],
+    res@geometric_variability
+  )
+
+  # Suppressing the row is a summary() decision. glance() still reports it.
+  expect_identical(
+    generics::glance(res)$geometric_variability,
+    res@geometric_variability
+  )
+})

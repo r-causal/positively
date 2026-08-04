@@ -529,8 +529,17 @@ test_that("extrapolation contributes both of its readings", {
   expect_identical(supported$n, sum(res@results$low_support))
   expect_identical(hull$n, sum(!res@results$in_hull))
 
-  # Neither reading is cut at a number the caller set, so neither states one.
-  expect_true(all(is.na(found$threshold)))
+  # prop_supported counts the units whose nearest opposite unit lies further
+  # than one geometric variability away, so the cut behind it is that distance,
+  # and it is the same number the summary pairs with the same statistic.
+  expect_identical(supported$threshold, res@geometric_variability)
+  expect_identical(
+    supported$threshold,
+    unname(statistic_thresholds(res)[["prop_supported"]])
+  )
+
+  # Hull membership is a containment test with no numeric cut behind it.
+  expect_identical(hull$threshold, NA_real_)
 })
 
 test_that("extrapolation omits the hull reading when the hull did not run", {
@@ -561,6 +570,7 @@ test_that("extrapolation reports only the reading that fires", {
   expect_identical(nrow(found), 1L)
   expect_identical(found$statistic, "prop_in_hull")
   expect_identical(found$n, sum(!res@results$in_hull))
+  expect_identical(found$threshold, NA_real_)
 })
 
 test_that("extrapolation reports nothing when neither reading fires", {
@@ -608,6 +618,11 @@ test_that("a unit contributes a row only for the reading that fires", {
     sort(res@results$gower_min[res@results$low_support])
   )
   expect_true(all(is.na(hull_rows$value)))
+
+  # A Gower row states the distance it was compared against; a hull row has no
+  # numeric cut to state.
+  expect_setequal(gower_rows$threshold, res@geometric_variability)
+  expect_true(all(is.na(hull_rows$threshold)))
 })
 
 test_that("with no hull test a unit contributes only the Gower reading", {

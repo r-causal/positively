@@ -416,6 +416,19 @@ method(glance, extrapolation_result) <- function(x, ...) {
   )
 }
 
+method(statistic_thresholds, extrapolation_result) <- function(x) {
+  # prop_supported is the fraction of units whose nearest opposite unit lies
+  # within one geometric variability, so its cut is that distance, stated in the
+  # units of the per-unit quantity it cuts rather than as a proportion.
+  #
+  # mean_frac_nearby is unpaired because the radius decides which pairs are
+  # counted at all rather than being a line a value crossed. It cuts a pairwise
+  # distance two levels below the fraction, where the geometric variability cuts
+  # the per-unit quantity prop_supported aggregates directly. prop_in_hull is
+  # unpaired because a containment test has no numeric cut behind it.
+  c(prop_supported = x@geometric_variability)
+}
+
 method(diagnostic_label, extrapolation_result) <- function(x) {
   "Extrapolation"
 }
