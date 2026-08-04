@@ -426,11 +426,11 @@ one_low_support_container <- function() {
   )
 }
 
-# A continuous run holding only EDP and the leverage check, so the section that
-# crosses anything is the one requested second. The leverage check reports its
-# crossing as a single statistic rather than as rows, and the null draw is seeded
-# because the quantile phi-hat is compared against is drawn inside the run.
-scalar_crossing_container <- function() {
+# A continuous run holding only EDP and the leverage check, so the section with
+# something to report is the one requested second. The leverage check reports a
+# single statistic rather than a set of rows, and the null draw is seeded because
+# the quantile phi-hat is compared against is drawn inside the run.
+scalar_finding_container <- function() {
   withr::local_seed(2024)
   check_positivity(
     dgp_continuous_support_gap(n = 200, seed = 4),
@@ -463,27 +463,6 @@ reorder_checks <- function(container, order) {
     n = container@n,
     call = container@call
   )
-}
-
-# The report names each section for the diagnostic that produced it, which is
-# the name `names()` lists and `$` extracts by. Positions are read off the whole
-# rendered block rather than line by line, because cli wraps a long line at a
-# space, and the name is matched on word boundaries so that "port" is not found
-# inside "support" or "reported".
-section_positions <- function(container) {
-  text <- printed_text(container)
-  vapply(
-    names(container),
-    function(name) regexpr(paste0("\\b", name, "\\b"), text)[[1]],
-    integer(1)
-  )
-}
-
-# The diagnostic whose section the report opens with, read off the positions so
-# that a block asserting on the leader has already guarded them: an unfound name
-# reports -1, which would otherwise win `which.min()`.
-leading_section <- function(positions) {
-  names(positions)[[which.min(positions)]]
 }
 
 # The block the report ends on. The footer is one sentence, which wraps at the
@@ -523,16 +502,19 @@ test_that("the report states the run's metadata once, not once per section", {
   expect_identical(count_stated(text, "ldl"), 1L)
 })
 
-test_that("a section holding low-support rows leads the report", {
+test_that("a section with a finding to report leads", {
   local_quiet()
   container <- one_low_support_container()
 
-  # Extrapolation holds the only low-support rows. PoRT carries the same column
-  # with no row set and EDP has no such column at all, so the order follows the
-  # rows a child holds rather than the columns it declares.
+  # Extrapolation is the only child with a finding here: two of its units sit
+  # beyond one geometric variability of an opposite unit. PoRT found no subgroup
+  # over its reading rule and EDP declares no finding of any kind, so the order
+  # follows what each child reports rather than what its results contain.
   expect_identical(sum(container$extrapolation@results$low_support), 2L)
   expect_identical(sum(container$port@results$low_support), 0L)
-  expect_false("low_support" %in% names(container$edp@results))
+  expect_gt(nrow(sniff_violations(container$extrapolation)), 0L)
+  expect_identical(nrow(sniff_violations(container$port)), 0L)
+  expect_identical(nrow(sniff_violations(container$edp)), 0L)
 
   positions <- section_positions(container)
   expect_true(all(positions > 0L))
@@ -552,24 +534,27 @@ test_that("the requested order does not decide which section leads", {
   expect_true(all(requested > 0L))
   expect_true(all(after_reversal > 0L))
 
-  # Extrapolation holds the only low-support rows, so it leads whether it was
-  # requested last or first.
+  # Extrapolation is the only child with a finding to report, so it leads
+  # whether it was requested last or first.
   expect_identical(leading_section(after_reversal), leading_section(requested))
   expect_identical(leading_section(requested), "extrapolation")
 
-  # The sections holding no low-support rows follow the requested order, which
-  # the reversal changed.
+  # The sections with nothing to report follow the requested order, which the
+  # reversal changed.
   expect_lt(after_reversal[["port"]], after_reversal[["edp"]])
 })
 
-test_that("sections holding low-support rows keep the requested order", {
+test_that("sections with findings keep the requested order", {
   local_quiet()
   container <- two_low_support_container()
 
-  # Extrapolation holds far more low-support rows than PoRT and was requested
-  # after it. The order records only that a user-set threshold was crossed, not
-  # how far, so between two sections that crossed one the requested order
-  # stands.
+  # Extrapolation reports far more than PoRT and was requested after it. Having
+  # a finding is the whole of what the order records, not how much was found, so
+  # between two sections that report the requested order stands.
+  expect_gt(
+    nrow(sniff_violations(container$extrapolation)),
+    0L
+  )
   expect_gt(
     sum(container$extrapolation@results$low_support),
     sum(container$port@results$low_support)
@@ -581,22 +566,38 @@ test_that("sections holding low-support rows keep the requested order", {
   expect_lt(positions[["extrapolation"]], positions[["edp"]])
 })
 
-test_that("a diagnostic that declares no support column crosses nothing", {
-  # The default reads a `low_support` column and reports FALSE rather than
-  # failing when the results declare none.
-  expect_false(crossed_threshold(make_test_diagnostic()))
+test_that("a diagnostic with nothing to report does not lead", {
+  local_quiet()
+  # A diagnostic subclassed outside the package reports no findings, so it takes
+  # no section ahead of one that does, however its results are shaped and
+  # whatever it was requested before.
+  container <- one_low_support_container()
+  mixed <- positivity_check(
+    checks = c(list(plain = make_test_diagnostic()), container@checks),
+    exposure = container@exposure,
+    exposure_type = container@exposure_type,
+    covariates = container@covariates,
+    n = container@n,
+    call = container@call
+  )
+
+  positions <- section_positions(mixed)
+  expect_true(all(positions > 0L))
+  expect_identical(leading_section(positions), "extrapolation")
+  expect_gt(positions[["plain"]], positions[["extrapolation"]])
 })
 
-test_that("a section whose crossing is a single statistic leads the report", {
+test_that("a section whose finding is a single statistic leads", {
   local_quiet()
-  container <- scalar_crossing_container()
+  container <- scalar_finding_container()
 
-  # The leverage check crosses its own permutation null and declares no
-  # low_support column, so a report that read only that column would leave it
-  # behind EDP, which crossed nothing and was requested first.
+  # The leverage check reports phi-hat against its own permutation null and
+  # declares no low_support column, so a report reading only that column would
+  # leave it behind EDP, which reports nothing and was requested first.
   expect_true(container$hat_values@exceeds_null)
   expect_false("low_support" %in% names(container$hat_values@results))
-  expect_false("low_support" %in% names(container$edp@results))
+  expect_gt(nrow(sniff_violations(container$hat_values)), 0L)
+  expect_identical(nrow(sniff_violations(container$edp)), 0L)
 
   positions <- section_positions(container)
   expect_true(all(positions > 0L))

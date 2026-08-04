@@ -20,6 +20,7 @@ reference:
   contents:
   - check_positivity
   - positivity_check
+  - sniff_violations
 - title: Diagnostics
   desc: >
     Individual positivity and extrapolation diagnostics, including their

@@ -50,7 +50,8 @@
       -- port ------------------------------------------------------------------------
       3 rows, 2 columns
       
-      i Extract a diagnostic with `$edp` or see every statistic with `summary()`.
+      i `sniff_violations()` for what was found, `$edp` to extract a diagnostic,
+      `summary()` for every statistic.
 
 # the report is stable
 
@@ -74,5 +75,6 @@
       -- edp -------------------------------------------------------------------------
       Data variant over 2 intervention values; edp 0.238 to 78.554
       
-      i Extract a diagnostic with `$port` or see every statistic with `summary()`.
+      i `sniff_violations()` for what was found, `$port` to extract a diagnostic,
+      `summary()` for every statistic.
 

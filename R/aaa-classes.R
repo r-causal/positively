@@ -91,8 +91,8 @@ positivity_diagnostic <- new_class(
 #' type, sample size, and call the run resolved. Printing it gives a report: the
 #' exposure, its type, the sample size, and the covariates stated once for the
 #' run, then one section per diagnostic reading what that diagnostic found.
-#' Diagnostics that crossed a threshold their caller set come first, and the rest
-#' follow in the order they were requested.
+#' Diagnostics with a finding to report come first, and the rest follow in the
+#' order they were requested. [sniff_violations()] is what those findings are.
 #'
 #' @details
 #' [summary()] gives the overview of the run: one row per statistic per child,
@@ -328,36 +328,26 @@ method(diagnostic_headline, positivity_diagnostic) <- function(x) {
   )
 }
 
-#' Did a diagnostic cross the cut its caller set?
+#' Does a diagnostic have a finding to report?
 #'
-#' Reports whether a diagnostic found what the caller's own threshold asked it
-#' to find, which is what the [positivity_check] report orders its sections by.
-#' It records that a cut was crossed and nothing about how far, so it is one
-#' logical value and never a count.
-#'
-#' The default reads a column literally named `low_support` and reports `FALSE`
-#' when the results declare none, so a diagnostic whose cut applies per row needs
-#' no method of its own. A diagnostic whose cut applies to a single statistic
-#' supplies one: `hat_values_result` compares phi-hat against its permutation
-#' null across the whole run and has no per-row cut to read.
+#' Defined as having a row to show, so the report's ordering and
+#' [sniff_violations()] cannot answer the same question differently. A class
+#' takes part by declaring what it reports, once, and both follow.
 #'
 #' @param x A [positivity_diagnostic].
 #'
 #' @return A single logical value.
 #' @keywords internal
 #' @noRd
-crossed_threshold <- new_generic("crossed_threshold", "x")
-
-method(crossed_threshold, positivity_diagnostic) <- function(x) {
-  results <- x@results
-  "low_support" %in% names(results) && any(results$low_support, na.rm = TRUE)
+reports_finding <- function(x) {
+  nrow(sniff_violations(x)) > 0
 }
 
 #' The order the report prints its sections in
 #'
-#' Diagnostics that crossed their caller's cut come first and the rest follow in
-#' the order they were requested. Crossing is the whole of what this records: how
-#' far a cut was crossed does not enter, so two diagnostics that both crossed one
+#' Diagnostics with a finding to report come first and the rest follow in the
+#' order they were requested. Having one is the whole of what this records: how
+#' many rows a diagnostic has does not enter, so two diagnostics that both report
 #' keep the order they were asked for.
 #'
 #' @param checks The named list of children.
@@ -366,14 +356,12 @@ method(crossed_threshold, positivity_diagnostic) <- function(x) {
 #' @keywords internal
 #' @noRd
 report_section_order <- function(checks) {
-  # isTRUE(), so that a method returning a missing value leaves its section
-  # where it was rather than falling out of both groups and out of the report.
-  crossed <- vapply(
+  reports <- vapply(
     checks,
-    function(check) isTRUE(crossed_threshold(check)),
+    function(check) isTRUE(reports_finding(check)),
     logical(1)
   )
-  c(which(crossed), which(!crossed))
+  c(which(reports), which(!reports))
 }
 
 method(print, positivity_diagnostic) <- function(x, ...) {
@@ -424,7 +412,7 @@ method(print, positivity_check) <- function(x, ...) {
       # unwrapped by default, so it is asked for the wrapping every other line in
       # the report already gets.
       cli::cli_alert_info(
-        "Extract a diagnostic with {.code {accessor}} or see every statistic with {.fn summary}.",
+        "{.fn sniff_violations} for what was found, {.code {accessor}} to extract a diagnostic, {.fn summary} for every statistic.",
         wrap = TRUE
       )
     }

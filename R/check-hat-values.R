@@ -383,14 +383,6 @@ method(diagnostic_label, hat_values_result) <- function(x) {
   "Hat values"
 }
 
-# The leverage profile is compared against its permutation null once for the whole
-# run, so the crossing is that comparison rather than a per-row cut. high_leverage
-# is a conservative indicator feeding phi-hat, not an accept or reject rule, so it
-# is not read here.
-method(crossed_threshold, hat_values_result) <- function(x) {
-  x@exceeds_null
-}
-
 method(diagnostic_headline, hat_values_result) <- function(x) {
   high_leverage <- x@results$high_leverage
   n_candidates <- length(high_leverage)

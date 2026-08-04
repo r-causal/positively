@@ -18,6 +18,27 @@ printed_text <- function(x) {
   rendered_text(printed_lines(x))
 }
 
+# The report names each section for the diagnostic that produced it, which is
+# the name `names()` lists and `$` extracts by. Positions are read off the whole
+# rendered block rather than line by line, because cli wraps a long line at a
+# space, and the name is matched on word boundaries so that "port" is not found
+# inside "support" or "reported".
+section_positions <- function(container) {
+  text <- printed_text(container)
+  vapply(
+    names(container),
+    function(name) regexpr(paste0("\\b", name, "\\b"), text)[[1]],
+    integer(1)
+  )
+}
+
+# The diagnostic whose section the report opens with, read off the positions so
+# that a block asserting on the leader has already guarded them: an unfound name
+# reports -1, which would otherwise win `which.min()`.
+leading_section <- function(positions) {
+  names(positions)[[which.min(positions)]]
+}
+
 # The label is what a diagnostic is called wherever it is named for a reader, so
 # it is prose and not an identifier. That rules out the S7 class name, which is
 # internal and undocumented, and it rules out the punctuation the package spells

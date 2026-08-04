@@ -1436,3 +1436,14 @@ test_that("the ETA bias label and headline are stable", {
     writeLines(diagnostic_headline(res))
   })
 })
+
+test_that("a fitted ETA bias run has nothing to report", {
+  local_quiet()
+  # The bias is a magnitude rather than a reading against a cut the caller set,
+  # so the class declares no findings and a fitted run reports none.
+  data <- sim_eta_violation(n = 400, seed = 1)
+  res <- fit_eta(data, "ipw", truncation_grid = c(0, 0.05, 0.1), n_boot = 50)
+
+  expect_gt(max(abs(res@results$bias)), 0)
+  expect_identical(nrow(sniff_violations(res)), 0L)
+})

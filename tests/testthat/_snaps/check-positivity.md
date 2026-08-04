@@ -27,7 +27,8 @@
       197 of 200 have an opposite-exposure unit within one geometric variability; 180
       of 200 fall in the opposite hull
       
-      i Extract a diagnostic with `$port` or see every statistic with `summary()`.
+      i `sniff_violations()` for what was found, `$port` to extract a diagnostic,
+      `summary()` for every statistic.
 
 # the classed errors are stable
 

@@ -1035,19 +1035,19 @@ test_that("the leverage label and headline are stable", {
   })
 })
 
-test_that("a leverage run that clears its null crosses its threshold", {
+test_that("a leverage run that clears its null has a finding to report", {
   local_quiet()
   withr::local_seed(2024)
-  # The leverage check has no per-row support cut to read, so its crossing is
+  # The leverage check has no per-row support cut to read, so what it reports is
   # the comparison of phi-hat against the permutation null.
   data <- sim_hat_linear(200, beta = 3, seed = 1)
   res <- check_hat_values(data, dose, x1, null_reps = 50)
 
   expect_true(res@exceeds_null)
-  expect_true(crossed_threshold(res))
+  expect_identical(nrow(sniff_violations(res)), 1L)
 })
 
-test_that("a leverage run inside its null crosses nothing", {
+test_that("a leverage run inside its null has nothing to report", {
   local_quiet()
   withr::local_seed(2024)
   # The skewed dose is drawn independently of the covariate, so the observed
@@ -1056,5 +1056,5 @@ test_that("a leverage run inside its null crosses nothing", {
   res <- check_hat_values(data, dose, x1, null_reps = 50)
 
   expect_false(res@exceeds_null)
-  expect_false(crossed_threshold(res))
+  expect_identical(nrow(sniff_violations(res)), 0L)
 })
