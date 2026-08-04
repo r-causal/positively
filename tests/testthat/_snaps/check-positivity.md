@@ -212,3 +212,37 @@
       Error in `check_positivity()`:
       ! `.exposure` must not contain missing values.
 
+# autoplot() rejects a name the container does not hold
+
+    Code
+      autoplot(container, "hdr")
+    Condition
+      Error in `autoplot()`:
+      ! "hdr" is not a diagnostic in this container.
+      i Available diagnostics are "edp", "port", and "extrapolation".
+
+# autoplot() says what it needs when patchwork is absent
+
+    Code
+      autoplot(container)
+    Condition
+      Error in `autoplot()`:
+      ! Plotting a whole positivity check requires the patchwork package.
+      i Install patchwork, or plot one diagnostic: `autoplot(check, "edp")`.
+
+# an empty container says there is nothing to plot
+
+    Code
+      autoplot(container)
+    Condition
+      Error in `autoplot()`:
+      ! There are no diagnostics to plot.
+
+---
+
+    Code
+      plot(container)
+    Condition
+      Error in `autoplot()`:
+      ! There are no diagnostics to plot.
+

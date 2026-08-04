@@ -39,6 +39,7 @@ reference:
   desc: >
     Autoplot methods that visualize each diagnostic result.
   contents:
+  - autoplot.positivity_check
   - autoplot.edp_result
   - autoplot.port_result
   - autoplot.hat_values_result

@@ -10,3 +10,7 @@ generics::tidy
 #' @importFrom generics glance
 #' @export
 generics::glance
+
+#' @importFrom ggplot2 autoplot
+#' @export
+ggplot2::autoplot

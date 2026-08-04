@@ -1397,3 +1397,153 @@ test_that("the missing-exposure message is stable", {
   data$exposure[1] <- NA
   expect_snapshot_abort(check_positivity(data, exposure, c(x1, x2)))
 })
+
+# ---- Container plotting ----------------------------------------------------
+
+# A binary run holding three children, so the panel has more than one view to
+# compose and a selected child is distinguishable from it.
+plot_container <- function() {
+  check_positivity(
+    dgp_practical_violation(n = 200, seed = 2),
+    exposure,
+    c(x1, x2)
+  )
+}
+
+test_that("autoplot() is part of the public surface", {
+  expect_true("autoplot" %in% getNamespaceExports("positively"))
+})
+
+test_that("autoplot() panels every child", {
+  local_quiet()
+  # The block draws and also skips on a package, so the figure is announced
+  # before the skip. An unannounced file looks unused to testthat's cleanup pass
+  # and is deleted.
+  announce_doppelganger("positivity check panel")
+  skip_if_not_installed("patchwork")
+  expect_doppelganger("positivity check panel", autoplot(plot_container()))
+})
+
+test_that("the panel is a ggplot", {
+  local_quiet()
+  skip_if_not_installed("patchwork")
+  panel <- autoplot(plot_container())
+
+  # Composing children must not cost the reader the ability to keep building on
+  # the result.
+  expect_true(ggplot2::is_ggplot(panel))
+})
+
+test_that("autoplot() selects a single child by name", {
+  local_quiet()
+  container <- plot_container()
+  selected <- autoplot(container, "port")
+
+  # The name is the one `names()` lists and `$` extracts by, so a reader can go
+  # from a section of the report straight to its plot. Compared on what the
+  # plots draw rather than on the objects, because an aesthetic carries the
+  # environment it was captured in and the two paths capture different ones.
+  expect_equal(
+    ggplot2::ggplot_build(selected)$data,
+    ggplot2::ggplot_build(ggplot2::autoplot(container$port))$data
+  )
+  expect_false(inherits(selected, "patchwork"))
+})
+
+test_that("autoplot() rejects a name the container does not hold", {
+  local_quiet()
+  container <- plot_container()
+  expect_snapshot_abort(
+    autoplot(container, "hdr"),
+    class = "positively_diagnostic_error"
+  )
+})
+
+test_that("plot() draws what autoplot() returns and gives back the container", {
+  local_quiet()
+  local_null_device()
+  skip_if_not_installed("patchwork")
+  container <- plot_container()
+
+  expect_identical(plot(container), container)
+  expect_identical(plot(container, "port"), container)
+})
+
+test_that("a container holding one child still plots", {
+  local_quiet()
+  local_null_device()
+  skip_if_not_installed("patchwork")
+  container <- check_positivity(
+    dgp_practical_violation(n = 200, seed = 2),
+    exposure,
+    c(x1, x2),
+    diagnostics = "port"
+  )
+  panel <- autoplot(container)
+
+  expect_true(ggplot2::is_ggplot(panel))
+  expect_no_error(print(panel))
+})
+
+test_that("autoplot() says what it needs when patchwork is absent", {
+  local_quiet()
+  # The container is built before the mock, because resolving the exposure type
+  # and the hull test both ask whether a package is installed.
+  container <- plot_container()
+
+  # Mocked rather than skipped, so the reader without patchwork sees a message
+  # this suite has read, rather than one that fires only on machines it never
+  # runs on.
+  local_mocked_bindings(is_installed = function(...) FALSE, .package = "rlang")
+  expect_snapshot_abort(
+    autoplot(container),
+    class = "positively_missing_package_error"
+  )
+
+  # Naming a diagnostic composes nothing, so it is the half of the behavior that
+  # still works, which is what the refusal above points the reader at.
+  expect_true(ggplot2::is_ggplot(autoplot(container, "port")))
+})
+
+test_that("an empty container says there is nothing to plot", {
+  # The class permits a container with no children, and both entry points reach
+  # the same refusal rather than failing on an absent first child.
+  container <- positivity_check(
+    checks = list(),
+    exposure = "exposure",
+    exposure_type = "binary",
+    covariates = c("x1", "x2"),
+    n = 200L,
+    call = quote(check_positivity())
+  )
+
+  expect_snapshot_abort(autoplot(container), class = "positively_empty_error")
+  expect_snapshot_abort(plot(container), class = "positively_empty_error")
+})
+
+test_that("a named diagnostic takes its own arguments", {
+  local_quiet()
+  container <- plot_container()
+
+  # The argument reaches the child rather than being dropped, so the view it
+  # selects differs from the child's default.
+  hull <- autoplot(container, "extrapolation", type = "hull")
+  expect_true(ggplot2::is_ggplot(hull))
+  expect_false(identical(
+    ggplot2::ggplot_build(hull)$data,
+    ggplot2::ggplot_build(autoplot(container, "extrapolation"))$data
+  ))
+})
+
+test_that("the panel passes its arguments to every child", {
+  local_quiet()
+  skip_if_not_installed("patchwork")
+  container <- plot_container()
+
+  # An argument only extrapolation accepts reaches EDP as well, which refuses
+  # it. This is why a per-diagnostic argument belongs with a named diagnostic.
+  expect_error(
+    autoplot(container, type = "hull"),
+    class = "positively_args_error"
+  )
+})

@@ -37,6 +37,7 @@ Suggests:
     knitr,
     lmtp,
     lpSolve,
+    patchwork,
     propensity,
     rmarkdown,
     spelling,
