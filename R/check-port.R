@@ -115,6 +115,11 @@ port_result <- new_class(
 #'   reading-rule outcome). It also carries the `@trees`, `@alpha`, `@beta`, and
 #'   `@gamma` properties.
 #'
+#'   [generics::glance()] returns a one-row tibble with `n` (the sample size),
+#'   `n_subgroups` (how many subgroups were reported), `n_low_support` (how many
+#'   of those the reading rule marked), and the resolved rule parameters
+#'   `alpha`, `beta`, and `gamma`, which the counts cannot be read without.
+#'
 #' @references
 #' Danelian G, Foucher Y, Léger M, Le Borgne F, Chatton A (2023). Identification
 #' of in-sample positivity violations using regression trees: the PoRT
@@ -861,7 +866,48 @@ assemble_port_results <- function(rows, sequential) {
   combined[cols]
 }
 
+#' The one prevalence threshold behind a PoRT run, when there is one
+#'
+#' A sequential run resolves `beta` once per time point, and `"gruber"` makes
+#' those values differ, so there is then no single threshold to report.
+#'
+#' @param beta The resolved `@beta` vector.
+#'
+#' @return The common threshold, or `NA_real_` when the resolved thresholds
+#'   differ or when none resolved.
+#' @keywords internal
+#' @noRd
+common_beta <- function(beta) {
+  resolved <- unique(beta[is.finite(beta)])
+  if (length(resolved) == 1) resolved else NA_real_
+}
+
 # ---- Methods --------------------------------------------------------------
+
+method(glance, port_result) <- function(x, ...) {
+  results <- x@results
+  has_censoring <- "type" %in% names(results)
+  is_censoring <- if (has_censoring) {
+    results$type == "censoring"
+  } else {
+    logical(nrow(results))
+  }
+
+  columns <- list(n = x@n)
+  if ("time" %in% names(results)) {
+    columns$n_times <- length(x@exposure)
+  }
+  columns$n_subgroups <- sum(!is_censoring)
+  columns$n_low_support <- sum(results$low_support[!is_censoring])
+  if (has_censoring) {
+    columns$n_censoring_subgroups <- sum(is_censoring)
+    columns$n_censoring_low_support <- sum(results$low_support[is_censoring])
+  }
+  columns$alpha <- x@alpha
+  columns$beta <- common_beta(x@beta)
+  columns$gamma <- x@gamma
+  tibble::as_tibble(columns)
+}
 
 method(print, port_result) <- function(x, ...) {
   low_support_count <- sum(x@results$low_support)

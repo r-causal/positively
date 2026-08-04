@@ -474,6 +474,114 @@ test_that("the threshold multiplier scales the leverage cutoff", {
   )
 })
 
+# ---- tidy() and glance() ---------------------------------------------------
+
+# The leverage summary rebuilt straight from its definition,
+# h = x_*' (M'M)^-1 x_* over every candidate point, inverting the cross-product
+# directly rather than through the QR factorization check_hat_values() uses.
+hand_leverage_summary <- function(
+  data,
+  exposure,
+  covariates,
+  probs = seq(0.05, 0.95, by = 0.05),
+  threshold = 2
+) {
+  dose <- data[[exposure]]
+  x <- as.matrix(data[covariates])
+  n <- nrow(data)
+  design <- cbind(1, dose, x)
+  p <- ncol(design)
+  gram_inverse <- solve(t(design) %*% design)
+  candidate_values <- stats::quantile(
+    dose,
+    probs = probs,
+    names = FALSE,
+    type = 7
+  )
+  hat_values <- unlist(lapply(candidate_values, function(value) {
+    candidates <- cbind(1, rep(value, n), x)
+    rowSums((candidates %*% gram_inverse) * candidates)
+  }))
+  high <- hat_values > threshold * p / n
+  list(
+    phi_hat = mean(high),
+    n_high_leverage = sum(high),
+    n_candidates = length(high),
+    p = p
+  )
+}
+
+test_that("tidy() returns the results tibble", {
+  local_quiet()
+  data <- sim_hat_linear(100, beta = 1, seed = 1)
+  res <- check_hat_values(data, dose, x1, null_reps = 2)
+
+  expect_identical(generics::tidy(res), res@results)
+})
+
+test_that("glance() reports the leverage statistics and the null comparison", {
+  local_quiet()
+  withr::local_seed(2024)
+  # A dose that tracks x1 at strength 3 puts the candidate grid well outside the
+  # observed cloud, so the observed leverage profile clears the null.
+  data <- sim_hat_linear(200, beta = 3, seed = 1)
+  res <- check_hat_values(data, dose, x1, null_reps = 50)
+  glanced <- generics::glance(res)
+
+  expect_s3_class(glanced, "tbl_df")
+  expect_identical(nrow(glanced), 1L)
+  expect_setequal(
+    names(glanced),
+    c(
+      "n",
+      "phi_hat",
+      "null_quantile",
+      "exceeds_null",
+      "n_high_leverage",
+      "n_candidates",
+      "p"
+    )
+  )
+
+  hand <- hand_leverage_summary(data, "dose", "x1")
+  expect_identical(glanced$n, 200L)
+  expect_equal(glanced$phi_hat, hand$phi_hat)
+  expect_identical(glanced$n_high_leverage, hand$n_high_leverage)
+  expect_identical(glanced$n_candidates, hand$n_candidates)
+  expect_identical(glanced$n_candidates, 200L * 19L)
+  expect_identical(glanced$p, 3L)
+
+  # phi-hat is the share of candidates over the cutoff, so the three columns
+  # cannot drift apart, and the null quantile is the conf_level quantile of the
+  # stored null draws.
+  expect_equal(
+    glanced$phi_hat,
+    glanced$n_high_leverage / glanced$n_candidates
+  )
+  expect_equal(
+    glanced$null_quantile,
+    stats::quantile(res@null_dist, 0.95, names = FALSE, type = 7)
+  )
+
+  expect_type(glanced$exceeds_null, "logical")
+  expect_true(glanced$exceeds_null)
+})
+
+test_that("glance() keeps exceeds_null logical when the null is not exceeded", {
+  local_quiet()
+  withr::local_seed(2024)
+  # The skewed dose is drawn independently of the covariate, so the observed
+  # profile is itself a null draw and must not clear the quantile.
+  data <- sim_hat_skewed_null(400, seed = 1)
+  res <- check_hat_values(data, dose, x1, null_reps = 50)
+  glanced <- generics::glance(res)
+
+  expect_type(glanced$exceeds_null, "logical")
+  expect_false(glanced$exceeds_null)
+  expect_lt(glanced$phi_hat, glanced$null_quantile)
+  expect_identical(glanced$exceeds_null, res@exceeds_null)
+})
+
 # ---- Statistical behavior --------------------------------------------------
 # The generators seed only themselves and restore the stream on exit, so a
 # block that reads null_dist, exceeds_null, or anything derived from them must

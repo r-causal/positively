@@ -12,6 +12,13 @@
 #' [print()] behavior that every diagnostic reuses. Package developers extend
 #' it when adding a new diagnostic.
 #'
+#' @details
+#' [generics::tidy()] returns `@results` unchanged. The inherited
+#' [generics::glance()] returns a one-row [tibble][tibble::tibble] holding the
+#' single column `n`, the sample size, because a subclass that adds no
+#' statistics of its own has nothing else to report. Each diagnostic overrides
+#' it to state its own statistics beside `n`, typed as they are computed.
+#'
 #' @usage NULL
 #' @param results A [tibble][tibble::tibble] of tidy diagnostic output.
 #' @param exposure The exposure column name or names, time-ordered when the
@@ -158,12 +165,7 @@ method(tidy, positivity_diagnostic) <- function(x, ...) {
 }
 
 method(glance, positivity_diagnostic) <- function(x, ...) {
-  tibble::tibble(
-    exposure = paste(x@exposure, collapse = ", "),
-    exposure_type = x@exposure_type,
-    n = x@n,
-    n_rows = nrow(x@results)
-  )
+  tibble::tibble(n = x@n)
 }
 
 # Render a cli block to a string and write it to stdout. Print methods need

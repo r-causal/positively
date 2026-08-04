@@ -442,14 +442,93 @@ test_that("the estimator variant swaps in the outcome and treatment columns", {
   expect_identical(res@variant, "estimator")
 })
 
-test_that("tidy() and glance() follow the shared diagnostic contract", {
+test_that("tidy() returns the results tibble", {
   data <- sim_edp_gaussian(100)
   res <- check_edp(data, exposure, x1, values = 0, exposure_type = "continuous")
 
   expect_identical(generics::tidy(res), res@results)
+})
+
+# Three observations at exposures 0, 1, and 2 on a constant covariate. With both
+# half-distances at 1 the covariate factor is 1 for every pair, so EDP is the
+# exposure kernel alone and is identical for every row: at a* = 0 it is
+# 1 + 0.5 + 0.5^4 = 1.5625 and at a* = 1 it is 0.5 + 1 + 0.5 = 2.
+edp_hand_data <- function() {
+  tibble::tibble(exposure = c(0, 1, 2), x1 = c(0, 0, 0))
+}
+
+test_that("glance() reports the data variant's EDP range", {
+  res <- check_edp(
+    edp_hand_data(),
+    exposure,
+    x1,
+    bw_exposure = 1,
+    bw_covariates = 1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
   glanced <- generics::glance(res)
+
   expect_s3_class(glanced, "tbl_df")
   expect_identical(nrow(glanced), 1L)
+  expect_setequal(
+    names(glanced),
+    c("n", "variant", "n_values", "edp_min", "edp_max")
+  )
+
+  expect_identical(glanced$n, 3L)
+  expect_identical(glanced$variant, "data")
+  expect_identical(glanced$n_values, 2L)
+  expect_equal(glanced$edp_min, 1.5625)
+  expect_equal(glanced$edp_max, 2)
+})
+
+test_that("glance() reports the estimator variant's three measures", {
+  # edp_outcome conditions on the exposure and the covariate, so it repeats the
+  # data-variant values. edp_treatment conditions on the constant covariate
+  # alone and so counts all three observations at every point. ideal_weight is
+  # their ratio: 3 / 1.5625 = 1.92 at a* = 0 and 3 / 2 = 1.5 at a* = 1.
+  res <- check_edp(
+    edp_hand_data(),
+    exposure,
+    x1,
+    variant = "estimator",
+    bw_exposure = 1,
+    bw_covariates = 1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+  glanced <- generics::glance(res)
+
+  expect_identical(nrow(glanced), 1L)
+  expect_setequal(
+    names(glanced),
+    c(
+      "n",
+      "variant",
+      "n_values",
+      "edp_outcome_min",
+      "edp_outcome_max",
+      "edp_treatment_min",
+      "edp_treatment_max",
+      "ideal_weight_min",
+      "ideal_weight_max"
+    )
+  )
+
+  # The estimator variant has no `edp` measure at all, so the data variant's
+  # columns are absent rather than missing.
+  expect_false("edp_min" %in% names(glanced))
+  expect_false("edp_max" %in% names(glanced))
+
+  expect_identical(glanced$variant, "estimator")
+  expect_identical(glanced$n_values, 2L)
+  expect_equal(glanced$edp_outcome_min, 1.5625)
+  expect_equal(glanced$edp_outcome_max, 2)
+  expect_equal(glanced$edp_treatment_min, 3)
+  expect_equal(glanced$edp_treatment_max, 3)
+  expect_equal(glanced$ideal_weight_min, 1.5)
+  expect_equal(glanced$ideal_weight_max, 1.92)
 })
 
 # ---- Exact kernel identities ----------------------------------------------

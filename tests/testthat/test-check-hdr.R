@@ -633,15 +633,89 @@ test_that("the default target grid spans 100 points over the observed range", {
   expect_lte(max(res@results$value), max(data$exposure))
 })
 
-test_that("tidy() and glance() follow the shared diagnostic contract", {
+test_that("tidy() returns the results tibble", {
   local_quiet()
   data <- sim_hdr_linear(200, beta = 1, seed = 1)
   res <- check_hdr(data, exposure, l, values = c(-1, 0, 1))
 
   expect_identical(generics::tidy(res), res@results)
+})
+
+test_that("glance() reports the HDR settings and the non-overlap range", {
+  local_quiet()
+  data <- sim_hdr_linear(200, beta = 1, seed = 1)
+  values <- c(-1, 0, 1)
+  res <- check_hdr(data, exposure, l, values = values)
   glanced <- generics::glance(res)
+
   expect_s3_class(glanced, "tbl_df")
   expect_identical(nrow(glanced), 1L)
+  expect_setequal(
+    names(glanced),
+    c(
+      "n",
+      "mass",
+      "density_estimator",
+      "n_values",
+      "nonoverlap_min",
+      "nonoverlap_max"
+    )
+  )
+
+  expect_identical(glanced$n, 200L)
+  expect_identical(glanced$mass, 0.95)
+  expect_identical(glanced$density_estimator, "normal")
+  expect_identical(glanced$n_values, 3L)
+
+  # Under the normal estimator tau(a) is the fraction of fitted means further
+  # than z * sigma_hat from a, so the whole curve follows from lm() alone.
+  model <- stats::lm(exposure ~ l, data = data)
+  radius <- stats::qnorm((1 + 0.95) / 2) * stats::sigma(model)
+  fitted_means <- stats::fitted(model)
+  tau <- vapply(
+    values,
+    function(value) mean(abs(value - fitted_means) > radius),
+    numeric(1)
+  )
+  expect_equal(glanced$nonoverlap_min, min(tau))
+  expect_equal(glanced$nonoverlap_max, max(tau))
+})
+
+test_that("glance() adds the time-point count on a sequential result", {
+  local_quiet()
+  data <- dgp_longitudinal(n = 200, seed = 5)
+  res <- check_hdr_seq(data, c(a1, a2, a3), list(l0, l1, l2), values = c(0, 3))
+  glanced <- generics::glance(res)
+
+  expect_identical(nrow(glanced), 1L)
+  expect_setequal(
+    names(glanced),
+    c(
+      "n",
+      "n_times",
+      "mass",
+      "density_estimator",
+      "n_values",
+      "nonoverlap_min",
+      "nonoverlap_max"
+    )
+  )
+
+  # Three exposure columns and two targets were supplied.
+  expect_identical(glanced$n_times, 3L)
+  expect_identical(glanced$n_values, 2L)
+
+  # The range spans every wave. dgp_longitudinal() gives its three waves
+  # different support, the second of them bimodal, so the extremes come from
+  # different time points and a summary that read one wave would report the
+  # wrong range.
+  results <- generics::tidy(res)
+  expect_equal(glanced$nonoverlap_min, min(results$nonoverlap))
+  expect_equal(glanced$nonoverlap_max, max(results$nonoverlap))
+  expect_false(identical(
+    results$time[which.min(results$nonoverlap)],
+    results$time[which.max(results$nonoverlap)]
+  ))
 })
 
 # ---- Range and validity ---------------------------------------------------

@@ -116,6 +116,11 @@ hat_values_result <- new_class(
 #'   `@exceeds_null`, and `@p`, the number of model parameters
 #'   \eqn{p = q + 2} that sets the \eqn{2p/n} leverage cutoff.
 #'
+#'   [generics::glance()] returns a one-row tibble with `n` (the sample size),
+#'   `phi_hat`, `null_quantile`, `exceeds_null` (kept logical), the counts
+#'   `n_high_leverage` and `n_candidates` that `phi_hat` is the ratio of, and
+#'   `p`.
+#'
 #' @references
 #' Moodie EEM, Schulz J (2025). A Simple Diagnostic for the Positivity
 #' Assumption for Continuous Exposures. *Statistics in Medicine*, 44:e70194.
@@ -350,6 +355,19 @@ null_phi_distribution <- function(
 }
 
 # ---- Methods --------------------------------------------------------------
+
+method(glance, hat_values_result) <- function(x, ...) {
+  high_leverage <- x@results$high_leverage
+  tibble::tibble(
+    n = x@n,
+    phi_hat = x@phi_hat,
+    null_quantile = x@null_quantile,
+    exceeds_null = x@exceeds_null,
+    n_high_leverage = sum(high_leverage),
+    n_candidates = length(high_leverage),
+    p = x@p
+  )
+}
 
 method(print, hat_values_result) <- function(x, ...) {
   n_high_leverage <- sum(x@results$high_leverage)

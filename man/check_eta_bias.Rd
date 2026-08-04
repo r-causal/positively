@@ -84,6 +84,13 @@ level with columns \code{truncation_lower}, \code{truncation_upper}, \code{bias}
 mean bootstrap estimate). It also carries the properties \verb{@estimator},
 \verb{@truth}, and \verb{@boot_estimates} (a list of bootstrap-estimate vectors, one
 per row of \verb{@results}).
+
+\code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
+\code{estimator}, \code{n_boot}, and \code{truth}. A run at a single truncation level adds
+\code{bias} and \code{mc_se}. A run over more than one level reports one bias per
+level, so it replaces those two with \code{n_levels}, \code{bias_min}, and
+\code{bias_max}. The level count is what decides this, not the argument used, so
+a length-one \code{truncation_grid} takes the single-level form.
 }
 \description{
 \code{check_eta_bias()} implements the ETA.Bias parametric-bootstrap diagnostic of

@@ -125,6 +125,12 @@ extrapolation_result <- new_class(
 #'   fraction inside the opposite group's hull, `NA` when the hull test did not
 #'   run).
 #'
+#'   [generics::glance()] returns a one-row tibble with `n` (the sample size),
+#'   `nearby`, `geometric_variability`, `mean_frac_nearby`, `prop_supported`,
+#'   `hull_run` (kept logical), and `prop_in_hull`, which is `NA` when the hull
+#'   test did not run. The two readings, `prop_supported` and `prop_in_hull`,
+#'   answer different questions and are both reported.
+#'
 #' @references
 #' King G, Zeng L (2006). The Dangers of Extreme Counterfactuals.
 #' *Political Analysis*, 14(2):131-159. \doi{10.1093/pan/mpj004}
@@ -403,14 +409,16 @@ extrapolation_summary <- function(self) {
 # ---- Methods --------------------------------------------------------------
 
 method(glance, extrapolation_result) <- function(x, ...) {
+  results <- x@results
   tibble::tibble(
-    exposure = paste(x@exposure, collapse = ", "),
-    exposure_type = x@exposure_type,
     n = x@n,
     nearby = x@params$nearby,
     geometric_variability = x@geometric_variability,
-    prop_supported = mean(!x@results$low_support),
-    hull_run = x@hull_run
+    mean_frac_nearby = mean(results$frac_nearby),
+    prop_supported = mean(!results$low_support),
+    hull_run = x@hull_run,
+    # The hull fraction is unknown rather than zero when the test did not run.
+    prop_in_hull = if (x@hull_run) mean(results$in_hull) else NA_real_
   )
 }
 

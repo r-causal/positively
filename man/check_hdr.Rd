@@ -53,6 +53,11 @@ An \code{hdr_result} object, an S7 subclass of \link{positivity_diagnostic}.
 Its \verb{@results} tibble has one row per target value with columns \code{value} (the
 target \code{a}) and \code{nonoverlap} (the ratio \eqn{\hat{\tau}(a)}). It also
 carries the properties \verb{@mass} and \verb{@density_estimator}.
+
+\code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
+\code{mass}, \code{density_estimator}, \code{n_values} (the number of target values), and
+\code{nonoverlap_min} and \code{nonoverlap_max}, the range of the ratio across those
+targets.
 }
 \description{
 \code{check_hdr()} computes the highest-density-region (HDR) non-overlap ratio of

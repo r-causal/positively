@@ -30,3 +30,10 @@ call) and supplies the \code{\link[generics:tidy]{generics::tidy()}}, \code{\lin
 \code{\link[=print]{print()}} behavior that every diagnostic reuses. Package developers extend
 it when adding a new diagnostic.
 }
+\details{
+\code{\link[generics:tidy]{generics::tidy()}} returns \verb{@results} unchanged. The inherited
+\code{\link[generics:glance]{generics::glance()}} returns a one-row \link[tibble:tibble]{tibble} holding the
+single column \code{n}, the sample size, because a subclass that adds no
+statistics of its own has nothing else to report. Each diagnostic overrides
+it to state its own statistics beside \code{n}, typed as they are computed.
+}

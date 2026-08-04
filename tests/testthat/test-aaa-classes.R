@@ -93,6 +93,16 @@ test_that("glance() returns a one-row tibble for a diagnostic", {
   expect_identical(nrow(glanced), 1L)
 })
 
+test_that("the inherited glance() carries the sample size and nothing else", {
+  # A subclass that adds no statistics of its own has only the sample size to
+  # report. The exposure, its type, and the results row count are metadata, so
+  # the default must not smuggle them in as statistics.
+  glanced <- generics::glance(make_test_diagnostic(n = 42L))
+
+  expect_setequal(names(glanced), "n")
+  expect_identical(glanced$n, 42L)
+})
+
 test_that("the parent validator rejects a non-scalar exposure_type", {
   expect_error(
     make_test_diagnostic(exposure_type = c("binary", "continuous")),

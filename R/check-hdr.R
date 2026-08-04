@@ -110,6 +110,11 @@ hdr_result <- new_class(
 #'   target `a`) and `nonoverlap` (the ratio \eqn{\hat{\tau}(a)}). It also
 #'   carries the properties `@mass` and `@density_estimator`.
 #'
+#'   [generics::glance()] returns a one-row tibble with `n` (the sample size),
+#'   `mass`, `density_estimator`, `n_values` (the number of target values), and
+#'   `nonoverlap_min` and `nonoverlap_max`, the range of the ratio across those
+#'   targets.
+#'
 #' @references
 #' Bao Y, Schomaker M (2025). Feasible Dose-Response Curves for Continuous
 #' Treatments Under Positivity Violations.
@@ -776,6 +781,10 @@ hdr_ratios <- function(density_estimator, fitted, analysis, targets) {
 #'   Its `@results` tibble has one row per time point and target value with
 #'   columns `time`, `value`, and `nonoverlap`.
 #'
+#'   [generics::glance()] returns the columns [check_hdr()] reports plus
+#'   `n_times`, the number of time points. The non-overlap range spans every
+#'   wave rather than any one of them.
+#'
 #' @references
 #' Bao Y, Schomaker M (2025). Feasible Dose-Response Curves for Continuous
 #' Treatments Under Positivity Violations.
@@ -1101,6 +1110,22 @@ validate_conditioning_sets <- function(
 }
 
 # ---- Methods --------------------------------------------------------------
+
+method(glance, hdr_result) <- function(x, ...) {
+  results <- x@results
+  columns <- list(n = x@n)
+  if ("time" %in% names(results)) {
+    columns$n_times <- length(x@exposure)
+  }
+  columns$mass <- x@mass
+  columns$density_estimator <- x@density_estimator
+  columns$n_values <- length(unique(results$value))
+  # A sequential run reports the same targets at every wave, so the range spans
+  # the whole history rather than any one wave.
+  columns$nonoverlap_min <- min(results$nonoverlap)
+  columns$nonoverlap_max <- max(results$nonoverlap)
+  tibble::as_tibble(columns)
+}
 
 method(print, hdr_result) <- function(x, ...) {
   nonoverlap <- x@results$nonoverlap

@@ -227,13 +227,32 @@ test_that("awkward probs give unique, precision-preserving statistic keys", {
 
 # ---- tidy / glance --------------------------------------------------------
 
-test_that("tidy() and glance() follow the shared diagnostic contract", {
+test_that("tidy() returns the results tibble", {
   res <- check_density_ratios(gen_lognormal_ratios(200, k = 1))
 
   expect_identical(generics::tidy(res), res@results)
+})
+
+test_that("glance() reports the headline weight statistics", {
+  # Five ratios, two of them exactly zero. The Kish effective sample size is
+  # 8^2 / 30, so its fraction is 64 / 150; the mean is 8 / 5 and two of the five
+  # are zero. All four follow from the input alone.
+  res <- check_density_ratios(c(0, 0, 1, 2, 5))
   glanced <- generics::glance(res)
+
   expect_s3_class(glanced, "tbl_df")
   expect_identical(nrow(glanced), 1L)
+  expect_setequal(
+    names(glanced),
+    c("n", "n_times", "mean", "max", "prop_zero", "ess_fraction")
+  )
+
+  expect_identical(glanced$n, 5L)
+  expect_identical(glanced$n_times, 1L)
+  expect_equal(glanced$mean, 1.6)
+  expect_equal(glanced$max, 5)
+  expect_equal(glanced$prop_zero, 0.4)
+  expect_equal(glanced$ess_fraction, 64 / 150)
 })
 
 test_that("glance() headline values are the final-time cumulative summaries", {
@@ -250,7 +269,17 @@ test_that("glance() headline values are the final-time cumulative summaries", {
     stat_value(summ, "cumulative_ess_fraction", time = 3)
   )
   expect_equal(glanced$max, stat_value(summ, "cumulative_max", time = 3))
+  expect_equal(glanced$mean, stat_value(summ, "cumulative_mean", time = 3))
+  expect_equal(
+    glanced$prop_zero,
+    stat_value(summ, "cumulative_prop_zero", time = 3)
+  )
   expect_identical(glanced$n_times, 3L)
+
+  # The headline reads the whole history, not the last wave on its own.
+  cumulative <- Reduce(`*`, res@ratios)
+  expect_equal(glanced$max, max(cumulative))
+  expect_equal(glanced$mean, mean(cumulative))
 })
 
 test_that("glance() headline values match the point-treatment summaries", {

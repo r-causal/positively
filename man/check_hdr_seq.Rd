@@ -61,6 +61,10 @@ column at once.}
 An \code{hdr_result} object, an S7 subclass of \link{positivity_diagnostic}.
 Its \verb{@results} tibble has one row per time point and target value with
 columns \code{time}, \code{value}, and \code{nonoverlap}.
+
+\code{\link[generics:glance]{generics::glance()}} returns the columns \code{\link[=check_hdr]{check_hdr()}} reports plus
+\code{n_times}, the number of time points. The non-overlap range spans every
+wave rather than any one of them.
 }
 \description{
 \code{check_hdr_seq()} applies the HDR non-overlap ratio of Bao and Schomaker

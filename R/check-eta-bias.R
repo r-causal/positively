@@ -140,6 +140,13 @@ eta_bias_result <- new_class(
 #'   `@truth`, and `@boot_estimates` (a list of bootstrap-estimate vectors, one
 #'   per row of `@results`).
 #'
+#'   [generics::glance()] returns a one-row tibble with `n` (the sample size),
+#'   `estimator`, `n_boot`, and `truth`. A run at a single truncation level adds
+#'   `bias` and `mc_se`. A run over more than one level reports one bias per
+#'   level, so it replaces those two with `n_levels`, `bias_min`, and
+#'   `bias_max`. The level count is what decides this, not the argument used, so
+#'   a length-one `truncation_grid` takes the single-level form.
+#'
 #' @references
 #' Petersen ML, Porter KE, Gruber S, Wang Y, van der Laan MJ (2012). Diagnosing
 #' and responding to violations in the positivity assumption. *Statistical
@@ -887,6 +894,28 @@ eta_estimate <- function(estimator, a, y, ps, q1, q0) {
 }
 
 # ---- Methods --------------------------------------------------------------
+
+method(glance, eta_bias_result) <- function(x, ...) {
+  results <- x@results
+  columns <- list(
+    n = x@n,
+    estimator = x@estimator,
+    # @params holds n_boot as supplied, which is a double.
+    n_boot = as.integer(x@params$n_boot),
+    truth = x@truth
+  )
+  if (nrow(results) == 1) {
+    columns$bias <- results$bias
+    columns$mc_se <- results$mc_se
+  } else {
+    # A sweep has one bias per truncation level, so no single bias and no single
+    # Monte Carlo error beside it describe the run.
+    columns$n_levels <- nrow(results)
+    columns$bias_min <- min(results$bias)
+    columns$bias_max <- max(results$bias)
+  }
+  tibble::as_tibble(columns)
+}
 
 method(print, eta_bias_result) <- function(x, ...) {
   results <- x@results

@@ -93,6 +93,11 @@ density_ratios_result <- new_class(
 #'   name), and `value`. It also carries the raw per-time ratios as the list
 #'   property `@ratios`, with one element per time point.
 #'
+#'   [generics::glance()] returns a one-row tibble with `n` (the sample size),
+#'   `n_times`, and the headline statistics of the cumulative ratios at the
+#'   final time point: `mean`, `max`, `prop_zero`, and `ess_fraction`. For a
+#'   point treatment those are the statistics of the supplied ratios.
+#'
 #' @references
 #' Petersen ML, Porter KE, Gruber S, Wang Y, van der Laan MJ (2012). Diagnosing
 #' and responding to violations in the positivity assumption.
@@ -602,20 +607,17 @@ validate_summary_probs <- function(probs, call = rlang::caller_env()) {
 # ---- Methods --------------------------------------------------------------
 
 method(glance, density_ratios_result) <- function(x, ...) {
-  n_times <- length(x@ratios)
-  # The headline effective sample size and maximum are the cumulative-product
-  # values at the final time point, which for a point treatment is the single
-  # per-time vector. Both are computed directly so the tibble is one row for any
-  # probs.
+  # The headline statistics are the cumulative-product values at the final time
+  # point, which for a point treatment is the single per-time vector. All are
+  # computed directly so the tibble is one row for any probs.
   final <- final_ratios(x@ratios)
-  ess <- kish_ess(final)
   tibble::tibble(
-    exposure = x@exposure,
-    exposure_type = x@exposure_type,
     n = x@n,
-    n_times = n_times,
-    ess_fraction = ess / length(final),
-    max = max(final)
+    n_times = length(x@ratios),
+    mean = mean(final),
+    max = max(final),
+    prop_zero = mean(final == 0),
+    ess_fraction = kish_ess(final) / length(final)
   )
 }
 

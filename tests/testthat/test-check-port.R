@@ -340,6 +340,16 @@ test_that("assemble_port_results returns the empty schema when no rows survive",
   expect_identical(names(from_empties)[[1]], "time")
 })
 
+test_that("common_beta reports a threshold only when one describes the run", {
+  # A point run resolves one threshold and a sequential run resolves one per
+  # time point, which leaves three cases: a single value, several that differ,
+  # and none at all when every time point was skipped.
+  expect_identical(common_beta(0.05), 0.05)
+  expect_identical(common_beta(c(0.05, 0.05)), 0.05)
+  expect_identical(common_beta(c(0.05, 0.07)), NA_real_)
+  expect_identical(common_beta(c(NA_real_, NA_real_)), NA_real_)
+})
+
 # ---- Result class and properties ------------------------------------------
 
 test_that("check_port() returns a port_result diagnostic", {
@@ -405,15 +415,48 @@ test_that("port_result has the fixed point results columns", {
   expect_type(res@results$low_support, "logical")
 })
 
-test_that("tidy() returns the results tibble and glance() a one-row summary", {
+test_that("tidy() returns the results tibble", {
   local_quiet()
   data <- dgp_good_positivity(n = 500, seed = 1)
   res <- check_port(data, exposure, c(x1, x2))
 
   expect_identical(generics::tidy(res), res@results)
+})
+
+test_that("glance() reports the reading rule and the subgroup counts", {
+  local_quiet()
+  # port_anchor_data() carries no randomness. Two subgroups are reported: g == 1
+  # holds 300 of the 1000 rows at prevalence 0.010 and g == 0 holds the other
+  # 700 at prevalence 0.500, so the rule marks exactly one of the two.
+  res <- check_port(port_anchor_data(), exposure, g, alpha = 0.05, beta = 0.05)
   glanced <- generics::glance(res)
+
   expect_s3_class(glanced, "tbl_df")
   expect_identical(nrow(glanced), 1L)
+  expect_setequal(
+    names(glanced),
+    c("n", "n_subgroups", "n_low_support", "alpha", "beta", "gamma")
+  )
+
+  expect_identical(glanced$n, 1000L)
+  expect_identical(glanced$n_subgroups, 2L)
+  expect_identical(glanced$n_low_support, 1L)
+  expect_identical(glanced$alpha, 0.05)
+  expect_identical(glanced$beta, 0.05)
+  expect_identical(glanced$gamma, 2)
+})
+
+test_that("glance() counts the reading rule rather than the reported rows", {
+  local_quiet()
+  # The anchor subgroup covers 0.30 of the sample, so alpha = 0.31 gates it out.
+  # Both subgroups are still reported, so a count that read nrow(@results) would
+  # be unchanged while the low-support count must fall to zero.
+  res <- check_port(port_anchor_data(), exposure, g, alpha = 0.31, beta = 0.05)
+  glanced <- generics::glance(res)
+
+  expect_identical(glanced$n_subgroups, 2L)
+  expect_identical(glanced$n_low_support, 0L)
+  expect_identical(glanced$alpha, 0.31)
 })
 
 # ---- Deterministic reading-rule anchor ------------------------------------

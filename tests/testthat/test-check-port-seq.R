@@ -193,13 +193,104 @@ test_that("a length-one covariate list recycles across time points", {
   expect_equal(recycled@results, explicit@results)
 })
 
-test_that("tidy() and glance() work on the sequential result", {
+test_that("tidy() works on the sequential result", {
   local_quiet()
   data <- sim_port_seq(n = 1000, seed = 1)
   res <- check_port_seq(data, c(a1, a2, a3), list(c1))
 
   expect_identical(generics::tidy(res), res@results)
-  expect_identical(nrow(generics::glance(res)), 1L)
+})
+
+test_that("glance() adds the time-point count on a sequential result", {
+  local_quiet()
+  data <- sim_port_seq(n = 1000, seed = 1)
+  res <- check_port_seq(data, c(a1, a2, a3), list(c1))
+  glanced <- generics::glance(res)
+
+  expect_s3_class(glanced, "tbl_df")
+  expect_identical(nrow(glanced), 1L)
+  expect_setequal(
+    names(glanced),
+    c("n", "n_times", "n_subgroups", "n_low_support", "alpha", "beta", "gamma")
+  )
+
+  # Three exposure columns were supplied, so the run covers three waves.
+  expect_identical(glanced$n, 1000L)
+  expect_identical(glanced$n_times, 3L)
+  expect_identical(glanced$beta, 0.05)
+
+  # sim_port_seq() plants one violation, region C at t = 2 among the subjects
+  # still untreated after t = 1, so the count is one and it comes from that wave.
+  expect_identical(glanced$n_low_support, 1L)
+  expect_identical(unique(low_support_rows(res)$time), 2L)
+})
+
+test_that("glance() reports no single beta when the thresholds vary by time", {
+  local_quiet()
+  data <- sim_port_seq(n = 1000, seed = 1)
+  res <- check_port_seq(data, c(a1, a2, a3), list(c1), beta = "gruber")
+  glanced <- generics::glance(res)
+
+  # The Gruber bound is sample-size adaptive and the risk set shrinks across
+  # waves, so the three resolved thresholds differ and no single value describes
+  # them. The per-time vector stays reachable on @beta.
+  expect_gt(length(unique(res@beta)), 1L)
+  expect_type(glanced$beta, "double")
+  expect_true(is.na(glanced$beta))
+  expect_identical(glanced$n_times, 3L)
+})
+
+test_that("glance() counts censoring subgroups apart from exposure subgroups", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring(n = 800, seed = 7)
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3)
+  )
+  glanced <- generics::glance(res)
+
+  expect_setequal(
+    names(glanced),
+    c(
+      "n",
+      "n_times",
+      "n_subgroups",
+      "n_low_support",
+      "n_censoring_subgroups",
+      "n_censoring_low_support",
+      "alpha",
+      "beta",
+      "gamma"
+    )
+  )
+
+  # The two mechanisms answer different questions, so pooling them would lose
+  # the finding. Each count is the split of @results on the type column, and the
+  # four together account for every reported row.
+  results <- generics::tidy(res)
+  is_censoring <- results$type == "censoring"
+  expect_identical(glanced$n, 800L)
+  expect_identical(glanced$n_subgroups, sum(!is_censoring))
+  expect_identical(glanced$n_censoring_subgroups, sum(is_censoring))
+  expect_identical(
+    glanced$n_low_support,
+    sum(results$low_support[!is_censoring])
+  )
+  expect_identical(
+    glanced$n_censoring_low_support,
+    sum(results$low_support[is_censoring])
+  )
+  expect_identical(
+    glanced$n_subgroups + glanced$n_censoring_subgroups,
+    nrow(results)
+  )
+
+  # dgp_longitudinal_binary_censoring() plants a censoring violation where the
+  # baseline covariate is above 1, so both counts are non-zero and they differ.
+  expect_gt(glanced$n_censoring_low_support, 0L)
+  expect_gt(glanced$n_low_support, 0L)
 })
 
 test_that("check_port_seq() runs on a continuous exposure by categorizing it", {

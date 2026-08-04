@@ -68,6 +68,13 @@ The data variant carries columns \code{.id} (the observation row index), \code{v
 (the intervention value \eqn{a^*}), and \code{edp}. The estimator variant
 replaces \code{edp} with \code{edp_outcome}, \code{edp_treatment}, and \code{ideal_weight}. It
 also carries the \verb{@variant} and \verb{@bandwidths} properties.
+
+\code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
+\code{variant}, \code{n_values} (the number of intervention values), and the observed
+range of every measure the variant reports. That is \code{edp_min} and \code{edp_max}
+for the data variant, and \code{edp_outcome_min}, \code{edp_outcome_max},
+\code{edp_treatment_min}, \code{edp_treatment_max}, \code{ideal_weight_min}, and
+\code{ideal_weight_max} for the estimator variant.
 }
 \description{
 \code{check_edp()} computes the effective-data-points (EDP) positivity diagnostic

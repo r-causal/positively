@@ -45,6 +45,11 @@ A \code{density_ratios_result} object, an S7 subclass of
 (the time point, \code{1} for a point treatment), \code{statistic} (the summary
 name), and \code{value}. It also carries the raw per-time ratios as the list
 property \verb{@ratios}, with one element per time point.
+
+\code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
+\code{n_times}, and the headline statistics of the cumulative ratios at the
+final time point: \code{mean}, \code{max}, \code{prop_zero}, and \code{ess_fraction}. For a
+point treatment those are the statistics of the supplied ratios.
 }
 \description{
 \code{check_density_ratios()} summarizes user-supplied density ratios, the

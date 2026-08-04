@@ -112,6 +112,13 @@ edp_result <- new_class(
 #'   replaces `edp` with `edp_outcome`, `edp_treatment`, and `ideal_weight`. It
 #'   also carries the `@variant` and `@bandwidths` properties.
 #'
+#'   [generics::glance()] returns a one-row tibble with `n` (the sample size),
+#'   `variant`, `n_values` (the number of intervention values), and the observed
+#'   range of every measure the variant reports. That is `edp_min` and `edp_max`
+#'   for the data variant, and `edp_outcome_min`, `edp_outcome_max`,
+#'   `edp_treatment_min`, `edp_treatment_max`, `ideal_weight_min`, and
+#'   `ideal_weight_max` for the estimator variant.
+#'
 #' @references
 #' Ring C, Schomaker M (2026). A Diagnostic to Find and Help Combat Stochastic
 #' Positivity Issues, with a Focus on Continuous Treatments.
@@ -737,15 +744,46 @@ covariate_similarity <- function(
   similarity
 }
 
-# ---- Methods --------------------------------------------------------------
-
-method(print, edp_result) <- function(x, ...) {
-  results <- x@results
-  columns <- if (x@variant == "estimator") {
+#' The measures an EDP variant reports
+#'
+#' @param variant Either `"data"` or `"estimator"`.
+#'
+#' @return A character vector of `@results` column names.
+#' @keywords internal
+#' @noRd
+edp_measures <- function(variant) {
+  if (variant == "estimator") {
     c("edp_outcome", "edp_treatment", "ideal_weight")
   } else {
     "edp"
   }
+}
+
+# ---- Methods --------------------------------------------------------------
+
+method(glance, edp_result) <- function(x, ...) {
+  ranges <- do.call(
+    c,
+    lapply(edp_measures(x@variant), function(measure) {
+      values <- x@results[[measure]]
+      bounds <- list(min(values), max(values))
+      names(bounds) <- paste0(measure, c("_min", "_max"))
+      bounds
+    })
+  )
+  tibble::as_tibble(c(
+    list(
+      n = x@n,
+      variant = x@variant,
+      n_values = length(x@params$values)
+    ),
+    ranges
+  ))
+}
+
+method(print, edp_result) <- function(x, ...) {
+  results <- x@results
+  columns <- edp_measures(x@variant)
   cat_cli({
     cli::cli_h1("{S7::S7_class(x)@name}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")

@@ -64,6 +64,11 @@ human-readable rule), \code{exposure_level} (the exposure level examined), \code
 (the exposure prevalence in the subgroup), and \code{low_support} (the logical
 reading-rule outcome). It also carries the \verb{@trees}, \verb{@alpha}, \verb{@beta}, and
 \verb{@gamma} properties.
+
+\code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
+\code{n_subgroups} (how many subgroups were reported), \code{n_low_support} (how many
+of those the reading rule marked), and the resolved rule parameters
+\code{alpha}, \code{beta}, and \code{gamma}, which the counts cannot be read without.
 }
 \description{
 \code{check_port()} runs the Positivity Regression Tree (PoRT) algorithm of

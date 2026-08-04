@@ -140,6 +140,19 @@
 #'   `@censoring_beta` holds the per-time censoring thresholds when `.censoring`
 #'   is supplied.
 #'
+#'   [generics::glance()] returns the columns [check_port()] reports plus
+#'   `n_times`, the number of time points. When `.censoring` is supplied it also
+#'   reports `n_censoring_subgroups` and `n_censoring_low_support` beside the
+#'   exposure counts, which then cover the exposure rows alone. The `beta`
+#'   column is `NA_real_` whenever the per-time thresholds differ, as
+#'   `beta = "gruber"` makes them: `NA` there means that the threshold varies by
+#'   time point rather than that it is unknown, and the full per-time vector
+#'   stays available on `@beta`. It is `NA_real_` in one further case, where the
+#'   threshold genuinely is unknown: no time point resolved a threshold, because
+#'   every one of them was skipped. Reading `@beta` tells the two apart, since
+#'   it holds the differing values in the first case and is entirely `NA` in the
+#'   second.
+#'
 #' @references
 #' Danelian G, Foucher Y, Léger M, Le Borgne F, Chatton A (2023). Identification
 #' of in-sample positivity violations using regression trees: the PoRT

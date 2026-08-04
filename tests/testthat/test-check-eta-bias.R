@@ -1097,15 +1097,63 @@ test_that("normal and empirical error_dist models agree under violation", {
 
 # ---- tidy() and glance() --------------------------------------------------
 
-test_that("tidy() and glance() follow the shared diagnostic contract", {
+test_that("tidy() returns the results tibble", {
   local_quiet()
   data <- sim_eta_good(n = 300, seed = 1)
   res <- fit_eta(data, "ipw", n_boot = 50)
 
   expect_identical(generics::tidy(res), res@results)
+})
+
+test_that("glance() reports the bias and its Monte Carlo error at one level", {
+  local_quiet()
+  data <- sim_eta_good(n = 300, seed = 1)
+  res <- fit_eta(data, "ipw", n_boot = 50)
   glanced <- generics::glance(res)
+
   expect_s3_class(glanced, "tbl_df")
   expect_identical(nrow(glanced), 1L)
+  expect_setequal(
+    names(glanced),
+    c("n", "estimator", "n_boot", "truth", "bias", "mc_se")
+  )
+
+  expect_identical(glanced$n, 300L)
+  expect_identical(glanced$estimator, "ipw")
+  expect_identical(glanced$n_boot, 50L)
+  expect_identical(glanced$truth, res@truth)
+
+  # ETA.Bias is the mean bootstrap estimate less the truth and its Monte Carlo
+  # error is the standard error of those same draws, so both follow from the
+  # retained draws on @boot_estimates without going through @results.
+  draws <- res@boot_estimates[[1]]
+  expect_equal(glanced$bias, mean(draws) - res@truth)
+  expect_equal(glanced$mc_se, stats::sd(draws) / sqrt(length(draws)))
+})
+
+test_that("glance() reports the bias range across a truncation sweep", {
+  local_quiet()
+  data <- sim_eta_good(n = 300, seed = 1)
+  res <- fit_eta(data, "ipw", truncation_grid = c(0, 0.05, 0.1), n_boot = 50)
+  glanced <- generics::glance(res)
+
+  expect_identical(nrow(glanced), 1L)
+  expect_setequal(
+    names(glanced),
+    c("n", "estimator", "n_boot", "truth", "n_levels", "bias_min", "bias_max")
+  )
+
+  # A sweep has one bias per truncation level, so there is no single bias to
+  # report and no single Monte Carlo error beside it.
+  expect_false("bias" %in% names(glanced))
+  expect_false("mc_se" %in% names(glanced))
+
+  expect_identical(glanced$n_levels, 3L)
+  expect_identical(glanced$truth, res@truth)
+
+  per_level <- vapply(res@boot_estimates, mean, numeric(1)) - res@truth
+  expect_equal(glanced$bias_min, min(per_level))
+  expect_equal(glanced$bias_max, max(per_level))
 })
 
 # ---- Autoplot contract ----------------------------------------------------

@@ -63,6 +63,11 @@ percentile), \code{value} (the candidate exposure value \eqn{d_q}), \code{hat_va
 scalar properties \verb{@phi_hat}, \verb{@null_dist}, \verb{@null_quantile},
 \verb{@exceeds_null}, and \verb{@p}, the number of model parameters
 \eqn{p = q + 2} that sets the \eqn{2p/n} leverage cutoff.
+
+\code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
+\code{phi_hat}, \code{null_quantile}, \code{exceeds_null} (kept logical), the counts
+\code{n_high_leverage} and \code{n_candidates} that \code{phi_hat} is the ratio of, and
+\code{p}.
 }
 \description{
 \code{check_hat_values()} is the hat-value (leverage) positivity diagnostic of

@@ -79,6 +79,19 @@ censored level, so their \code{prevalence} is the subgroup's censoring rate.
 \verb{@beta} holds the per-time exposure thresholds ordered by time point, and
 \verb{@censoring_beta} holds the per-time censoring thresholds when \code{.censoring}
 is supplied.
+
+\code{\link[generics:glance]{generics::glance()}} returns the columns \code{\link[=check_port]{check_port()}} reports plus
+\code{n_times}, the number of time points. When \code{.censoring} is supplied it also
+reports \code{n_censoring_subgroups} and \code{n_censoring_low_support} beside the
+exposure counts, which then cover the exposure rows alone. The \code{beta}
+column is \code{NA_real_} whenever the per-time thresholds differ, as
+\code{beta = "gruber"} makes them: \code{NA} there means that the threshold varies by
+time point rather than that it is unknown, and the full per-time vector
+stays available on \verb{@beta}. It is \code{NA_real_} in one further case, where the
+threshold genuinely is unknown: no time point resolved a threshold, because
+every one of them was skipped. Reading \verb{@beta} tells the two apart, since
+it holds the differing values in the first case and is entirely \code{NA} in the
+second.
 }
 \description{
 \code{check_port_seq()} applies the PoRT reading rule one time point at a time

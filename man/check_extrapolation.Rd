@@ -57,6 +57,12 @@ with one row per exposure level and columns \code{exposure}, \code{n},
 variability fraction described in Details), and \code{prop_in_hull} (the
 fraction inside the opposite group's hull, \code{NA} when the hull test did not
 run).
+
+\code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
+\code{nearby}, \code{geometric_variability}, \code{mean_frac_nearby}, \code{prop_supported},
+\code{hull_run} (kept logical), and \code{prop_in_hull}, which is \code{NA} when the hull
+test did not run. The two readings, \code{prop_supported} and \code{prop_in_hull},
+answer different questions and are both reported.
 }
 \description{
 \code{check_extrapolation()} implements the extrapolation diagnostics of King and

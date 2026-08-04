@@ -463,28 +463,75 @@ test_that("the per-group summary getter returns one row per exposure level", {
   )
 })
 
-test_that("tidy() and glance() follow the shared diagnostic contract", {
+test_that("tidy() returns the results tibble", {
   local_quiet()
   data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
   res <- check_extrapolation(data, exposure, tidyselect::starts_with("x"))
 
   expect_identical(generics::tidy(res), res@results)
+})
+
+test_that("glance() matches the hand-computed extrapolation statistics", {
+  local_quiet()
+  # Pooled ranges are 2 on x1 and 2 on x2, so the three Gower distances are
+  # d(1, 2) = (0.5 + 0 + 0) / 3, d(1, 3) = (0.5 + 1 + 1) / 3, and
+  # d(2, 3) = (1 + 1 + 1) / 3. Half the mean of the full matrix, diagonal
+  # included, is (2 * (1/6 + 5/6 + 1) / 9) / 2 = 2/9. Unit 1 has one of the two
+  # controls inside that radius, unit 2 has the one treated unit inside it, and
+  # unit 3 has none, so frac_nearby is 0.5, 1, 0 and two of three units are
+  # supported.
+  data <- tibble::tibble(
+    exposure = c(1L, 0L, 0L),
+    x1 = c(1, 0, 2),
+    x2 = c(0, 0, 2),
+    g = factor(c("a", "a", "b"))
+  )
+  res <- check_extrapolation(data, exposure, c(x1, x2, g), hull = FALSE)
   glanced <- generics::glance(res)
+
   expect_s3_class(glanced, "tbl_df")
   expect_identical(nrow(glanced), 1L)
   expect_setequal(
     names(glanced),
     c(
-      "exposure",
-      "exposure_type",
       "n",
       "nearby",
       "geometric_variability",
+      "mean_frac_nearby",
       "prop_supported",
-      "hull_run"
+      "hull_run",
+      "prop_in_hull"
     )
   )
+
+  expect_identical(glanced$n, 3L)
   expect_identical(glanced$nearby, 1)
+  expect_equal(glanced$geometric_variability, 2 / 9)
+  expect_equal(glanced$mean_frac_nearby, 0.5)
+  expect_equal(glanced$prop_supported, 2 / 3)
+
+  # The hull test did not run, so its fraction is unknown rather than zero, and
+  # the flag that says so keeps its type.
+  expect_type(glanced$hull_run, "logical")
+  expect_false(glanced$hull_run)
+  expect_type(glanced$prop_in_hull, "double")
+  expect_true(is.na(glanced$prop_in_hull))
+})
+
+test_that("glance() reports the hull fraction once the hull test runs", {
+  local_quiet()
+  skip_if_not_installed("lpSolve")
+  data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
+  res <- check_extrapolation(data, exposure, tidyselect::starts_with("x"))
+  glanced <- generics::glance(res)
+
+  expect_true(glanced$hull_run)
+  expect_equal(glanced$prop_in_hull, prop_in_hull(res))
+
+  # The two readings answer different questions and disagree here, which is the
+  # whole reason both are reported.
+  expect_equal(glanced$prop_supported, prop_supported(res))
+  expect_gt(glanced$prop_supported, glanced$prop_in_hull)
 })
 
 # ---- Gower and geometric variability on hand-checkable fixtures -----------
