@@ -621,6 +621,32 @@ method(glance, density_ratios_result) <- function(x, ...) {
   )
 }
 
+method(diagnostic_label, density_ratios_result) <- function(x) {
+  "Density ratios"
+}
+
+method(diagnostic_headline, density_ratios_result) <- function(x) {
+  # The headline statistics are the cumulative-product values at the final time
+  # point, which for a point treatment is the single per-time vector. A
+  # multi-time run therefore holds one ratio per observation per wave while the
+  # statistics describe the product across waves, so the reading says which of
+  # the two each figure counts.
+  final <- final_ratios(x@ratios)
+  n_times <- length(x@ratios)
+  mean_ratio <- round(mean(final), 3)
+  max_ratio <- round(max(final), 3)
+  ess_fraction <- round(kish_ess(final) / length(final), 3)
+  if (n_times == 1) {
+    cli::format_inline(
+      "{x@n} ratio{?s}; mean {mean_ratio}, maximum {max_ratio}, Kish ESS fraction {ess_fraction}"
+    )
+  } else {
+    cli::format_inline(
+      "{x@n} ratio{?s} at each of {n_times} time point{?s}; cumulative mean {mean_ratio}, maximum {max_ratio}, and Kish ESS fraction {ess_fraction} at time point {n_times}"
+    )
+  }
+}
+
 method(print, density_ratios_result) <- function(x, ...) {
   n_times <- length(x@ratios)
   multi_time <- n_times > 1
@@ -638,7 +664,7 @@ method(print, density_ratios_result) <- function(x, ...) {
   }
   ess <- kish_ess(displayed)
   cat_cli({
-    cli::cli_h1("{S7::S7_class(x)@name}")
+    cli::cli_h1("{diagnostic_label(x)}")
     cli::cli_text(
       "Density ratios: {x@n} observation{?s} across {n_times} time point{?s}"
     )

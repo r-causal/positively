@@ -88,8 +88,11 @@ positivity_diagnostic <- new_class(
 #' `positivity_check` is the S7 container returned by [check_positivity()]. It
 #' holds one [positivity_diagnostic] child per diagnostic, named for the
 #' diagnostic that produced it, together with the exposure, covariates, exposure
-#' type, sample size, and call the run resolved. Its print method shows each
-#' child's summary in its own section.
+#' type, sample size, and call the run resolved. Printing it gives a report: the
+#' exposure, its type, the sample size, and the covariates stated once for the
+#' run, then one section per diagnostic reading what that diagnostic found.
+#' Diagnostics that crossed a threshold their caller set come first, and the rest
+#' follow in the order they were requested.
 #'
 #' @details
 #' [summary()] gives the overview of the run: one row per statistic per child,
@@ -277,9 +280,105 @@ cat_cli <- function(expr) {
   cat(cli::cli_fmt(expr), sep = "\n")
 }
 
+#' A diagnostic's name in prose
+#'
+#' Names a diagnostic wherever one is named for a reader, in place of its S7
+#' class name. The result classes are internal, so a reader shown `port_result`
+#' has nothing to look the name up in.
+#'
+#' The default returns the class name, which is the only name a diagnostic
+#' subclassed outside positively supplies. That name belongs to its author
+#' rather than to this package, so surfacing it is no longer a leak.
+#'
+#' @param x A [positivity_diagnostic].
+#'
+#' @return A single string.
+#' @keywords internal
+#' @noRd
+diagnostic_label <- new_generic("diagnostic_label", "x")
+
+method(diagnostic_label, positivity_diagnostic) <- function(x) {
+  S7::S7_class(x)@name
+}
+
+#' A diagnostic's reading, one element per line
+#'
+#' States what a diagnostic found, in the form the [positivity_check] report
+#' prints under that diagnostic's section. Each element is one line, already
+#' rendered, so none carries a line break of its own and the caller decides how
+#' to wrap it.
+#'
+#' The reading states the rule behind a count rather than the parameters that
+#' produced it: a reader shown `alpha`, `beta`, and `gamma` has to reassemble
+#' what was counted, and the parameters stay reachable on the child.
+#'
+#' The default reports the shape of `@results`, which is all a diagnostic that
+#' states nothing of its own has to report.
+#'
+#' @param x A [positivity_diagnostic].
+#'
+#' @return A character vector, one element per line.
+#' @keywords internal
+#' @noRd
+diagnostic_headline <- new_generic("diagnostic_headline", "x")
+
+method(diagnostic_headline, positivity_diagnostic) <- function(x) {
+  cli::format_inline(
+    "{nrow(x@results)} row{?s}, {ncol(x@results)} column{?s}"
+  )
+}
+
+#' Did a diagnostic cross the cut its caller set?
+#'
+#' Reports whether a diagnostic found what the caller's own threshold asked it
+#' to find, which is what the [positivity_check] report orders its sections by.
+#' It records that a cut was crossed and nothing about how far, so it is one
+#' logical value and never a count.
+#'
+#' The default reads a column literally named `low_support` and reports `FALSE`
+#' when the results declare none, so a diagnostic whose cut applies per row needs
+#' no method of its own. A diagnostic whose cut applies to a single statistic
+#' supplies one: `hat_values_result` compares phi-hat against its permutation
+#' null across the whole run and has no per-row cut to read.
+#'
+#' @param x A [positivity_diagnostic].
+#'
+#' @return A single logical value.
+#' @keywords internal
+#' @noRd
+crossed_threshold <- new_generic("crossed_threshold", "x")
+
+method(crossed_threshold, positivity_diagnostic) <- function(x) {
+  results <- x@results
+  "low_support" %in% names(results) && any(results$low_support, na.rm = TRUE)
+}
+
+#' The order the report prints its sections in
+#'
+#' Diagnostics that crossed their caller's cut come first and the rest follow in
+#' the order they were requested. Crossing is the whole of what this records: how
+#' far a cut was crossed does not enter, so two diagnostics that both crossed one
+#' keep the order they were asked for.
+#'
+#' @param checks The named list of children.
+#'
+#' @return An integer vector of positions into `checks`.
+#' @keywords internal
+#' @noRd
+report_section_order <- function(checks) {
+  # isTRUE(), so that a method returning a missing value leaves its section
+  # where it was rather than falling out of both groups and out of the report.
+  crossed <- vapply(
+    checks,
+    function(check) isTRUE(crossed_threshold(check)),
+    logical(1)
+  )
+  c(which(crossed), which(!crossed))
+}
+
 method(print, positivity_diagnostic) <- function(x, ...) {
   cat_cli({
-    cli::cli_h1("{S7::S7_class(x)@name}")
+    cli::cli_h1("{diagnostic_label(x)}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")
     cli::cli_text("Observations: {x@n}")
     cli::cli_text(
@@ -290,12 +389,46 @@ method(print, positivity_diagnostic) <- function(x, ...) {
 }
 
 method(print, positivity_check) <- function(x, ...) {
-  cat_cli(cli::cli_h1("Positivity check"))
   check_names <- names(x@checks)
-  for (i in seq_along(x@checks)) {
-    cat_cli(cli::cli_h2("{check_names[[i]]}"))
-    print(x@checks[[i]])
-  }
+  sections <- report_section_order(x@checks)
+  cat_cli({
+    cli::cli_h1("Positivity check")
+    # The container owns the exposure, its type, the sample size, and the
+    # covariates, so the report states them for the run rather than letting
+    # every child repeat what it was handed.
+    cli::cli_text(
+      "Exposure: {.val {x@exposure}} ({x@exposure_type}); {x@n} observation{?s};
+       {cli::qty(length(x@covariates))}covariate{?s} {x@covariates}"
+    )
+    for (i in sections) {
+      name <- check_names[[i]]
+      # A section is headed by the name the container is keyed on, so a reader
+      # can go from a section straight to the child that produced it. The rule
+      # carries its own separating line, while cli_h2() would add a second one
+      # below the heading and set every reading off from its own section.
+      cli::cli_text("")
+      cli::cli_rule(left = "{name}")
+      for (line in diagnostic_headline(x@checks[[i]])) {
+        cli::cli_text("{line}")
+      }
+    }
+    if (length(sections) > 0) {
+      # The accessor is shown without a variable in front of it, because the
+      # print method cannot recover the name the session bound the container to
+      # and a made-up one would invite a paste that errors.
+      accessor <- paste0("$", check_names[[sections[[1]]]])
+      cli::cli_text("")
+      # cli_alert_info() rather than the alert_info() wrapper, because the
+      # wrapper is silenced by `positively.quiet`, which governs informational
+      # messages and not what a print method puts on stdout. It leaves its text
+      # unwrapped by default, so it is asked for the wrapping every other line in
+      # the report already gets.
+      cli::cli_alert_info(
+        "Extract a diagnostic with {.code {accessor}} or see every statistic with {.fn summary}.",
+        wrap = TRUE
+      )
+    }
+  })
   invisible(x)
 }
 

@@ -218,7 +218,7 @@
       print(continuous)
     Output
       
-      -- edp_result ------------------------------------------------------------------
+      -- Effective data points -------------------------------------------------------
       Exposure: "exposure" (continuous)
       Observations: 150
       Variant: data
@@ -231,7 +231,7 @@
       print(binary)
     Output
       
-      -- edp_result ------------------------------------------------------------------
+      -- Effective data points -------------------------------------------------------
       Exposure: "exposure" (binary)
       Observations: 200
       Variant: data
@@ -244,7 +244,7 @@
       print(estimator)
     Output
       
-      -- edp_result ------------------------------------------------------------------
+      -- Effective data points -------------------------------------------------------
       Exposure: "exposure" (continuous)
       Observations: 150
       Variant: estimator
@@ -252,4 +252,15 @@
       edp_outcome range: 4.23 to 38.179
       edp_treatment range: 8.995 to 98.272
       ideal_weight range: 2.127 to 2.795
+
+# the EDP label and headline are stable
+
+    Code
+      diagnostic_label(res)
+    Output
+      [1] "Effective data points"
+    Code
+      writeLines(diagnostic_headline(res))
+    Output
+      Data variant over 7 intervention values; edp 0.001 to 38.179
 

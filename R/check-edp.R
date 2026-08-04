@@ -781,11 +781,25 @@ method(glance, edp_result) <- function(x, ...) {
   ))
 }
 
+method(diagnostic_label, edp_result) <- function(x) {
+  "Effective data points"
+}
+
+method(diagnostic_headline, edp_result) <- function(x) {
+  measure <- edp_primary_column(x@results)
+  values <- x@results[[measure]]
+  variant <- if (x@variant == "data") "Data" else "Estimator"
+  n_values <- length(x@params$values)
+  cli::format_inline(
+    "{variant} variant over {n_values} intervention value{?s}; {measure} {round(min(values), 3)} to {round(max(values), 3)}"
+  )
+}
+
 method(print, edp_result) <- function(x, ...) {
   results <- x@results
   columns <- edp_measures(x@variant)
   cat_cli({
-    cli::cli_h1("{S7::S7_class(x)@name}")
+    cli::cli_h1("{diagnostic_label(x)}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")
     cli::cli_text("Observations: {x@n}")
     cli::cli_text("Variant: {x@variant}")

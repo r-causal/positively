@@ -32,7 +32,7 @@
       print(res)
     Output
       
-      -- port_result -----------------------------------------------------------------
+      -- PoRT subgroups --------------------------------------------------------------
       Exposure: "exposure" (binary)
       Observations: 1000
       Reading rule: alpha = 0.05, gamma = 2
@@ -45,7 +45,7 @@
       print(res)
     Output
       
-      -- port_result -----------------------------------------------------------------
+      -- PoRT subgroups --------------------------------------------------------------
       Exposure: "exposure" (binary)
       Observations: 1
       Reading rule: alpha = 0.05, gamma = 2
@@ -247,4 +247,16 @@
       Error in `check_port()`:
       ! `.covariates` must not contain missing values.
       x Missing values in "x1".
+
+# the PoRT label and headline are stable
+
+    Code
+      diagnostic_label(res)
+    Output
+      [1] "PoRT subgroups"
+    Code
+      writeLines(diagnostic_headline(res))
+    Output
+      45 subgroups reported, 4 with low support
+      Rule: prevalence outside [0.05, 0.95] among subgroups of at least 5% of the sample
 

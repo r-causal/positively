@@ -4,7 +4,7 @@
       print(res)
     Output
       
-      -- port_result -----------------------------------------------------------------
+      -- sPoRT subgroups -------------------------------------------------------------
       Exposure: "a1", "a2", and "a3" (binary)
       Observations: 1000
       Time points: 3
@@ -18,7 +18,7 @@
       print(res)
     Output
       
-      -- port_result -----------------------------------------------------------------
+      -- sPoRT subgroups -------------------------------------------------------------
       Exposure: "a1", "a2", and "a3" (binary)
       Observations: 2000
       Time points: 3
@@ -32,7 +32,7 @@
       print(res)
     Output
       
-      -- port_result -----------------------------------------------------------------
+      -- sPoRT subgroups -------------------------------------------------------------
       Exposure: "a1", "a2", and "a3" (binary)
       Observations: 2000
       Time points: 3
@@ -206,4 +206,30 @@
       Error in `check_port_seq()`:
       ! `.exposures` must have at least two distinct values.
       x Found 0.
+
+# the sequential label and headline are stable
+
+    Code
+      diagnostic_label(res)
+    Output
+      [1] "sPoRT subgroups"
+    Code
+      writeLines(diagnostic_headline(res))
+    Output
+      262 subgroups reported across 3 time points, 1 with low support
+      Rule: prevalence outside [0.05, 0.95] among subgroups of at least 5% of the sample
+
+# the censoring label and headline are stable
+
+    Code
+      diagnostic_label(res)
+    Output
+      [1] "sPoRT subgroups"
+    Code
+      writeLines(diagnostic_headline(res))
+    Output
+      359 exposure subgroups reported across 3 time points, 2 with low support
+      Rule: prevalence outside a per-time interval, 0.0264 to 0.0608, among subgroups of at least 5% of the sample
+      413 censoring subgroups reported, 19 with low support
+      Rule: censoring prevalence outside a per-time interval, 0.0264 to 0.0338, among subgroups of at least 5% of the sample
 

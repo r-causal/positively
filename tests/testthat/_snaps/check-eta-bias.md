@@ -41,7 +41,7 @@
       print(res)
     Output
       
-      -- eta_bias_result -------------------------------------------------------------
+      -- ETA bias --------------------------------------------------------------------
       Exposure: "a" (binary)
       Observations: 300
       Estimator: ipw
@@ -55,7 +55,7 @@
       print(res)
     Output
       
-      -- eta_bias_result -------------------------------------------------------------
+      -- ETA bias --------------------------------------------------------------------
       Exposure: "a" (binary)
       Observations: 400
       Estimator: ipw
@@ -188,4 +188,15 @@
       Error in `check_eta_bias()`:
       ! `n_boot` must be a single whole number of at least 2.
       x Found 2.5.
+
+# the ETA bias label and headline are stable
+
+    Code
+      diagnostic_label(res)
+    Output
+      [1] "ETA bias"
+    Code
+      writeLines(diagnostic_headline(res))
+    Output
+      ipw estimator against a truth of 0.623; ETA.Bias -0.003 (MC SE 0.022) from 50 bootstrap draws
 

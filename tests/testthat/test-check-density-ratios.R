@@ -696,3 +696,56 @@ test_that("the classed error messages are stable", {
   expect_snapshot_abort(check_density_ratios(c(1, Inf, 2)))
   expect_snapshot_abort(check_density_ratios(matrix(c(1, 2, Inf, 3), nrow = 2)))
 })
+
+# ---- Display methods -------------------------------------------------------
+
+# Two hundred point-treatment ratios, so the reading covers a single time point.
+density_ratios_display_result <- function() {
+  check_density_ratios(gen_lognormal_ratios(200, k = 1))
+}
+
+test_that("diagnostic_label() names the ratio check without naming its class", {
+  res <- density_ratios_display_result()
+  label <- expect_readable_label(res)
+
+  printed <- printed_text(res)
+  expect_no_match(printed, S7::S7_class(res)@name, fixed = TRUE)
+  expect_match(printed, label, fixed = TRUE)
+})
+
+test_that("diagnostic_headline() reads the ratios it summarizes", {
+  res <- density_ratios_display_result()
+  headline <- expect_readable_headline(res)
+  text <- rendered_text(headline)
+
+  expect_match(text, "\\b200\\b")
+})
+
+test_that("the density ratio label and headline are stable", {
+  res <- density_ratios_display_result()
+  expect_snapshot({
+    diagnostic_label(res)
+    writeLines(diagnostic_headline(res))
+  })
+})
+
+test_that("diagnostic_headline() marks the multi-time statistics as cumulative", {
+  # A matrix holds one ratio per observation per time point, and the headline
+  # statistics are the cumulative-product values at the final one, so neither
+  # the count nor the statistics describe the whole set of ratios.
+  m <- matrix(gen_lognormal_ratios(300, k = 0.5), nrow = 100, ncol = 3)
+  res <- check_density_ratios(m)
+  headline <- expect_readable_headline(res)
+  text <- rendered_text(headline)
+
+  expect_match(text, "\\b100\\b")
+  expect_match(text, "cumulative", fixed = TRUE)
+  # The plural follows the number of time points rather than the ratio count.
+  expect_match(text, "time points", fixed = TRUE)
+})
+
+test_that("the multi-time density ratio headline is stable", {
+  m <- matrix(gen_lognormal_ratios(300, k = 0.5), nrow = 100, ncol = 3)
+  res <- check_density_ratios(m)
+  expect_snapshot(writeLines(diagnostic_headline(res)))
+})

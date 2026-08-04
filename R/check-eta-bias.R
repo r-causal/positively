@@ -917,11 +917,33 @@ method(glance, eta_bias_result) <- function(x, ...) {
   tibble::as_tibble(columns)
 }
 
+# The heading names the diagnostic in prose; the literature's `ETA.Bias` spelling
+# stays on the line that reports the statistic itself.
+method(diagnostic_label, eta_bias_result) <- function(x) {
+  "ETA bias"
+}
+
+method(diagnostic_headline, eta_bias_result) <- function(x) {
+  results <- x@results
+  # The bias belongs to an estimator under a truncation rule rather than to the
+  # data, so the estimator is named alongside it.
+  if (nrow(results) == 1) {
+    cli::format_inline(
+      "{x@estimator} estimator against a truth of {round(x@truth, 3)}; ETA.Bias {round(results$bias, 3)} (MC SE {round(results$mc_se, 3)}) from {x@params$n_boot} bootstrap draw{?s}"
+    )
+  } else {
+    span <- round(range(results$bias), 3)
+    cli::format_inline(
+      "{x@estimator} estimator against a truth of {round(x@truth, 3)}; ETA.Bias {span[[1]]} to {span[[2]]} over {nrow(results)} truncation level{?s}"
+    )
+  }
+}
+
 method(print, eta_bias_result) <- function(x, ...) {
   results <- x@results
   n_levels <- nrow(results)
   cat_cli({
-    cli::cli_h1("{S7::S7_class(x)@name}")
+    cli::cli_h1("{diagnostic_label(x)}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")
     cli::cli_text("Observations: {x@n}")
     cli::cli_text("Estimator: {x@estimator}")

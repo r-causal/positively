@@ -4,7 +4,7 @@
       print(res)
     Output
       
-      -- hdr_result ------------------------------------------------------------------
+      -- HDR non-overlap -------------------------------------------------------------
       Exposure: "exposure" (continuous)
       Observations: 300
       HDR mass: 0.95
@@ -17,7 +17,7 @@
       print(res)
     Output
       
-      -- hdr_result ------------------------------------------------------------------
+      -- HDR non-overlap -------------------------------------------------------------
       Exposure: "a1", "a2", and "a3" (continuous)
       Observations: 300
       HDR mass: 0.95
@@ -309,4 +309,15 @@
       ! `check_hdr_seq()` needs `.exposures` to take more than one value.
       x `a1` and `a3` are constant.
       i The non-overlap ratio compares covariate profiles at a common target dose, and the target grid spans the observed exposure range. One observed dose leaves one target and a fitted density with no width, so the ratio would report that dose as supported at every profile.
+
+# the HDR label and headline are stable
+
+    Code
+      diagnostic_label(res)
+    Output
+      [1] "HDR non-overlap"
+    Code
+      writeLines(diagnostic_headline(res))
+    Output
+      95% HDR, normal density; non-overlap 0.05 to 0.143 over 3 targets
 

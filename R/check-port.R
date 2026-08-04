@@ -921,14 +921,106 @@ method(statistic_thresholds, port_result) <- function(x) {
   )
 }
 
+# One class serves both entry points, so the label reads the results for the
+# time column that only a sequential run carries.
+method(diagnostic_label, port_result) <- function(x) {
+  if ("time" %in% names(x@results)) "sPoRT subgroups" else "PoRT subgroups"
+}
+
+#' The PoRT reading rule in prose
+#'
+#' States the rule a reported subgroup met rather than the parameters behind it:
+#' the prevalence interval the thresholds cut at and the share of the sample
+#' `alpha` requires. `gamma` bounds how many covariates a searched subgroup may
+#' combine rather than deciding whether a reported one has low support, so it is
+#' not part of the rule a count was read off.
+#'
+#' @param thresholds The prevalence thresholds the rule cuts at, one per time
+#'   point for a sequential run.
+#' @param alpha The share of the sample a reported subgroup must cover.
+#' @param quantity The prevalence the interval applies to. The exposure and
+#'   censoring sides resolve their thresholds from different risk sets, so a rule
+#'   names the prevalence it governs rather than standing for both.
+#'
+#' @return A single string.
+#' @keywords internal
+#' @noRd
+port_reading_rule <- function(thresholds, alpha, quantity = "prevalence") {
+  size <- signif(alpha * 100, 3)
+  resolved <- thresholds[is.finite(thresholds)]
+  single <- common_beta(thresholds)
+  if (length(resolved) == 0) {
+    cli::format_inline(
+      "Rule: {quantity} outside an unresolved interval among subgroups of at least {size}% of the sample"
+    )
+  } else if (!is.na(single)) {
+    bounds <- signif(c(single, 1 - single), 3)
+    cli::format_inline(
+      "Rule: {quantity} outside [{bounds[[1]]}, {bounds[[2]]}] among subgroups of at least {size}% of the sample"
+    )
+  } else {
+    span <- signif(range(resolved), 3)
+    cli::format_inline(
+      "Rule: {quantity} outside a per-time interval, {span[[1]]} to {span[[2]]}, among subgroups of at least {size}% of the sample"
+    )
+  }
+}
+
+method(diagnostic_headline, port_result) <- function(x) {
+  results <- x@results
+  has_censoring <- "type" %in% names(results)
+  is_censoring <- if (has_censoring) {
+    results$type == "censoring"
+  } else {
+    logical(nrow(results))
+  }
+  exposure_rows <- results[!is_censoring, , drop = FALSE]
+  n_reported <- nrow(exposure_rows)
+  n_low_support <- sum(exposure_rows$low_support)
+  # The count of waves the run covered comes from the exposure columns rather
+  # than from the reported rows, so a wave that reported no subgroup does not
+  # shorten the run.
+  n_times <- length(x@exposure)
+  subject <- if (has_censoring) "exposure subgroup" else "subgroup"
+
+  counts <- if ("time" %in% names(results)) {
+    cli::format_inline(
+      "{n_reported} {subject}{cli::qty(n_reported)}{?s} reported across {n_times} time point{?s}, {n_low_support} with low support"
+    )
+  } else {
+    cli::format_inline(
+      "{n_reported} {subject}{cli::qty(n_reported)}{?s} reported, {n_low_support} with low support"
+    )
+  }
+  lines <- c(counts, port_reading_rule(x@beta, x@alpha))
+
+  # Each rule follows the count it governs, because the censoring thresholds are
+  # resolved from the uncensored-so-far risk sets and need not match the exposure
+  # ones.
+  if (has_censoring) {
+    censoring_rows <- results[is_censoring, , drop = FALSE]
+    lines <- c(
+      lines,
+      cli::format_inline(
+        "{nrow(censoring_rows)} censoring subgroup{?s} reported, {sum(censoring_rows$low_support)} with low support"
+      ),
+      port_reading_rule(x@censoring_beta, x@alpha, "censoring prevalence")
+    )
+  }
+
+  lines
+}
+
 method(print, port_result) <- function(x, ...) {
   low_support_count <- sum(x@results$low_support)
   cat_cli({
-    cli::cli_h1("{S7::S7_class(x)@name}")
+    cli::cli_h1("{diagnostic_label(x)}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")
     cli::cli_text("Observations: {x@n}")
     if ("time" %in% names(x@results)) {
-      cli::cli_text("Time points: {length(unique(x@results$time))}")
+      # The exposure columns, not the reported rows, so a wave that reported no
+      # subgroup still counts toward what the run covered.
+      cli::cli_text("Time points: {length(x@exposure)}")
     }
     cli::cli_text("Reading rule: alpha = {x@alpha}, gamma = {x@gamma}")
     beta_finite <- x@beta[is.finite(x@beta)]

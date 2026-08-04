@@ -1347,3 +1347,43 @@ test_that("check_port() missing-covariate message is stable", {
   data$x1[1] <- NA
   expect_snapshot_abort(check_port(data, exposure, c(x1, x2)))
 })
+
+# ---- Display methods -------------------------------------------------------
+
+# dgp_practical_violation() drives the propensity with 3 * x1, so the tails of
+# x1 are near-deterministically exposed. At n = 317 the reading rule reports 45
+# subgroups, 4 of which have low support.
+port_display_result <- function() {
+  check_port(dgp_practical_violation(n = 317, seed = 2), exposure, c(x1, x2))
+}
+
+test_that("diagnostic_label() names PoRT without naming its class", {
+  local_quiet()
+  res <- port_display_result()
+  label <- expect_readable_label(res)
+
+  # The heading a reader sees is the label. The class name is internal and
+  # undocumented, so a reader shown it has nothing to look it up in.
+  printed <- printed_text(res)
+  expect_no_match(printed, S7::S7_class(res)@name, fixed = TRUE)
+  expect_match(printed, label, fixed = TRUE)
+})
+
+test_that("diagnostic_headline() reads the subgroup counts", {
+  local_quiet()
+  res <- port_display_result()
+  headline <- expect_readable_headline(res)
+  text <- rendered_text(headline)
+
+  expect_match(text, "\\b45\\b")
+  expect_match(text, "\\b4\\b")
+})
+
+test_that("the PoRT label and headline are stable", {
+  local_quiet()
+  res <- port_display_result()
+  expect_snapshot({
+    diagnostic_label(res)
+    writeLines(diagnostic_headline(res))
+  })
+})

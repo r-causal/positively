@@ -1127,11 +1127,32 @@ method(glance, hdr_result) <- function(x, ...) {
   tibble::as_tibble(columns)
 }
 
+method(diagnostic_label, hdr_result) <- function(x) {
+  "HDR non-overlap"
+}
+
+method(diagnostic_headline, hdr_result) <- function(x) {
+  nonoverlap <- x@results$nonoverlap
+  n_target <- length(unique(x@results$value))
+  mass <- signif(x@mass * 100, 3)
+  span <- round(range(nonoverlap), 3)
+  if ("time" %in% names(x@results)) {
+    n_times <- length(unique(x@results$time))
+    cli::format_inline(
+      "{mass}% HDR, {x@density_estimator} density; non-overlap {span[[1]]} to {span[[2]]} over {n_target} target{?s} and {n_times} time point{?s}"
+    )
+  } else {
+    cli::format_inline(
+      "{mass}% HDR, {x@density_estimator} density; non-overlap {span[[1]]} to {span[[2]]} over {n_target} target{?s}"
+    )
+  }
+}
+
 method(print, hdr_result) <- function(x, ...) {
   nonoverlap <- x@results$nonoverlap
   n_target <- length(unique(x@results$value))
   cat_cli({
-    cli::cli_h1("{S7::S7_class(x)@name}")
+    cli::cli_h1("{diagnostic_label(x)}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")
     cli::cli_text("Observations: {x@n}")
     cli::cli_text("HDR mass: {x@mass}")

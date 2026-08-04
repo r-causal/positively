@@ -42,8 +42,11 @@ A \code{positivity_check} object. Its \code{\link[=summary]{summary()}} method r
 \code{positivity_check} is the S7 container returned by \code{\link[=check_positivity]{check_positivity()}}. It
 holds one \link{positivity_diagnostic} child per diagnostic, named for the
 diagnostic that produced it, together with the exposure, covariates, exposure
-type, sample size, and call the run resolved. Its print method shows each
-child's summary in its own section.
+type, sample size, and call the run resolved. Printing it gives a report: the
+exposure, its type, the sample size, and the covariates stated once for the
+run, then one section per diagnostic reading what that diagnostic found.
+Diagnostics that crossed a threshold their caller set come first, and the rest
+follow in the order they were requested.
 }
 \details{
 \code{\link[=summary]{summary()}} gives the overview of the run: one row per statistic per child,

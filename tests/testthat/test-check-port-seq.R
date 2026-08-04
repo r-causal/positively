@@ -1542,3 +1542,117 @@ test_that("check_port_seq() degenerate pooled-exposure messages are stable", {
   expect_snapshot_abort(check_port_seq(constant, c(a1, a2), list(c1)))
   expect_snapshot_abort(check_port_seq(all_missing, c(a1, a2), list(c1)))
 })
+
+# ---- Display methods -------------------------------------------------------
+
+# A sequential run returns the same port_result class a point run does, so it
+# carries the same label and the sequential shape has to show in the headline
+# instead. sim_port_seq() plants one deterministic region at t = 2, and at
+# n = 1000 the run reports 262 subgroups across three waves, 1 with low support.
+port_seq_display_result <- function() {
+  check_port_seq(sim_port_seq(n = 1000, seed = 1), c(a1, a2, a3), list(c1))
+}
+
+test_that("a sequential run prints under its label, not its class name", {
+  local_quiet()
+  res <- port_seq_display_result()
+  label <- expect_readable_label(res)
+
+  printed <- printed_text(res)
+  expect_no_match(printed, S7::S7_class(res)@name, fixed = TRUE)
+  expect_match(printed, label, fixed = TRUE)
+})
+
+test_that("diagnostic_headline() reads the waves a sequential run covers", {
+  local_quiet()
+  res <- port_seq_display_result()
+  headline <- expect_readable_headline(res)
+  text <- rendered_text(headline)
+
+  expect_match(text, "\\b262\\b")
+
+  # The subgroup counts are the same two numbers a point-in-time run reports,
+  # so a reading that stated only those would describe a sequential run as a
+  # point one. Nothing else in the reading is a bare 3: the subgroup total is
+  # 262 and the reading rule states 0.05 and 0.95, so the wave count is what
+  # this finds.
+  expect_match(text, "\\b3\\b")
+})
+
+test_that("the sequential label and headline are stable", {
+  local_quiet()
+  res <- port_seq_display_result()
+  expect_snapshot({
+    diagnostic_label(res)
+    writeLines(diagnostic_headline(res))
+  })
+})
+
+test_that("diagnostic_headline() states the censoring cut apart from the exposure cut", {
+  local_quiet()
+  # The Gruber bound is sample-size adaptive, and the censoring risk set is not
+  # the follower set, so the two sides resolve different per-time thresholds and
+  # one interval cannot describe both counts.
+  res <- check_port_seq(
+    dgp_longitudinal_binary_censoring(n = 800, seed = 7),
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    beta = "gruber"
+  )
+  expect_false(identical(range(res@beta), range(res@censoring_beta)))
+
+  headline <- expect_readable_headline(res)
+  text <- rendered_text(headline)
+
+  expect_match(text, "0[.]0608")
+  expect_match(text, "0[.]0338")
+})
+
+test_that("the censoring label and headline are stable", {
+  local_quiet()
+  res <- check_port_seq(
+    dgp_longitudinal_binary_censoring(n = 800, seed = 7),
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3),
+    beta = "gruber"
+  )
+  expect_snapshot({
+    diagnostic_label(res)
+    writeLines(diagnostic_headline(res))
+  })
+})
+
+test_that("diagnostic_headline() states a censoring side that reported nothing", {
+  local_quiet()
+  # Nobody is ever censored, so the censoring response is constant within every
+  # risk set and no tree splits, while the run still analyzed the censoring
+  # columns it was handed. An explicit zero is what a caller who asked for
+  # censoring checks needs to see, and it is the same call `glance()` makes when
+  # it decides to carry the censoring columns.
+  data <- dgp_longitudinal_binary_censoring(n = 400, seed = 7)
+  data$c1 <- 0L
+  data$c2 <- 0L
+  data$c3 <- 0L
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3)
+  )
+  expect_true("type" %in% names(res@results))
+  expect_identical(sum(res@results$type == "censoring"), 0L)
+
+  # Matched against the lines rather than the collapsed text, which drops the
+  # separator a count carries.
+  headline <- expect_readable_headline(res)
+
+  expect_match(
+    headline,
+    "0 censoring subgroups reported, 0 with low support",
+    fixed = TRUE,
+    all = FALSE
+  )
+  expect_match(headline, "censoring prevalence", fixed = TRUE, all = FALSE)
+})

@@ -416,12 +416,42 @@ method(glance, extrapolation_result) <- function(x, ...) {
   )
 }
 
+method(diagnostic_label, extrapolation_result) <- function(x) {
+  "Extrapolation"
+}
+
+method(diagnostic_headline, extrapolation_result) <- function(x) {
+  results <- x@results
+  n_supported <- sum(!results$low_support)
+  # The two readings disagree by however many units fall inside one geometric
+  # variability of an opposite unit yet outside the opposite hull, so both are
+  # stated and neither stands in for the other.
+  hull <- if (x@hull_run) {
+    cli::format_inline(
+      "; {sum(results$in_hull)} of {x@n} fall in the opposite hull"
+    )
+  } else {
+    ""
+  }
+  c(
+    cli::format_inline(
+      "Geometric variability {round(x@geometric_variability, 3)}"
+    ),
+    paste0(
+      cli::format_inline(
+        "{n_supported} of {x@n} have an opposite-exposure unit within one geometric variability"
+      ),
+      hull
+    )
+  )
+}
+
 method(print, extrapolation_result) <- function(x, ...) {
   results <- x@results
   gv <- x@geometric_variability
   n_supported <- sum(!results$low_support)
   cat_cli({
-    cli::cli_h1("{S7::S7_class(x)@name}")
+    cli::cli_h1("{diagnostic_label(x)}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")
     cli::cli_text("Observations: {x@n}")
     cli::cli_text("Geometric variability: {round(gv, 3)}")

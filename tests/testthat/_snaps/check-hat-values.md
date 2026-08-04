@@ -136,7 +136,7 @@
       print(res)
     Output
       
-      -- hat_values_result -----------------------------------------------------------
+      -- Hat values ------------------------------------------------------------------
       Exposure: "dose" (continuous)
       Observations: 150
       Null: permutation (50 reps), cutoff 2p/n
@@ -144,4 +144,16 @@
       Null 0.95 quantile: 0.059
       Exceeds null: TRUE
       High-leverage candidates: 537 of 2850
+
+# the leverage label and headline are stable
+
+    Code
+      diagnostic_label(res)
+    Output
+      [1] "Hat values"
+    Code
+      writeLines(diagnostic_headline(res))
+    Output
+      phi-hat 0.188 exceeds the 0.95 permutation-null quantile of 0.059
+      537 of 2850 unit-value pairs above the 2p/n cutoff (50 reps)
 

@@ -1397,3 +1397,42 @@ test_that("the truncation and n_boot validation messages are stable", {
   ))
   expect_snapshot_abort(check_eta_bias(data, a, y, c(x1, x2), n_boot = 2.5))
 })
+
+# ---- Display methods -------------------------------------------------------
+
+# A single IPW run rather than a truncation sweep, so the reading is one bias
+# with its Monte Carlo error rather than a range over levels.
+eta_bias_display_result <- function() {
+  fit_eta(sim_eta_good(n = 300, seed = 1), "ipw", n_boot = 50)
+}
+
+test_that("diagnostic_label() names the ETA bias check, not its class", {
+  local_quiet()
+  res <- eta_bias_display_result()
+  label <- expect_readable_label(res)
+
+  printed <- printed_text(res)
+  expect_no_match(printed, S7::S7_class(res)@name, fixed = TRUE)
+  expect_match(printed, label, fixed = TRUE)
+})
+
+test_that("diagnostic_headline() names the estimator the bias belongs to", {
+  local_quiet()
+  res <- eta_bias_display_result()
+  headline <- expect_readable_headline(res)
+  text <- rendered_text(headline)
+
+  # ETA bias is a property of an estimator under a truncation rule, not of the
+  # data alone, so a reading that omitted the estimator would not identify what
+  # was measured.
+  expect_match(text, "ipw", fixed = TRUE)
+})
+
+test_that("the ETA bias label and headline are stable", {
+  local_quiet()
+  res <- eta_bias_display_result()
+  expect_snapshot({
+    diagnostic_label(res)
+    writeLines(diagnostic_headline(res))
+  })
+})

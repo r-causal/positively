@@ -15,26 +15,19 @@
     Output
       
       -- Positivity check ------------------------------------------------------------
+      Exposure: "exposure" (binary); 200 observations; covariates x1 and x2
       
-      -- port --
+      -- port ------------------------------------------------------------------------
+      32 subgroups reported, 1 with low support
+      Rule: prevalence outside [0.05, 0.95] among subgroups of at least 5% of the
+      sample
       
-      -- port_result -----------------------------------------------------------------
-      Exposure: "exposure" (binary)
-      Observations: 200
-      Reading rule: alpha = 0.05, gamma = 2
-      Prevalence threshold beta: 0.05
-      Subgroups: 32 reported, 1 with low support
+      -- extrapolation ---------------------------------------------------------------
+      Geometric variability 0.108
+      197 of 200 have an opposite-exposure unit within one geometric variability; 180
+      of 200 fall in the opposite hull
       
-      -- extrapolation --
-      
-      -- extrapolation_result --------------------------------------------------------
-      Exposure: "exposure" (binary)
-      Observations: 200
-      Geometric variability: 0.108
-      Nearby radius (1 x gv): 0.108
-      Mean fraction nearby: 0.18
-      Nearest opposite within one geometric variability: 197 of 200
-      In opposite-group hull: 180 of 200
+      i Extract a diagnostic with `$port` or see every statistic with `summary()`.
 
 # the classed errors are stable
 

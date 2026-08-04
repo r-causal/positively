@@ -1660,3 +1660,45 @@ test_that("check_hdr_seq() argument validation messages are stable", {
     values = 0
   ))
 })
+
+# ---- Display methods -------------------------------------------------------
+
+# Three intervention targets under the normal density estimator, whose choice
+# decides how the non-overlap curve was computed.
+hdr_display_result <- function() {
+  check_hdr(
+    sim_hdr_linear(300, beta = 1, seed = 1),
+    exposure,
+    l,
+    values = c(-1, 0, 1)
+  )
+}
+
+test_that("diagnostic_label() names the HDR check without naming its class", {
+  local_quiet()
+  res <- hdr_display_result()
+  label <- expect_readable_label(res)
+
+  printed <- printed_text(res)
+  expect_no_match(printed, S7::S7_class(res)@name, fixed = TRUE)
+  expect_match(printed, label, fixed = TRUE)
+})
+
+test_that("diagnostic_headline() reads the estimator and the target count", {
+  local_quiet()
+  res <- hdr_display_result()
+  headline <- expect_readable_headline(res)
+  text <- rendered_text(headline)
+
+  expect_match(text, "normal", fixed = TRUE)
+  expect_match(text, "\\b3\\b")
+})
+
+test_that("the HDR label and headline are stable", {
+  local_quiet()
+  res <- hdr_display_result()
+  expect_snapshot({
+    diagnostic_label(res)
+    writeLines(diagnostic_headline(res))
+  })
+})

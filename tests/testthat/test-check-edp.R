@@ -1495,3 +1495,48 @@ test_that("the print method is stable", {
   )
   expect_snapshot(print(estimator))
 })
+
+# ---- Display methods -------------------------------------------------------
+
+# Seven intervention values under the data variant, which is the variant whose
+# single edp column the range is read from.
+edp_display_result <- function() {
+  check_edp(
+    sim_edp_gaussian(150),
+    exposure,
+    x1,
+    values = c(-3, -2, -1, 0, 1, 2, 3),
+    exposure_type = "continuous"
+  )
+}
+
+test_that("diagnostic_label() names EDP without naming its class", {
+  local_quiet()
+  res <- edp_display_result()
+  label <- expect_readable_label(res)
+
+  printed <- printed_text(res)
+  expect_no_match(printed, S7::S7_class(res)@name, fixed = TRUE)
+  expect_match(printed, label, fixed = TRUE)
+})
+
+test_that("diagnostic_headline() reads the variant and the value count", {
+  local_quiet()
+  res <- edp_display_result()
+  headline <- expect_readable_headline(res)
+  text <- rendered_text(headline)
+
+  # The two variants measure different quantities over the same intervention
+  # values, so a reading that omitted the variant would be ambiguous.
+  expect_match(tolower(text), "data", fixed = TRUE)
+  expect_match(text, "\\b7\\b")
+})
+
+test_that("the EDP label and headline are stable", {
+  local_quiet()
+  res <- edp_display_result()
+  expect_snapshot({
+    diagnostic_label(res)
+    writeLines(diagnostic_headline(res))
+  })
+})

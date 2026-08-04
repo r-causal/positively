@@ -379,11 +379,39 @@ method(statistic_thresholds, hat_values_result) <- function(x) {
   )
 }
 
+method(diagnostic_label, hat_values_result) <- function(x) {
+  "Hat values"
+}
+
+# The leverage profile is compared against its permutation null once for the whole
+# run, so the crossing is that comparison rather than a per-row cut. high_leverage
+# is a conservative indicator feeding phi-hat, not an accept or reject rule, so it
+# is not read here.
+method(crossed_threshold, hat_values_result) <- function(x) {
+  x@exceeds_null
+}
+
+method(diagnostic_headline, hat_values_result) <- function(x) {
+  high_leverage <- x@results$high_leverage
+  n_candidates <- length(high_leverage)
+  # Stating the comparison spares the reader from making it out of three
+  # separate lines.
+  comparison <- if (x@exceeds_null) "exceeds" else "does not exceed"
+  c(
+    cli::format_inline(
+      "phi-hat {round(x@phi_hat, 3)} {comparison} the {x@params$conf_level} {x@params$null_method}-null quantile of {round(x@null_quantile, 3)}"
+    ),
+    cli::format_inline(
+      "{sum(high_leverage)} of {n_candidates} unit-value pair{?s} above the {x@params$threshold}p/n cutoff ({x@params$null_reps} rep{?s})"
+    )
+  )
+}
+
 method(print, hat_values_result) <- function(x, ...) {
   n_high_leverage <- sum(x@results$high_leverage)
   n_candidates <- nrow(x@results)
   cat_cli({
-    cli::cli_h1("{S7::S7_class(x)@name}")
+    cli::cli_h1("{diagnostic_label(x)}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")
     cli::cli_text("Observations: {x@n}")
     cli::cli_text(

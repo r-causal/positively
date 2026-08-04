@@ -1310,3 +1310,49 @@ test_that("the print method is stable", {
   )
   expect_snapshot(print(res))
 })
+
+# ---- Display methods -------------------------------------------------------
+
+# The geometric variability is 0.108 and 188 of the 200 units have a unit of the
+# opposite exposure within one of it. The hull test is off by default here so
+# that the assertion blocks do not depend on lpSolve; the snapshot runs it.
+extrapolation_display_result <- function(hull = FALSE) {
+  check_extrapolation(
+    sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1),
+    exposure,
+    tidyselect::starts_with("x"),
+    hull = hull
+  )
+}
+
+test_that("diagnostic_label() names the extrapolation check, not its class", {
+  local_quiet()
+  res <- extrapolation_display_result()
+  label <- expect_readable_label(res)
+
+  printed <- printed_text(res)
+  expect_no_match(printed, S7::S7_class(res)@name, fixed = TRUE)
+  expect_match(printed, label, fixed = TRUE)
+})
+
+test_that("diagnostic_headline() reads the radius and the supported count", {
+  local_quiet()
+  res <- extrapolation_display_result()
+  headline <- expect_readable_headline(res)
+  text <- rendered_text(headline)
+
+  # The count is a count of units within one geometric variability, so the
+  # radius it was measured against belongs beside it.
+  expect_match(text, "0[.]108")
+  expect_match(text, "\\b188\\b")
+})
+
+test_that("the extrapolation label and headline are stable", {
+  local_quiet()
+  skip_if_not_installed("lpSolve")
+  res <- extrapolation_display_result(hull = TRUE)
+  expect_snapshot({
+    diagnostic_label(res)
+    writeLines(diagnostic_headline(res))
+  })
+})

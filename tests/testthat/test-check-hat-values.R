@@ -989,3 +989,72 @@ test_that("the print method is stable", {
   res <- check_hat_values(data, dose, x1, null_reps = 50)
   expect_snapshot(print(res))
 })
+
+# ---- Display methods -------------------------------------------------------
+
+# 537 of the 2,850 unit-value pairs clear the leverage cutoff. Both counts come
+# from the observed fit, so they are fixed by the data seed; the null draw is
+# seeded as well so that the quantile the headline compares against is
+# reproducible.
+hat_values_display_result <- function() {
+  withr::local_seed(2024)
+  check_hat_values(
+    sim_hat_linear(150, beta = 1, seed = 1),
+    dose,
+    x1,
+    null_reps = 50
+  )
+}
+
+test_that("diagnostic_label() names the leverage check, not its class", {
+  local_quiet()
+  res <- hat_values_display_result()
+  label <- expect_readable_label(res)
+
+  printed <- printed_text(res)
+  expect_no_match(printed, S7::S7_class(res)@name, fixed = TRUE)
+  expect_match(printed, label, fixed = TRUE)
+})
+
+test_that("diagnostic_headline() reads the high-leverage counts", {
+  local_quiet()
+  res <- hat_values_display_result()
+  headline <- expect_readable_headline(res)
+  text <- rendered_text(headline)
+
+  expect_match(text, "\\b537\\b")
+  expect_match(text, "\\b2850\\b")
+})
+
+test_that("the leverage label and headline are stable", {
+  local_quiet()
+  res <- hat_values_display_result()
+  expect_snapshot({
+    diagnostic_label(res)
+    writeLines(diagnostic_headline(res))
+  })
+})
+
+test_that("a leverage run that clears its null crosses its threshold", {
+  local_quiet()
+  withr::local_seed(2024)
+  # The leverage check has no per-row support cut to read, so its crossing is
+  # the comparison of phi-hat against the permutation null.
+  data <- sim_hat_linear(200, beta = 3, seed = 1)
+  res <- check_hat_values(data, dose, x1, null_reps = 50)
+
+  expect_true(res@exceeds_null)
+  expect_true(crossed_threshold(res))
+})
+
+test_that("a leverage run inside its null crosses nothing", {
+  local_quiet()
+  withr::local_seed(2024)
+  # The skewed dose is drawn independently of the covariate, so the observed
+  # profile is itself a null draw and clears no cut.
+  data <- sim_hat_skewed_null(400, seed = 1)
+  res <- check_hat_values(data, dose, x1, null_reps = 50)
+
+  expect_false(res@exceeds_null)
+  expect_false(crossed_threshold(res))
+})

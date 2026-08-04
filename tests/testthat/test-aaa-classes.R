@@ -401,3 +401,282 @@ test_that("printing a container with two children is stable", {
   )
   expect_snapshot(print(container))
 })
+
+# ---- The container report --------------------------------------------------
+
+# The report states the exposure, its type, the sample size, and the covariates
+# from the container's own metadata. A block that counts how often the report
+# states one of them needs tokens nothing else in the output carries, so the
+# shared generators' columns are renamed: counting "exposure" would otherwise
+# count a header label as well as the column that label names.
+report_data <- function(data) {
+  names(data)[1:3] <- c("statin", "bmi", "ldl")
+  data
+}
+
+# One child holding low-support rows. Good positivity leaves PoRT with no
+# subgroup over its reading rule, while two of the 400 units sit further than
+# one geometric variability from the nearest unit of the opposite exposure, so
+# extrapolation holds the only rows and is the last diagnostic requested.
+one_low_support_container <- function() {
+  check_positivity(
+    report_data(dgp_good_positivity(n = 400, seed = 1)),
+    statin,
+    c(bmi, ldl)
+  )
+}
+
+# A continuous run holding only EDP and the leverage check, so the section that
+# crosses anything is the one requested second. The leverage check reports its
+# crossing as a single statistic rather than as rows, and the null draw is seeded
+# because the quantile phi-hat is compared against is drawn inside the run.
+scalar_crossing_container <- function() {
+  withr::local_seed(2024)
+  check_positivity(
+    dgp_continuous_support_gap(n = 200, seed = 4),
+    exposure,
+    x1,
+    exposure_type = "continuous",
+    diagnostics = c("edp", "hat_values"),
+    args = list(hat_values = list(null_reps = 25))
+  )
+}
+
+# Two children holding low-support rows, where the one requested later holds
+# far more of them.
+two_low_support_container <- function() {
+  check_positivity(
+    report_data(dgp_practical_violation(n = 317, seed = 2)),
+    statin,
+    c(bmi, ldl)
+  )
+}
+
+# Rebuild a container with its children in a different order and nothing else
+# changed, so that a block can vary the order the diagnostics were requested in.
+reorder_checks <- function(container, order) {
+  positivity_check(
+    checks = container@checks[order],
+    exposure = container@exposure,
+    exposure_type = container@exposure_type,
+    covariates = container@covariates,
+    n = container@n,
+    call = container@call
+  )
+}
+
+# The report names each section for the diagnostic that produced it, which is
+# the name `names()` lists and `$` extracts by. Positions are read off the whole
+# rendered block rather than line by line, because cli wraps a long line at a
+# space, and the name is matched on word boundaries so that "port" is not found
+# inside "support" or "reported".
+section_positions <- function(container) {
+  text <- printed_text(container)
+  vapply(
+    names(container),
+    function(name) regexpr(paste0("\\b", name, "\\b"), text)[[1]],
+    integer(1)
+  )
+}
+
+# The diagnostic whose section the report opens with, read off the positions so
+# that a block asserting on the leader has already guarded them: an unfound name
+# reports -1, which would otherwise win `which.min()`.
+leading_section <- function(positions) {
+  names(positions)[[which.min(positions)]]
+}
+
+# The block the report ends on. The footer is one sentence, which wraps at the
+# width testthat pins, so the search covers the block rather than its last
+# physical line. cli separates that block from the section above it with an
+# empty line.
+trailing_block <- function(lines) {
+  filled <- which(nzchar(trimws(lines)))
+  lines <- lines[seq_len(max(filled))]
+  breaks <- which(!nzchar(trimws(lines)))
+  start <- if (length(breaks) > 0) max(breaks) + 1L else 1L
+  rendered_text(utils::tail(lines, length(lines) - start + 1L))
+}
+
+# How many times a rendered report states a value.
+count_stated <- function(text, value) {
+  found <- gregexpr(value, text, fixed = TRUE)[[1]]
+  if (found[[1]] == -1L) 0L else length(found)
+}
+
+test_that("the report states the run's metadata once, not once per section", {
+  local_quiet()
+  container <- check_positivity(
+    report_data(dgp_practical_violation(n = 317, seed = 2)),
+    statin,
+    c(bmi, ldl),
+    diagnostics = c("edp", "port")
+  )
+  text <- printed_text(container)
+
+  # The container owns all four values, so the report states them for the run
+  # rather than letting every child repeat what it was handed.
+  expect_identical(count_stated(text, "statin"), 1L)
+  expect_identical(count_stated(text, "binary"), 1L)
+  expect_identical(count_stated(text, "317"), 1L)
+  expect_identical(count_stated(text, "bmi"), 1L)
+  expect_identical(count_stated(text, "ldl"), 1L)
+})
+
+test_that("a section holding low-support rows leads the report", {
+  local_quiet()
+  container <- one_low_support_container()
+
+  # Extrapolation holds the only low-support rows. PoRT carries the same column
+  # with no row set and EDP has no such column at all, so the order follows the
+  # rows a child holds rather than the columns it declares.
+  expect_identical(sum(container$extrapolation@results$low_support), 2L)
+  expect_identical(sum(container$port@results$low_support), 0L)
+  expect_false("low_support" %in% names(container$edp@results))
+
+  positions <- section_positions(container)
+  expect_true(all(positions > 0L))
+  expect_lt(positions[["extrapolation"]], positions[["edp"]])
+  expect_lt(positions[["extrapolation"]], positions[["port"]])
+  # The two holding none keep the order they were requested in.
+  expect_lt(positions[["edp"]], positions[["port"]])
+})
+
+test_that("the requested order does not decide which section leads", {
+  local_quiet()
+  container <- one_low_support_container()
+  reversed <- reorder_checks(container, rev(names(container)))
+
+  requested <- section_positions(container)
+  after_reversal <- section_positions(reversed)
+  expect_true(all(requested > 0L))
+  expect_true(all(after_reversal > 0L))
+
+  # Extrapolation holds the only low-support rows, so it leads whether it was
+  # requested last or first.
+  expect_identical(leading_section(after_reversal), leading_section(requested))
+  expect_identical(leading_section(requested), "extrapolation")
+
+  # The sections holding no low-support rows follow the requested order, which
+  # the reversal changed.
+  expect_lt(after_reversal[["port"]], after_reversal[["edp"]])
+})
+
+test_that("sections holding low-support rows keep the requested order", {
+  local_quiet()
+  container <- two_low_support_container()
+
+  # Extrapolation holds far more low-support rows than PoRT and was requested
+  # after it. The order records only that a user-set threshold was crossed, not
+  # how far, so between two sections that crossed one the requested order
+  # stands.
+  expect_gt(
+    sum(container$extrapolation@results$low_support),
+    sum(container$port@results$low_support)
+  )
+
+  positions <- section_positions(container)
+  expect_true(all(positions > 0L))
+  expect_lt(positions[["port"]], positions[["extrapolation"]])
+  expect_lt(positions[["extrapolation"]], positions[["edp"]])
+})
+
+test_that("a diagnostic that declares no support column crosses nothing", {
+  # The default reads a `low_support` column and reports FALSE rather than
+  # failing when the results declare none.
+  expect_false(crossed_threshold(make_test_diagnostic()))
+})
+
+test_that("a section whose crossing is a single statistic leads the report", {
+  local_quiet()
+  container <- scalar_crossing_container()
+
+  # The leverage check crosses its own permutation null and declares no
+  # low_support column, so a report that read only that column would leave it
+  # behind EDP, which crossed nothing and was requested first.
+  expect_true(container$hat_values@exceeds_null)
+  expect_false("low_support" %in% names(container$hat_values@results))
+  expect_false("low_support" %in% names(container$edp@results))
+
+  positions <- section_positions(container)
+  expect_true(all(positions > 0L))
+  expect_lt(positions[["hat_values"]], positions[["edp"]])
+})
+
+test_that("no report line runs past the console width", {
+  local_quiet()
+
+  # Every line the report emits is wrapped to the width it is rendered at,
+  # including the footer, which cli leaves unwrapped unless asked. The footer
+  # names the section that leads, so its length follows that name: the first
+  # container leads with `extrapolation`, which overruns the default width on its
+  # own, and the second leads with the shorter `port`, which only overruns a
+  # narrow one.
+  cases <- list(
+    list(width = 80, container = one_low_support_container()),
+    list(width = 45, container = two_low_support_container())
+  )
+  for (case in cases) {
+    lines <- withr::with_options(
+      list(cli.width = case$width, width = case$width),
+      printed_lines(case$container)
+    )
+    expect_lte(max(nchar(lines)), case$width)
+  }
+})
+
+test_that("the report states the rule behind a count, not its parameters", {
+  local_quiet()
+  container <- two_low_support_container()
+  text <- printed_text(container)
+
+  # PoRT reports a subgroup whose exposure prevalence falls outside
+  # [beta, 1 - beta] and that covers at least alpha of the sample. A reader
+  # shown alpha, beta, and gamma has to reassemble that rule, so the report
+  # states the rule and leaves the parameters on the child.
+  expect_no_match(text, "alpha", fixed = TRUE)
+  expect_no_match(text, "beta", fixed = TRUE)
+  expect_no_match(text, "gamma", fixed = TRUE)
+  expect_match(text, "0[.]05")
+  expect_match(text, "0[.]95")
+})
+
+test_that("the report closes by naming what to do next", {
+  local_quiet()
+  container <- one_low_support_container()
+
+  footer <- trailing_block(printed_lines(container))
+
+  # The last thing the report says is what the reader can call from here, so it
+  # names a call rather than restating a finding.
+  next_steps <- c("$", "tidy(", "glance(", "summary(", "plot(")
+  named <- vapply(
+    next_steps,
+    function(step) grepl(step, footer, fixed = TRUE),
+    logical(1)
+  )
+  expect_true(any(named))
+})
+
+test_that("the report is stable", {
+  local_quiet()
+  skip_if_not_installed("lpSolve")
+  container <- two_low_support_container()
+  expect_snapshot(print(container))
+})
+
+test_that("a diagnostic that defines neither display method still has both", {
+  # Every section of the report is built from these two generics, so a
+  # diagnostic subclassed outside the package falls back rather than fails.
+  obj <- make_test_diagnostic()
+
+  label <- diagnostic_label(obj)
+  expect_type(label, "character")
+  expect_length(label, 1L)
+  expect_false(is.na(label))
+
+  headline <- diagnostic_headline(obj)
+  expect_type(headline, "character")
+  expect_gte(length(headline), 1L)
+  expect_false(anyNA(headline))
+})

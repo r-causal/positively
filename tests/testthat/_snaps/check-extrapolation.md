@@ -156,7 +156,7 @@
       i Skipping the convex-hull test: 13 numeric covariates exceed the maximum of 10.
     Output
       
-      -- extrapolation_result --------------------------------------------------------
+      -- Extrapolation ---------------------------------------------------------------
       Exposure: "exposure" (binary)
       Observations: 60
       Geometric variability: 0.121
@@ -177,7 +177,7 @@
       i 13 numeric covariates were supplied; membership will be near zero.
     Output
       
-      -- extrapolation_result --------------------------------------------------------
+      -- Extrapolation ---------------------------------------------------------------
       Exposure: "exposure" (binary)
       Observations: 60
       Geometric variability: 0.121
@@ -192,7 +192,7 @@
       print(res)
     Output
       
-      -- extrapolation_result --------------------------------------------------------
+      -- Extrapolation ---------------------------------------------------------------
       Exposure: "exposure" (binary)
       Observations: 200
       Geometric variability: 0.108
@@ -200,4 +200,16 @@
       Mean fraction nearby: 0.076
       Nearest opposite within one geometric variability: 188 of 200
       In opposite-group hull: 129 of 200
+
+# the extrapolation label and headline are stable
+
+    Code
+      diagnostic_label(res)
+    Output
+      [1] "Extrapolation"
+    Code
+      writeLines(diagnostic_headline(res))
+    Output
+      Geometric variability 0.108
+      188 of 200 have an opposite-exposure unit within one geometric variability; 129 of 200 fall in the opposite hull
 

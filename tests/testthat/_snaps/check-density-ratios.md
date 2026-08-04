@@ -32,7 +32,7 @@
       print(res)
     Output
       
-      -- density_ratios_result -------------------------------------------------------
+      -- Density ratios --------------------------------------------------------------
       Density ratios: 200 observations across 1 time point
       Mean ratio: 0.981
       50th percentile: 0.577
@@ -51,7 +51,7 @@
       print(res)
     Output
       
-      -- density_ratios_result -------------------------------------------------------
+      -- Density ratios --------------------------------------------------------------
       Density ratios: 6 observations across 1 time point
       Mean ratio: 1.5
       50th percentile: 1
@@ -70,7 +70,7 @@
       print(res)
     Output
       
-      -- density_ratios_result -------------------------------------------------------
+      -- Density ratios --------------------------------------------------------------
       Density ratios: 100 observations across 3 time points
       Summaries shown for time point 3
       Mean ratio: 1.018
@@ -91,7 +91,7 @@
       print(res)
     Output
       
-      -- density_ratios_result -------------------------------------------------------
+      -- Density ratios --------------------------------------------------------------
       Density ratios: 200 observations across 1 time point
       Mean ratio: 0.981
       1st percentile: 0.089
@@ -111,7 +111,7 @@
       print(res)
     Output
       
-      -- density_ratios_result -------------------------------------------------------
+      -- Density ratios --------------------------------------------------------------
       Density ratios: 200 observations across 1 time point
       Mean ratio: 0.981
       11th percentile: 0.198
@@ -129,7 +129,7 @@
       print(res)
     Output
       
-      -- density_ratios_result -------------------------------------------------------
+      -- Density ratios --------------------------------------------------------------
       Density ratios: 200 observations across 1 time point
       Mean ratio: 0.981
       Maximum: 6.697
@@ -287,4 +287,22 @@
       ! `ratios` must be finite.
       x An infinite ratio means the observed treatment density was estimated as zero.
       i Inspect the density estimates before summarizing the ratios.
+
+# the density ratio label and headline are stable
+
+    Code
+      diagnostic_label(res)
+    Output
+      [1] "Density ratios"
+    Code
+      writeLines(diagnostic_headline(res))
+    Output
+      200 ratios; mean 0.981, maximum 6.697, Kish ESS fraction 0.439
+
+# the multi-time density ratio headline is stable
+
+    Code
+      writeLines(diagnostic_headline(res))
+    Output
+      100 ratios at each of 3 time points; cumulative mean 0.986, maximum 4.544, and Kish ESS fraction 0.604 at time point 3
 
