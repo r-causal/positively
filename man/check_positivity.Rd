@@ -39,8 +39,9 @@ any diagnostic runs.}
 \code{list(port = list(alpha = 0.1))}. Each name must be a diagnostic being run.}
 }
 \value{
-A \link{positivity_check} object bundling one \link{positivity_diagnostic} child
-per diagnostic, aligned with the \verb{@diagnostics} names.
+A \link{positivity_check} object holding one \link{positivity_diagnostic} child
+per diagnostic, named for the diagnostic that produced it, alongside the
+exposure, covariates, exposure type, and sample size the call resolved.
 }
 \description{
 \code{check_positivity()} is the general entry point to positively. It resolves the

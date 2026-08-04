@@ -106,8 +106,9 @@ default_diagnostics <- function(exposure_type) {
 #' @param args A named list of per-diagnostic option lists, for example
 #'   `list(port = list(alpha = 0.1))`. Each name must be a diagnostic being run.
 #'
-#' @return A [positivity_check] object bundling one [positivity_diagnostic] child
-#'   per diagnostic, aligned with the `@diagnostics` names.
+#' @return A [positivity_check] object holding one [positivity_diagnostic] child
+#'   per diagnostic, named for the diagnostic that produced it, alongside the
+#'   exposure, covariates, exposure type, and sample size the call resolved.
 #'
 #' @seealso [check_edp()], [check_port()], [check_hat_values()], [check_hdr()],
 #'   and [check_extrapolation()] for the individual diagnostics, and
@@ -205,7 +206,7 @@ check_positivity <- function(
   # other informational alert (hull skip, chunked Gower) still reaches the user.
   # A child failure is rethrown as a classed error that names the diagnostic and
   # chains the child's condition.
-  checks <- vector("list", length(diagnostics))
+  checks <- rlang::set_names(vector("list", length(diagnostics)), diagnostics)
   for (i in seq_along(diagnostics)) {
     name <- diagnostics[[i]]
     child_fn <- paste0("check_", name)
@@ -229,7 +230,14 @@ check_positivity <- function(
     )
   }
 
-  positivity_check(checks = checks, diagnostics = diagnostics)
+  positivity_check(
+    checks = checks,
+    exposure = exposure_name,
+    exposure_type = resolved_type,
+    covariates = covariate_names,
+    n = nrow(.data),
+    call = rlang::current_call()
+  )
 }
 
 #' Resolve the composed exposure type
@@ -568,12 +576,12 @@ method(tidy, positivity_check) <- function(x, diagnostic = NULL, ...) {
     return(combined_container_summary(x))
   }
 
-  idx <- match(diagnostic, x@diagnostics)
+  idx <- match(diagnostic, names(x@checks))
   if (length(diagnostic) != 1 || is.na(idx)) {
     abort(
       c(
         "{.arg diagnostic} must name a diagnostic in this container.",
-        i = "Available diagnostics are {.val {x@diagnostics}}."
+        i = "Available diagnostics are {.val {names(x@checks)}}."
       ),
       error_class = "positively_diagnostic_error"
     )
@@ -600,7 +608,7 @@ combined_container_summary <- function(x) {
       value = character(0)
     ))
   }
-  rows <- purrr::map2(x@diagnostics, x@checks, function(name, check) {
+  rows <- purrr::map2(names(x@checks), x@checks, function(name, check) {
     glanced <- generics::glance(check)
     tibble::tibble(
       diagnostic = name,
@@ -622,7 +630,7 @@ method(glance, positivity_check) <- function(x, ...) {
   if (length(x@checks) == 0) {
     return(tibble::tibble(diagnostic = character(0)))
   }
-  rows <- purrr::map2(x@diagnostics, x@checks, function(name, check) {
+  rows <- purrr::map2(names(x@checks), x@checks, function(name, check) {
     tibble::tibble(diagnostic = name, generics::glance(check))
   })
   purrr::list_rbind(rows)

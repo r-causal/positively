@@ -54,9 +54,10 @@ positivity_diagnostic <- new_class(
 #' A container for a set of positivity diagnostics
 #'
 #' `positivity_check` is the S7 container returned by [check_positivity()]. It
-#' bundles one or more [positivity_diagnostic] children with the names of the
-#' diagnostics that produced them. Its print method shows each child's summary
-#' in its own section.
+#' holds one [positivity_diagnostic] child per diagnostic, named for the
+#' diagnostic that produced it, together with the exposure, covariates, exposure
+#' type, sample size, and call the run resolved. Its print method shows each
+#' child's summary in its own section.
 #'
 #' @details
 #' The container has [generics::tidy()] and [generics::glance()] methods.
@@ -67,12 +68,19 @@ positivity_diagnostic <- new_class(
 #' `diagnostic` column, stacking each child's [generics::glance()] row and
 #' filling any column a child lacks with `NA`.
 #'
-#' Extract a child diagnostic with `x[["port"]]`, and list the diagnostics the
-#' container holds with `names(x)`.
+#' Extract a child diagnostic with `x[["port"]]` or `x$port`, and list the
+#' diagnostics the container holds with `names(x)`. Both extractors reject a
+#' name the container does not hold rather than returning `NULL`.
 #'
-#' @param checks A list of [positivity_diagnostic] objects.
-#' @param diagnostics A character vector naming the diagnostics, aligned with
-#'   `checks`.
+#' @param checks A named list of [positivity_diagnostic] objects, in the order
+#'   the diagnostics were requested. Each name is the diagnostic that produced
+#'   the child.
+#' @param exposure The exposure column name or names, time-ordered when the
+#'   diagnostics are sequential.
+#' @param exposure_type One of `"binary"`, `"categorical"`, or `"continuous"`.
+#' @param covariates The covariate column names.
+#' @param n The number of observations, an integer.
+#' @param call The originating call.
 #'
 #' @return A `positivity_check` object. Its [generics::tidy()] method returns a
 #'   [tibble][tibble::tibble] and its [generics::glance()] method returns a
@@ -98,13 +106,18 @@ positivity_diagnostic <- new_class(
 #' # List the diagnostics and extract one child.
 #' names(res)
 #' res[["port"]]
+#' res$port
 #' @order 1
 #' @export
 positivity_check <- new_class(
   "positivity_check",
   properties = list(
     checks = class_list,
-    diagnostics = class_character
+    exposure = class_character,
+    exposure_type = class_character,
+    covariates = class_character,
+    n = class_integer,
+    call = class_call
   ),
   validator = function(self) {
     is_diagnostic <- vapply(
@@ -112,10 +125,28 @@ positivity_check <- new_class(
       function(check) S7::S7_inherits(check, positivity_diagnostic),
       logical(1)
     )
+    # names(list()) is NULL, so an empty container cannot be asked to be named.
+    check_names <- names(self@checks)
+    unnamed <- length(self@checks) > 0 &&
+      (is.null(check_names) || any(is.na(check_names) | check_names == ""))
+
     if (!all(is_diagnostic)) {
       "@checks must all be positivity_diagnostic objects"
-    } else if (length(self@checks) != length(self@diagnostics)) {
-      "@diagnostics must have one name per element of @checks"
+    } else if (unnamed) {
+      "@checks must be a fully named list, one name per diagnostic"
+    } else if (anyDuplicated(check_names) > 0) {
+      "@checks must not repeat a diagnostic name"
+    } else if (length(self@exposure) == 0) {
+      "@exposure must contain at least one column name"
+    } else if (
+      length(self@exposure_type) != 1 ||
+        !self@exposure_type %in% c("binary", "categorical", "continuous")
+    ) {
+      "@exposure_type must be a single value: binary, categorical, or continuous"
+    } else if (length(self@covariates) == 0) {
+      "@covariates must contain at least one column name"
+    } else if (length(self@n) != 1 || is.na(self@n)) {
+      "@n must be a single integer"
     }
   }
 )
@@ -157,8 +188,9 @@ method(print, positivity_diagnostic) <- function(x, ...) {
 
 method(print, positivity_check) <- function(x, ...) {
   cat_cli(cli::cli_h1("Positivity check"))
+  check_names <- names(x@checks)
   for (i in seq_along(x@checks)) {
-    cat_cli(cli::cli_h2("{x@diagnostics[[i]]}"))
+    cat_cli(cli::cli_h2("{check_names[[i]]}"))
     print(x@checks[[i]])
   }
   invisible(x)
@@ -178,17 +210,7 @@ method(`[[`, positivity_check) <- function(x, i, ...) {
     )
   }
   if (is.character(i)) {
-    idx <- match(i, x@diagnostics)
-    if (is.na(idx)) {
-      abort(
-        c(
-          "{.val {i}} is not a diagnostic in this container.",
-          i = "Available diagnostics are {.val {x@diagnostics}}."
-        ),
-        error_class = "positively_diagnostic_error"
-      )
-    }
-    return(x@checks[[idx]])
+    return(extract_named_check(x, i))
   }
   if (!is.numeric(i) || is.na(i) || i != trunc(i)) {
     abort(
@@ -211,6 +233,52 @@ method(`[[`, positivity_check) <- function(x, i, ...) {
 #' @rdname positivity_check
 #' @usage NULL
 #' @order 5
+method(`$`, positivity_check) <- function(x, name) {
+  extract_named_check(x, name)
+}
+
+# `method<-` is a replacement function, so the registration above also leaves
+# `$` bound in this namespace. codetools reads that binding as a redefinition of
+# base `$`, drops the handler that keeps `x$field` from being treated as a
+# variable reference, and then reports every field name used anywhere in the
+# package as an undefined global under R CMD check. Dropping the leftover
+# binding restores the handler; the S3 method itself is registered in base's
+# method table and is unaffected.
+rm(`$`)
+
+#' @rdname positivity_check
+#' @usage NULL
+#' @order 6
 method(names, positivity_check) <- function(x) {
-  x@diagnostics
+  names(x@checks) %||% character(0)
+}
+
+#' Extract a child diagnostic by name
+#'
+#' Shared by `[[` and `$` so that both spell the same refusal for a name the
+#' container does not hold. Neither extractor partially matches, which keeps the
+#' two in agreement on a typo.
+#'
+#' @param x A [positivity_check] object.
+#' @param name A single diagnostic name.
+#' @param call The execution environment used to build the error's call, which
+#'   is the extractor's frame so that the error is blamed on `x[["port"]]` or
+#'   `x$port` rather than on this helper.
+#'
+#' @return The named [positivity_diagnostic] child.
+#' @keywords internal
+#' @noRd
+extract_named_check <- function(x, name, call = rlang::caller_env()) {
+  idx <- match(name, names(x@checks))
+  if (is.na(idx)) {
+    abort(
+      c(
+        "{.val {name}} is not a diagnostic in this container.",
+        i = "Available diagnostics are {.val {names(x@checks)}}."
+      ),
+      error_class = "positively_diagnostic_error",
+      call = call
+    )
+  }
+  x@checks[[idx]]
 }

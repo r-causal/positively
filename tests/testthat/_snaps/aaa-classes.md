@@ -6,6 +6,24 @@
       Error in `res[[1.9]]`:
       ! `i` must be a diagnostic name or a whole-number position.
 
+# the unknown-diagnostic message is stable
+
+    Code
+      res[["nonexistent"]]
+    Condition
+      Error in `res[["nonexistent"]]`:
+      ! "nonexistent" is not a diagnostic in this container.
+      i Available diagnostics are "edp" and "port".
+
+---
+
+    Code
+      res$nonexistent
+    Condition
+      Error in `res$nonexistent`:
+      ! "nonexistent" is not a diagnostic in this container.
+      i Available diagnostics are "edp" and "port".
+
 # printing a diagnostic is stable
 
     Code

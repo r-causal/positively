@@ -8,10 +8,10 @@
 # plumbing (selection, passthrough, container shape, errors), so they lean on the
 # cheapest diagnostics and shrink the expensive null resampling through `args`.
 
-# The child produced by a named diagnostic, located through the aligned
-# @diagnostics vector rather than list names.
+# The child produced by a named diagnostic, read straight off the named @checks
+# list rather than through `[[` or `$`, which several of these blocks test.
 child_named <- function(res, name) {
-  res@checks[[match(name, res@diagnostics)]]
+  res@checks[[name]]
 }
 
 # ---- Default diagnostic sets by exposure type -----------------------------
@@ -22,7 +22,8 @@ test_that("a binary exposure runs edp, port, and extrapolation by default", {
   res <- check_positivity(data, exposure, c(x1, x2))
 
   expect_true(S7::S7_inherits(res, positivity_check))
-  expect_identical(res@diagnostics, c("edp", "port", "extrapolation"))
+  expect_identical(names(res), c("edp", "port", "extrapolation"))
+  expect_identical(names(res@checks), c("edp", "port", "extrapolation"))
   expect_length(res@checks, 3L)
   expect_true(all(vapply(
     res@checks,
@@ -35,7 +36,7 @@ test_that("a binary default run excludes eta_bias and density_ratios", {
   local_quiet()
   data <- dgp_good_positivity(n = 200)
   res <- check_positivity(data, exposure, c(x1, x2))
-  expect_false(any(c("eta_bias", "density_ratios") %in% res@diagnostics))
+  expect_false(any(c("eta_bias", "density_ratios") %in% names(res)))
 })
 
 test_that("each binary child carries the resolved exposure name and type", {
@@ -63,7 +64,7 @@ test_that("a categorical exposure runs edp and port by default", {
   res <- check_positivity(data, exposure, c(x1, x2))
 
   expect_true(S7::S7_inherits(res, positivity_check))
-  expect_identical(res@diagnostics, c("edp", "port"))
+  expect_identical(names(res), c("edp", "port"))
   expect_length(res@checks, 2L)
   expect_true(all(
     vapply(
@@ -87,7 +88,7 @@ test_that("a continuous exposure runs edp, port, hat_values, and hdr by default"
   )
 
   expect_true(S7::S7_inherits(res, positivity_check))
-  expect_identical(res@diagnostics, c("edp", "port", "hat_values", "hdr"))
+  expect_identical(names(res), c("edp", "port", "hat_values", "hdr"))
   expect_length(res@checks, 4L)
   expect_true(all(
     vapply(
@@ -110,7 +111,7 @@ test_that("an explicit diagnostics vector is honoured in order", {
     c(x1, x2),
     diagnostics = c("port", "extrapolation")
   )
-  expect_identical(res@diagnostics, c("port", "extrapolation"))
+  expect_identical(names(res), c("port", "extrapolation"))
   expect_length(res@checks, 2L)
 })
 
@@ -118,7 +119,7 @@ test_that("a single requested diagnostic yields a one-child container", {
   local_quiet()
   data <- dgp_good_positivity(n = 200)
   res <- check_positivity(data, exposure, c(x1, x2), diagnostics = "port")
-  expect_identical(res@diagnostics, "port")
+  expect_identical(names(res), "port")
   expect_length(res@checks, 1L)
 })
 
@@ -277,9 +278,13 @@ test_that("a declared continuous type runs the continuous set on a coarse dose",
     args = list(hat_values = list(null_reps = 25))
   )
 
-  expect_identical(res@diagnostics, c("edp", "port", "hat_values", "hdr"))
+  expect_identical(names(res), c("edp", "port", "hat_values", "hdr"))
   expect_identical(
-    vapply(res@checks, function(check) check@exposure_type, character(1)),
+    unname(vapply(
+      res@checks,
+      function(check) check@exposure_type,
+      character(1)
+    )),
     rep("continuous", 4L)
   )
 })
@@ -300,6 +305,72 @@ test_that("diagnostic_exposure_types() projects the registry in composition orde
     unname(offered),
     unname(registry[composed_diagnostics()])
   )
+})
+
+# ---- Container metadata ---------------------------------------------------
+
+test_that("the container carries the metadata check_positivity() resolved", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  res <- check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = c("port", "extrapolation")
+  )
+
+  expect_identical(res@exposure, "exposure")
+  # No type was declared, so the recorded type is the one detection resolved
+  # rather than the "auto" the caller passed.
+  expect_identical(res@exposure_type, "binary")
+  expect_identical(res@covariates, c("x1", "x2"))
+  expect_identical(res@n, 200L)
+  expect_true(rlang::is_call(res@call, "check_positivity"))
+})
+
+test_that("a declared exposure type is what the container records", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  res <- check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = "port",
+    exposure_type = "categorical"
+  )
+  expect_identical(res@exposure_type, "categorical")
+})
+
+test_that("the container records a lone covariate as a length-one vector", {
+  local_quiet()
+  data <- dgp_continuous_support_gap(n = 150)
+  res <- check_positivity(data, exposure, x1, diagnostics = "port")
+
+  expect_identical(res@covariates, "x1")
+  expect_identical(res@exposure_type, "continuous")
+  expect_identical(res@n, 150L)
+})
+
+test_that("the container metadata agrees with every child's", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  res <- check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = c("port", "extrapolation")
+  )
+
+  agrees <- function(reader) {
+    vapply(
+      res@checks,
+      function(check) identical(reader(check), reader(res)),
+      logical(1)
+    )
+  }
+  expect_true(all(agrees(function(x) x@exposure)))
+  expect_true(all(agrees(function(x) x@exposure_type)))
+  expect_true(all(agrees(function(x) x@n)))
 })
 
 # ---- Child alerts and failures --------------------------------------------
@@ -580,6 +651,24 @@ test_that("[[ extracts the identical child diagnostic object by name", {
   expect_identical(res[["extrapolation"]], child_named(res, "extrapolation"))
 })
 
+test_that("`$` extracts a child diagnostic instead of reaching for a property", {
+  local_quiet()
+  data <- dgp_good_positivity(n = 200)
+  res <- check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = c("port", "extrapolation")
+  )
+  expect_identical(res$port, child_named(res, "port"))
+  expect_identical(res$extrapolation, res[["extrapolation"]])
+  expect_error(res$nonexistent, class = "positively_diagnostic_error")
+  # Property names are refused too, so `$` never silently returns metadata in
+  # place of a child.
+  expect_error(res$checks, class = "positively_diagnostic_error")
+  expect_error(res$exposure, class = "positively_diagnostic_error")
+})
+
 test_that("autoplot works on an extracted child", {
   local_quiet()
   data <- dgp_good_positivity(n = 200)
@@ -607,7 +696,14 @@ test_that("names() returns the composed diagnostic names", {
 })
 
 test_that("names() on an empty container is character(0)", {
-  empty <- positivity_check(checks = list(), diagnostics = character(0))
+  empty <- positivity_check(
+    checks = list(),
+    exposure = "exposure",
+    exposure_type = "binary",
+    covariates = c("x1", "x2"),
+    n = 200L,
+    call = quote(check_positivity())
+  )
   expect_identical(names(empty), character(0))
 })
 
@@ -818,7 +914,7 @@ test_that("a suggested exposure type runs the diagnostics the advice names", {
     exposure_type = "continuous",
     args = list(hat_values = list(null_reps = 25))
   )
-  expect_identical(res@diagnostics, c("hat_values", "hdr"))
+  expect_identical(names(res), c("hat_values", "hdr"))
 })
 
 test_that("a declared type is answered with the diagnostic set, not a type", {

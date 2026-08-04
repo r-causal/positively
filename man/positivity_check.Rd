@@ -5,16 +5,35 @@
 \alias{tidy,positively::positivity_check-method}
 \alias{glance,positively::positivity_check-method}
 \alias{[[,positively::positivity_check-method}
+\alias{$,positively::positivity_check-method}
 \alias{names,positively::positivity_check-method}
 \title{A container for a set of positivity diagnostics}
 \usage{
-positivity_check(checks = list(), diagnostics = character(0))
+positivity_check(
+  checks = list(),
+  exposure = character(0),
+  exposure_type = character(0),
+  covariates = character(0),
+  n = integer(0),
+  call = quote({
+ })
+)
 }
 \arguments{
-\item{checks}{A list of \link{positivity_diagnostic} objects.}
+\item{checks}{A named list of \link{positivity_diagnostic} objects, in the order
+the diagnostics were requested. Each name is the diagnostic that produced
+the child.}
 
-\item{diagnostics}{A character vector naming the diagnostics, aligned with
-\code{checks}.}
+\item{exposure}{The exposure column name or names, time-ordered when the
+diagnostics are sequential.}
+
+\item{exposure_type}{One of \code{"binary"}, \code{"categorical"}, or \code{"continuous"}.}
+
+\item{covariates}{The covariate column names.}
+
+\item{n}{The number of observations, an integer.}
+
+\item{call}{The originating call.}
 }
 \value{
 A \code{positivity_check} object. Its \code{\link[generics:tidy]{generics::tidy()}} method returns a
@@ -23,9 +42,10 @@ one-row-per-diagnostic tibble.
 }
 \description{
 \code{positivity_check} is the S7 container returned by \code{\link[=check_positivity]{check_positivity()}}. It
-bundles one or more \link{positivity_diagnostic} children with the names of the
-diagnostics that produced them. Its print method shows each child's summary
-in its own section.
+holds one \link{positivity_diagnostic} child per diagnostic, named for the
+diagnostic that produced it, together with the exposure, covariates, exposure
+type, sample size, and call the run resolved. Its print method shows each
+child's summary in its own section.
 }
 \details{
 The container has \code{\link[generics:tidy]{generics::tidy()}} and \code{\link[generics:glance]{generics::glance()}} methods.
@@ -36,8 +56,9 @@ instead. \code{glance(x)} returns one row per diagnostic, prefixed with a
 \code{diagnostic} column, stacking each child's \code{\link[generics:glance]{generics::glance()}} row and
 filling any column a child lacks with \code{NA}.
 
-Extract a child diagnostic with \code{x[["port"]]}, and list the diagnostics the
-container holds with \code{names(x)}.
+Extract a child diagnostic with \code{x[["port"]]} or \code{x$port}, and list the
+diagnostics the container holds with \code{names(x)}. Both extractors reject a
+name the container does not hold rather than returning \code{NULL}.
 }
 \examples{
 set.seed(1)
@@ -59,4 +80,5 @@ glance(res)
 # List the diagnostics and extract one child.
 names(res)
 res[["port"]]
+res$port
 }
