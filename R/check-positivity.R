@@ -1,9 +1,8 @@
-# check_positivity() is the top-level entry point. It resolves the exposure type
-# once, announces it once, composes the applicable check_*() diagnostics with
-# their defaults (overridable through `args`), and returns a positivity_check
-# container. The container's summary() method lives here alongside it; the
-# container class itself, with its print and extraction methods, is defined in
-# aaa-classes.R.
+# check_positivity() resolves the exposure type once, announces it once,
+# composes the applicable check_*() diagnostics with their defaults (overridable
+# through `args`), and returns a positivity_check container. The container's
+# summary() method lives here alongside it; the container class itself, with its
+# print and extraction methods, is defined in aaa-classes.R.
 
 # The diagnostics check_positivity() can dispatch, in design-doc order.
 # check_eta_bias() and check_density_ratios() are deliberately absent: they need
@@ -37,11 +36,12 @@ default_diagnostics <- function(exposure_type) {
 
 #' Diagnose positivity across the applicable methods
 #'
-#' `check_positivity()` is the general entry point to positively. It resolves the
-#' exposure type, detecting it from the data unless you declare one, runs the
-#' diagnostics that apply to that type with their defaults, and returns a
-#' [positivity_check] container whose print method shows each diagnostic's
-#' summary in its own section.
+#' `check_positivity()` resolves the exposure type, detecting it from the data
+#' unless you declare one, runs the diagnostics that apply to that type with
+#' their defaults, and returns a [positivity_check] container. Printing it gives
+#' a report: the exposure, its type, the sample size, and the covariates stated
+#' once for the run, then one section per diagnostic reading what that
+#' diagnostic found.
 #'
 #' @details
 #' `check_positivity()` resolves the exposure type a single time and hands the
@@ -433,7 +433,7 @@ validate_composed_diagnostics <- function(
 #' naming the diagnostics that type would run, so diagnostics needing the same
 #' type are named together and diagnostics needing different types are named
 #' apart. Only types the exposure column can structurally carry are offered:
-#' `exposure_carries_type()` is the same rule the entry point's own gate applies,
+#' `exposure_carries_type()` is the same rule `check_positivity()` gates on,
 #' so a caller who acts on a bullet is never sent into that gate. When no needed
 #' type survives the filter there is nothing worth suggesting and no bullet is
 #' emitted. The bullets are formatted here rather than handed to `abort()` as cli

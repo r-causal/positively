@@ -29,7 +29,7 @@ dose <- rnorm(n, mean = x1)
 df <- data.frame(dose = dose, x1 = x1)
 result <- check_edp(df, dose, x1, values = c(0, 1), exposure_type = "continuous")
 
-ggplot2::autoplot(result, type = "histogram")
-ggplot2::autoplot(result, type = "ecdf")
+autoplot(result, type = "histogram")
+autoplot(result, type = "ecdf")
 
 }

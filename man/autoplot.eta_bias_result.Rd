@@ -31,7 +31,7 @@ y <- a + x1 + x2 + rnorm(n)
 df <- data.frame(a = a, y = y, x1 = x1, x2 = x2)
 # n_boot is small here to keep the example fast.
 result <- check_eta_bias(df, a, y, c(x1, x2), n_boot = 25)
-ggplot2::autoplot(result, type = "bootstrap")
+autoplot(result, type = "bootstrap")
 
 swept <- check_eta_bias(
   df,
@@ -41,6 +41,6 @@ swept <- check_eta_bias(
   truncation_grid = c(0, 0.05, 0.1),
   n_boot = 25
 )
-ggplot2::autoplot(swept, type = "sweep")
+autoplot(swept, type = "sweep")
 
 }

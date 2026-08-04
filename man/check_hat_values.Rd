@@ -70,8 +70,8 @@ scalar properties \verb{@phi_hat}, \verb{@null_dist}, \verb{@null_quantile},
 \code{p}.
 }
 \description{
-\code{check_hat_values()} is the hat-value (leverage) positivity diagnostic of
-Moodie and Schulz (2025) for continuous exposures. It measures how far a set
+\code{check_hat_values()} computes the hat-value (leverage) positivity diagnostic
+of Moodie and Schulz (2025) for continuous exposures. It measures how far a set
 of candidate exposure-covariate combinations sits from the observed data by
 the leverage those combinations would exert on a linear model, then compares
 the observed leverage profile against a null in which the exposure is drawn

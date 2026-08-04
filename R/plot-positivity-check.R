@@ -18,7 +18,7 @@
 #' @param object A [positivity_check] from [check_positivity()].
 #' @param diagnostic Optionally, the name of one diagnostic to draw. Defaults to
 #'   `NULL`, which panels every child.
-#' @param ... Passed to a child's own [ggplot2::autoplot()] method. The panel
+#' @param ... Passed to a child's own [autoplot()] method. The panel
 #'   passes them to every child, so an argument only one diagnostic accepts
 #'   belongs with a named `diagnostic` rather than with the panel.
 #'

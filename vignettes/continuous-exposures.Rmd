@@ -102,7 +102,7 @@ data points, while the supported values carry a broad distribution of well
 supported observations.
 
 ```{r edp-plot, fig.alt = "Histograms of effective data points faceted by candidate exposure value one, three, and five. The value three panel concentrates at low effective data points, while values one and five spread toward higher support."}
-ggplot2::autoplot(edp, type = "histogram")
+autoplot(edp, type = "histogram")
 ```
 
 Effective data points detect the `a2` gap directly, because the kernel measures
@@ -145,7 +145,7 @@ strongly on `l0` or `l1`, so no exposure-covariate combination is far from the
 observed design in the leverage sense.
 
 ```{r hat-null, fig.alt = "Histogram of the null distribution of the leverage summary statistic, with a dashed line at the null quantile and a solid line at the observed statistic; the observed statistic sits within the null distribution."}
-ggplot2::autoplot(hat_values, type = "null")
+autoplot(hat_values, type = "null")
 ```
 
 Hat values identify extrapolation risk that arises when specific exposure values
@@ -198,7 +198,7 @@ ratio has a nonzero floor even at the central target, and it rises toward one fo
 extreme targets. The `autoplot()` curve shows the ratio against the target value.
 
 ```{r hdr-plot, fig.alt = "Non-overlap ratio plotted against target exposure value for the mean-shift example, forming a U shape that is lowest near the center of the exposure range and rises toward one at both extremes."}
-ggplot2::autoplot(hdr_shift)
+autoplot(hdr_shift)
 ```
 
 The non-overlap ratio measures support for a common target dose across covariate
@@ -299,11 +299,11 @@ construction and the longitudinal support structure of `pos_violations_long`.
 
 ## Where to go next
 
-The *Getting started with positively* vignette introduces `check_positivity()`,
-the general entry point, and reads each diagnostic's output and plot on a binary
-example. For a continuous exposure, `check_positivity()` runs effective data
-points, positivity regression trees with the exposure categorized, hat values, and
-highest density region non-overlap together, with the defaults used above.
+The *Getting started with positively* vignette introduces `check_positivity()`
+and reads each diagnostic's output and plot on a binary example. For a
+continuous exposure, `check_positivity()` runs effective data points, positivity
+regression trees with the exposure categorized, hat values, and highest density
+region non-overlap together, with the defaults used above.
 
 ## References
 

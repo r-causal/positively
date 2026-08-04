@@ -25,6 +25,6 @@ dose <- rnorm(n, mean = l)
 df <- data.frame(dose = dose, l = l)
 result <- check_hdr(df, dose, l)
 
-ggplot2::autoplot(result)
+autoplot(result)
 
 }

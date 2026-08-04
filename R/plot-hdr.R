@@ -19,7 +19,7 @@
 #' df <- data.frame(dose = dose, l = l)
 #' result <- check_hdr(df, dose, l)
 #'
-#' ggplot2::autoplot(result)
+#' autoplot(result)
 #'
 #' @name autoplot.hdr_result
 #' @aliases plot.hdr_result

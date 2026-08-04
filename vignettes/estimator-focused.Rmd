@@ -111,12 +111,12 @@ eta
 ```
 
 The printed output reports the target truth, the number of truncation levels,
-and the range of ETA.Bias across the sweep. The full per-level table is in the
-`@results` tibble, one row per truncation level with the bias, its Monte Carlo
-standard error, and the mean bootstrap estimate.
+and the range of ETA.Bias across the sweep. `tidy()` returns the full per-level
+table, one row per truncation level with the bias, its Monte Carlo standard
+error, and the mean bootstrap estimate.
 
 ```{r eta-results}
-eta@results
+tidy(eta)
 ```
 
 Two patterns appear as the lower bound rises. The bias grows, because tighter
@@ -131,7 +131,7 @@ a band of plus or minus two Monte Carlo standard errors. The dashed line at zero
 marks the bias a positivity-robust estimator would achieve.
 
 ```{r eta-sweep, fig.alt = "ETA.Bias plotted against the truncation lower bound for the inverse-probability-weighting estimator, rising away from zero as the bound tightens, with a two Monte Carlo standard error band."}
-ggplot2::autoplot(eta, type = "sweep")
+autoplot(eta, type = "sweep")
 ```
 
 The three estimators respond differently. G-computation ignores the propensity,
@@ -144,7 +144,7 @@ each truncation level with the target truth marked, the raw material behind each
 point on the sweep.
 
 ```{r eta-bootstrap, fig.alt = "Histograms of bootstrap estimates for the inverse-probability-weighting estimator, one facet per truncation level, each with a dashed line at the target truth."}
-ggplot2::autoplot(eta, type = "bootstrap")
+autoplot(eta, type = "bootstrap")
 ```
 
 ETA.Bias captures the positivity, truncation, and sparsity component of bias and
@@ -195,14 +195,14 @@ tidy(extrapolation)
 ```
 
 The units with the lowest `frac_nearby` sit in the covariate tails and in the
-structural subgroup, the same regions PoRT flags. The `type = "distribution"`
-plot shows the distribution of `frac_nearby` within each exposure group. The
-mass near zero is the set of units with no opposite-group neighbor close by, the
-units whose g-computation prediction under the missing exposure rests on
-extrapolation.
+structural subgroup, the same regions PoRT reports. The `type = "distribution"`
+plot shows the distribution of `frac_nearby` within each exposure group. Most
+units carry a third to a half of the opposite group nearby, and the thin left
+tail is the handful with almost none, whose g-computation prediction under the
+missing exposure rests on extrapolation.
 
-```{r extrapolation-distribution, fig.alt = "Histograms of the fraction of nearby opposite-group units, faceted by exposure group, each with mass near zero."}
-ggplot2::autoplot(extrapolation, type = "distribution")
+```{r extrapolation-distribution, fig.alt = "Histograms of the fraction of nearby opposite-group units, faceted by exposure group, each rising from a thin left tail near zero to a peak around four tenths."}
+autoplot(extrapolation, type = "distribution")
 ```
 
 The convex-hull test is the sharper statement of the same idea. It asks whether
@@ -225,7 +225,7 @@ opposite group's hull. The units outside it are the ones that require
 extrapolation, and they include the structural subgroup that is never exposed.
 
 ```{r extrapolation-hull, fig.alt = "Stacked bars per exposure group showing the share of units inside versus outside the opposite group's convex hull."}
-ggplot2::autoplot(extrapolation, type = "hull")
+autoplot(extrapolation, type = "hull")
 ```
 
 Read together, the two diagnostics describe the same positivity violation from

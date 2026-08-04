@@ -9,8 +9,8 @@
 #' the shared property set (a tidy results tibble, the exposure column names and
 #' type, the sample size, the resolved method parameters, and the originating
 #' call) and supplies the [generics::tidy()], [generics::glance()],
-#' [summary()], and [print()] behavior that every diagnostic reuses. Package
-#' developers extend it when adding a new diagnostic.
+#' [summary()], and [print()] behavior a diagnostic inherits unless it
+#' overrides one. Package developers extend it when adding a new diagnostic.
 #'
 #' @details
 #' [generics::tidy()] returns `@results` unchanged. The inherited
@@ -24,7 +24,10 @@
 #' earns a row. `value` is numeric throughout, so the character and logical
 #' statistics stay behind in the wide output, as do the sample size, the
 #' resolved method parameters, and any column that another statistic reports as
-#' its threshold, which would otherwise be stated twice.
+#' its threshold, which would otherwise be stated twice. A diagnostic may
+#' override [summary()] to aggregate something else entirely:
+#' [check_extrapolation()] summarizes its per-unit results by exposure group
+#' instead.
 #'
 #' `threshold` is the one number behind the row, stated in the units of the
 #' quantity it cuts, which are not always the units of `value`. Where the
@@ -100,12 +103,19 @@ positivity_diagnostic <- new_class(
 #' child contributes the statistics its [generics::glance()] computed, so the
 #' overview reads the same way whichever diagnostics were run.
 #'
-#' Extract a child diagnostic with `x[["port"]]` or `x$port`, and list the
+#' [sniff_violations()] reports what the run found, one row per finding across
+#' every child, where [summary()] reports a statistic per child whether or not
+#' anything was found.
+#'
+#' Extract a child diagnostic with `x$port` or `x[["port"]]`, and list the
 #' diagnostics the container holds with `names(x)`. Both extractors reject a
 #' name the container does not hold rather than returning `NULL`. A child
 #' carries its own [generics::tidy()] and [generics::glance()] methods, which
 #' are where a diagnostic's full results and its wide, typed statistics are
 #' read.
+#'
+#' [autoplot()] draws each child's default view as one panel, and
+#' `autoplot(x, "port")` draws a single child.
 #'
 #' @param checks A named list of [positivity_diagnostic] objects, in the order
 #'   the diagnostics were requested. Each name is the diagnostic that produced
@@ -131,9 +141,11 @@ positivity_diagnostic <- new_class(
 #' # The overview across every child.
 #' summary(res)
 #'
+#' # What the run found, one row per finding.
+#' sniff_violations(res)
+#'
 #' # List the diagnostics and extract one child.
 #' names(res)
-#' res[["port"]]
 #' res$port
 #'
 #' # A child carries its own results and its own statistics.

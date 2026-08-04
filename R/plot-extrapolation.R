@@ -23,7 +23,7 @@
 #' df <- data.frame(exposure = exposure, x1 = x1, x2 = x2)
 #' result <- check_extrapolation(df, exposure, c(x1, x2), hull = FALSE)
 #'
-#' ggplot2::autoplot(result, type = "distribution")
+#' autoplot(result, type = "distribution")
 #'
 #' @name autoplot.extrapolation_result
 #' @aliases plot.extrapolation_result

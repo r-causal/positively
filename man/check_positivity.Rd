@@ -44,11 +44,12 @@ per diagnostic, named for the diagnostic that produced it, alongside the
 exposure, covariates, exposure type, and sample size the call resolved.
 }
 \description{
-\code{check_positivity()} is the general entry point to positively. It resolves the
-exposure type, detecting it from the data unless you declare one, runs the
-diagnostics that apply to that type with their defaults, and returns a
-\link{positivity_check} container whose print method shows each diagnostic's
-summary in its own section.
+\code{check_positivity()} resolves the exposure type, detecting it from the data
+unless you declare one, runs the diagnostics that apply to that type with
+their defaults, and returns a \link{positivity_check} container. Printing it gives
+a report: the exposure, its type, the sample size, and the covariates stated
+once for the run, then one section per diagnostic reading what that
+diagnostic found.
 }
 \details{
 \code{check_positivity()} resolves the exposure type a single time and hands the

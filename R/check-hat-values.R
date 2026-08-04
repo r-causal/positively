@@ -33,8 +33,8 @@ hat_values_result <- new_class(
 
 #' Diagnose positivity for continuous exposures with hat values
 #'
-#' `check_hat_values()` is the hat-value (leverage) positivity diagnostic of
-#' Moodie and Schulz (2025) for continuous exposures. It measures how far a set
+#' `check_hat_values()` computes the hat-value (leverage) positivity diagnostic
+#' of Moodie and Schulz (2025) for continuous exposures. It measures how far a set
 #' of candidate exposure-covariate combinations sits from the observed data by
 #' the leverage those combinations would exert on a linear model, then compares
 #' the observed leverage profile against a null in which the exposure is drawn

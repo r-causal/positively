@@ -23,8 +23,8 @@
 #' # null_reps is small here to keep the example fast.
 #' result <- check_hat_values(df, dose, x1, null_reps = 50)
 #'
-#' ggplot2::autoplot(result, type = "null")
-#' ggplot2::autoplot(result, type = "profile")
+#' autoplot(result, type = "null")
+#' autoplot(result, type = "profile")
 #'
 #' @name autoplot.hat_values_result
 #' @aliases plot.hat_values_result

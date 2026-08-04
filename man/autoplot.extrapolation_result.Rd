@@ -30,6 +30,6 @@ exposure <- rbinom(n, 1, plogis(0.5 * x1 - 0.5 * x2))
 df <- data.frame(exposure = exposure, x1 = x1, x2 = x2)
 result <- check_extrapolation(df, exposure, c(x1, x2), hull = FALSE)
 
-ggplot2::autoplot(result, type = "distribution")
+autoplot(result, type = "distribution")
 
 }

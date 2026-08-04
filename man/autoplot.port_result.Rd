@@ -39,7 +39,7 @@ exposure <- rbinom(n, 1, ifelse(x1 > 1, 0, 0.5))
 df <- data.frame(exposure = exposure, x1 = x1)
 result <- check_port(df, exposure, x1)
 
-ggplot2::autoplot(result)
-ggplot2::autoplot(result, low_support_only = TRUE)
+autoplot(result)
+autoplot(result, low_support_only = TRUE)
 
 }

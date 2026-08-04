@@ -31,8 +31,8 @@
 #' df <- data.frame(exposure = exposure, x1 = x1)
 #' result <- check_port(df, exposure, x1)
 #'
-#' ggplot2::autoplot(result)
-#' ggplot2::autoplot(result, low_support_only = TRUE)
+#' autoplot(result)
+#' autoplot(result, low_support_only = TRUE)
 #'
 #' @name autoplot.port_result
 #' @aliases plot.port_result

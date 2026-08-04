@@ -27,8 +27,8 @@ diagnostic result inherits from. It cannot be instantiated directly. It fixes
 the shared property set (a tidy results tibble, the exposure column names and
 type, the sample size, the resolved method parameters, and the originating
 call) and supplies the \code{\link[generics:tidy]{generics::tidy()}}, \code{\link[generics:glance]{generics::glance()}},
-\code{\link[=summary]{summary()}}, and \code{\link[=print]{print()}} behavior that every diagnostic reuses. Package
-developers extend it when adding a new diagnostic.
+\code{\link[=summary]{summary()}}, and \code{\link[=print]{print()}} behavior a diagnostic inherits unless it
+overrides one. Package developers extend it when adding a new diagnostic.
 }
 \details{
 \code{\link[generics:tidy]{generics::tidy()}} returns \verb{@results} unchanged. The inherited
@@ -42,7 +42,10 @@ it to state its own statistics beside \code{n}, typed as they are computed.
 earns a row. \code{value} is numeric throughout, so the character and logical
 statistics stay behind in the wide output, as do the sample size, the
 resolved method parameters, and any column that another statistic reports as
-its threshold, which would otherwise be stated twice.
+its threshold, which would otherwise be stated twice. A diagnostic may
+override \code{\link[=summary]{summary()}} to aggregate something else entirely:
+\code{\link[=check_extrapolation]{check_extrapolation()}} summarizes its per-unit results by exposure group
+instead.
 
 \code{threshold} is the one number behind the row, stated in the units of the
 quantity it cuts, which are not always the units of \code{value}. Where the

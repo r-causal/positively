@@ -19,8 +19,8 @@
 #' m <- matrix(c(1, 1, 2, 1, 3, 1, 4, 1), nrow = 2)
 #' result <- check_density_ratios(m)
 #'
-#' ggplot2::autoplot(result, type = "distribution")
-#' ggplot2::autoplot(result, type = "cumulative")
+#' autoplot(result, type = "distribution")
+#' autoplot(result, type = "cumulative")
 #'
 #' @name autoplot.density_ratios_result
 #' @aliases plot.density_ratios_result

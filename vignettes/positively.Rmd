@@ -17,7 +17,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-positively provides diagnostics for positivity violations and extrapolation in causal inference. Causal effect estimates rest on the positivity assumption: every unit must have a non-zero probability of receiving each level of the exposure within every stratum of the covariates. Where that probability is zero, or close to it, you face of two problems: 1) for an exposure-based model, like Inverse Probability Weighting, you get a biased and unstable estimate or 2) for an outcome-based model, like a regression model, an estimate comes from the model extrapolating rather than from observed comparisons.
+positively provides diagnostics for positivity violations and extrapolation in causal inference. Causal effect estimates rest on the positivity assumption: every unit must have a non-zero probability of receiving each level of the exposure within every stratum of the covariates. Where that probability is zero, or close to it, you face one of two problems: 1) for an exposure-based model, like Inverse Probability Weighting, you get a biased and unstable estimate or 2) for an outcome-based model, like a regression model, an estimate comes from the model extrapolating rather than from observed comparisons.
 
 Positivity violations come in two kinds, and they call for different responses.
 A structural violation is one where treatment is impossible for a subgroup, so
@@ -58,13 +58,13 @@ recover both, and distinguish the empty subgroup from the near-empty tails.
 
 ## Running check_positivity()
 
-`check_positivity()` is the general entry point. It detects the exposure type,
-or uses the one you declare in `exposure_type`, then checks positivity with the
-set of diagnostics appropriate to that type, composing the individual
-`check_*()` functions with their defaults. It collects each diagnostic's output
-into a container you can read and plot. You give it the data, the exposure
-column, and the covariates. The covariates are required, with no default, so
-that outcome columns are never swept in by accident.
+`check_positivity()` detects the exposure type, or uses the one you declare in
+`exposure_type`, then checks positivity with the set of diagnostics appropriate
+to that type, composing the individual `check_*()` functions with their
+defaults. It collects each diagnostic's output into a container you can read and
+plot. You give it the data, the exposure column, and the covariates. The
+covariates are required, with no default, so that outcome columns are never
+swept in by accident.
 `vignette("continuous-exposures")` covers when declaring the type is the right
 call.
 
@@ -75,21 +75,24 @@ check <- check_positivity(pos_violations, exposure, c(x1, x2, region))
 The message reports that the exposure was detected as binary. For a binary
 exposure the default set is three diagnostics: effective data points (`edp`),
 positivity regression trees (`port`), and an extrapolation check
-(`extrapolation`). Printing the container shows each one in its own section.
+(`extrapolation`). Printing the container gives a report.
 
 ```{r print}
 check
 ```
 
-Each section reports a numeric summary.
-The `edp` section reports the range of effective data points across the sample.
-The `port` section reports how many covariate subgroups were examined and how
-many read as low support under the algorithm's published rule. The
-`extrapolation` section reports the geometric scale used to judge nearness, the
-average share of the opposite exposure group lying nearby each unit, and how many
-units fall inside the opposite group's convex hull. The three low-support
-subgroups and the units that sit far from any opposite-group neighbor are the
-first signals that this dataset has positivity problems.
+The header states the exposure, its type, the sample size, and the covariates
+once for the whole run. Each diagnostic then gets a section, headed by the name
+you extract it with, reading what that diagnostic found. Diagnostics that found
+something come first, and the rest follow in the order they were requested.
+
+The `port` section reports how many covariate subgroups it examined and how many
+read as low support, and spells out the rule that produced the count rather than
+leaving you to assemble it from the parameters. The `extrapolation` section
+reports the geometric scale it judges nearness by, then how many units have an
+opposite-exposure unit within one of it and how many fall inside the opposite
+group's convex hull. The `edp` section reports the range of effective data
+points across the intervention values. The footer names what to do next.
 
 ## Reading the container
 
@@ -106,6 +109,29 @@ number to show, not that the diagnostic read nothing against anything.
 summary(check)
 ```
 
+`sniff_violations()` answers the other question: not what every diagnostic
+measured, but what any of them found. It returns one row per finding across the
+whole run, with the number behind each row in the `threshold` column where
+there is one, so a reader can see that a cut came from an argument they passed.
+A convex-hull test has no number behind it, so its row states `NA`. A diagnostic
+that found nothing contributes no rows, so an empty table is an answer rather
+than a failure.
+
+```{r sniff}
+sniff_violations(check)
+```
+
+`scope` says what a row is about, and rows of different kinds are not
+comparable. A `subgroup` row names a covariate region you can act on, an
+`overall` row is a reading taken across the whole run, and a `unit` row is one
+row of a distribution whose aggregate is the reading. Unit rows are available on
+request, and they are not included by default because a diagnostic reporting per
+unit produces far more rows than one reporting per subgroup.
+
+```{r sniff-unit}
+sniff_violations(check, scope = "unit")
+```
+
 To pull a single diagnostic out of the container, name it with `$` or `[[`. Its
 `tidy()` method returns that diagnostic's own tidy tibble, one row per unit or
 per subgroup depending on the method, and its `glance()` method returns the wide
@@ -114,6 +140,28 @@ row of statistics the overview drew on.
 ```{r tidy-child}
 tidy(check$port)
 ```
+
+`autoplot()` draws the whole container as a panel of each diagnostic's default
+view. The panel needs the patchwork package. Each view keeps the size the panel
+gives it, so a panel reads well for diagnostics whose default view is compact.
+PoRT reports a couple of hundred subgroups here, and its default chart is worth
+a figure of its own, so the panel below holds the other two.
+
+```{r container-plot, eval = requireNamespace("patchwork", quietly = TRUE), message = FALSE, fig.width = 9, fig.height = 3.5, fig.alt = "Effective data points faceted by candidate exposure value, each a broad distribution running from zero to the sample maximum, beside the fraction of nearby opposite-group units faceted by exposure group, each rising from near zero to a peak around four tenths."}
+compact <- check_positivity(
+  pos_violations,
+  exposure,
+  c(x1, x2, region),
+  diagnostics = c("edp", "extrapolation")
+)
+
+autoplot(compact)
+```
+
+Naming a diagnostic draws that one alone, and arguments go with the name, so
+`autoplot(check, "port", low_support_only = TRUE)` draws the PoRT chart
+restricted to its low-support subgroups. Naming a diagnostic composes nothing,
+so it works without patchwork.
 
 Each diagnostic can also be called directly. Calling
 `check_port()`, `check_edp()`, or `check_extrapolation()` directly returns the
@@ -155,7 +203,7 @@ draws every reported subgroup; `low_support_only = TRUE` restricts the chart to
 the low-support subgroups.
 
 ```{r port-plot, fig.alt = "Horizontal bar chart of exposure prevalence for the low-support PoRT subgroups, drawn near prevalence zero and one against dashed reference lines."}
-ggplot2::autoplot(port, low_support_only = TRUE)
+autoplot(port, low_support_only = TRUE)
 ```
 
 ## Effective data points: how much support surrounds each intervention
@@ -180,7 +228,7 @@ data points, faceted by candidate exposure value; the left tail near zero is the
 set of units with little observed support under that intervention.
 
 ```{r edp-plot, fig.alt = "Histograms of effective data points faceted by candidate exposure value, each with a left tail of low-support observations near zero."}
-ggplot2::autoplot(edp, type = "histogram")
+autoplot(edp, type = "histogram")
 ```
 
 The planted regions make the comparison concrete. The following labels each
@@ -265,11 +313,12 @@ have fewer opposite-group neighbors than the rest of the sample, but the hull
 test runs on the numeric covariates alone, so a subgroup defined partly by
 `region` separates less sharply here than in PoRT, which searches the
 categorical covariate directly. The `type = "distribution"` plot shows the
-distribution of `frac_nearby` within each exposure group; the mass near zero is
-the set of units with no opposite-group neighbor close by.
+distribution of `frac_nearby` within each exposure group. Most units carry a
+third to a half of the opposite group nearby, and the thin left tail is the
+handful with almost none.
 
-```{r extrapolation-distribution, fig.alt = "Histograms of the fraction of nearby opposite-group units, faceted by exposure group, each with a spike near zero."}
-ggplot2::autoplot(extrapolation, type = "distribution")
+```{r extrapolation-distribution, fig.alt = "Histograms of the fraction of nearby opposite-group units, faceted by exposure group, each rising from a thin left tail near zero to a peak around four tenths."}
+autoplot(extrapolation, type = "distribution")
 ```
 
 When the convex-hull test runs, the `type = "hull"` plot shows how many units of
@@ -277,7 +326,7 @@ each group fall inside the opposite group's hull. Units outside the hull require
 extrapolation by construction.
 
 ```{r extrapolation-hull, fig.alt = "Stacked bars per exposure group showing the share of units inside versus outside the opposite group's convex hull."}
-ggplot2::autoplot(extrapolation, type = "hull")
+autoplot(extrapolation, type = "hull")
 ```
 
 The three diagnostics tell one story about the planted problems, each at its
@@ -285,7 +334,7 @@ own resolution. PoRT names the structural subgroup and the practical tails as
 explicit rules. Effective data points shrink to a fraction of the sample
 median in both regions under the exposed intervention. The extrapolation check
 places the `x1` tails far from any opposite-group neighbor and largely outside
-the hull, and it ranks the structural subgroup below the rest of the sample on
+the hull, and it places the structural subgroup below the rest of the sample on
 nearby support, with the caveat that its hull test reads only the numeric
 covariates.
 
@@ -308,9 +357,8 @@ check_positivity(
 ```
 
 Two diagnostics are never run by `check_positivity()`, because each needs
-something the entry point does not have. `check_eta_bias()` needs an outcome,
-and `check_density_ratios()` needs user-supplied density ratios. Call both
-directly.
+something it does not have. `check_eta_bias()` needs an outcome, and
+`check_density_ratios()` needs user-supplied density ratios. Call both directly.
 
 The other vignettes go deeper into each area:
 

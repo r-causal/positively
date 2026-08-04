@@ -86,7 +86,7 @@ crowds the y axis. Setting `low_support_only = TRUE` restricts the chart to the
 low-support rows.
 
 ```{r port-plot, fig.alt = "Horizontal bar chart of exposure prevalence for the three low-support PoRT subgroups, drawn against dashed reference lines near prevalence zero and one."}
-ggplot2::autoplot(port, low_support_only = TRUE)
+autoplot(port, low_support_only = TRUE)
 ```
 
 ## Tuning the reading rule
@@ -97,9 +97,9 @@ report different subgroups under different settings.
 
 **`alpha`** is the minimum subgroup size for the reading rule, as a fraction of
 the sample. Raising it holds PoRT to larger subgroups and suppresses small ones.
-At the default `0.05` the rule flags subgroups of at least 50 observations; at
-`0.10` it requires at least 100, which drops the upper `x1` tail and the
-structural subgroup and leaves only the large lower tail.
+At the default `0.05` the rule applies to subgroups of at least 50
+observations; at `0.10` it requires at least 100, which drops the upper `x1`
+tail and the structural subgroup and leaves only the large lower tail.
 
 ```{r alpha}
 port_alpha <- check_port(pos_violations, exposure, c(x1, x2, region), alpha = 0.10)
@@ -109,12 +109,12 @@ tidy(port_alpha) |>
 ```
 
 **`beta`** is the prevalence threshold. A smaller `beta` demands a more extreme
-prevalence before a subgroup is flagged. Setting `beta = "gruber"` resolves the
-threshold to the sample-size-adaptive bound $5 / (\sqrt{n} \log n)$ that
-sPoRT uses, which is about 0.023 at this sample size and so tighter than the
-default. The tighter threshold drops the upper `x1` tail, whose prevalence of
-0.96 no longer clears `1 - beta`, and tightens the lower-tail rule to a more
-extreme cut of `x1`.
+prevalence before a subgroup reads as low support. Setting `beta = "gruber"`
+resolves the threshold to the sample-size-adaptive bound
+$5 / (\sqrt{n} \log n)$ that sPoRT uses, which is about 0.023 at this sample
+size and so tighter than the default. The tighter threshold drops the upper
+`x1` tail, whose prevalence of 0.96 no longer clears `1 - beta`, and tightens
+the lower-tail rule to a more extreme cut of `x1`.
 
 ```{r beta}
 port_beta <- check_port(pos_violations, exposure, c(x1, x2, region), beta = "gruber")
@@ -212,7 +212,7 @@ the low-support subgroups are drawn, and a facet without bars means nothing read
 as low support at that time point.
 
 ```{r sport-plot, fig.height = 6, fig.alt = "Faceted horizontal bar charts of low-support PoRT subgroup prevalence, one facet per time point, against per-time dashed reference lines."}
-ggplot2::autoplot(sport, low_support_only = TRUE)
+autoplot(sport, low_support_only = TRUE)
 ```
 
 ### Limiting the history with lag
@@ -248,10 +248,10 @@ remaining uncensored is itself a condition of the counterfactual question. The
 time point, each coded `1` when the subject is censored and `0` otherwise. When
 supplied, `check_port_seq()` analyzes each indicator as its own binary-exposure
 tree in addition to the exposure trees, using the same two-sided reading rule.
-The rule flags a subgroup whose censoring prevalence is below `beta` or above
-`1 - beta`. The upper tail flags a subgroup nearly certain to be censored, just
-as the exposure trees flag a subgroup nearly certain to be treated. The lower
-tail flags a subgroup nearly certain to remain uncensored, the never-censored
+The rule reports a subgroup whose censoring prevalence is below `beta` or above
+`1 - beta`. The upper tail reports a subgroup nearly certain to be censored, just
+as the exposure trees report a subgroup nearly certain to be treated. The lower
+tail reports a subgroup nearly certain to remain uncensored, the never-censored
 subgroups on which the counterfactual under no censoring rests (Chatton et al.
 2025). Because censoring is light in most subgroups, the lower tail usually
 accounts for most of the low-support censoring rows. Following Chatton et al. (2025),

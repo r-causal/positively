@@ -10,7 +10,7 @@
 \item{diagnostic}{Optionally, the name of one diagnostic to draw. Defaults to
 \code{NULL}, which panels every child.}
 
-\item{...}{Passed to a child's own \code{\link[ggplot2:autoplot]{ggplot2::autoplot()}} method. The panel
+\item{...}{Passed to a child's own \code{\link[=autoplot]{autoplot()}} method. The panel
 passes them to every child, so an argument only one diagnostic accepts
 belongs with a named \code{diagnostic} rather than with the panel.}
 }

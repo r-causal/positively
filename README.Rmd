@@ -19,7 +19,7 @@ knitr::opts_chunk$set(
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 <!-- badges: end -->
 
-positively provides diagnostics for positivity violations and extrapolation in causal inference. Causal effect estimates rest on the positivity assumption: every unit must have a non-zero probability of receiving each level of the exposure within every stratum of the covariates. Where that probability is zero, or close to it, you face of two problems: 1) for an exposure-based model, like Inverse Probability Weighting, you get a biased and unstable estimate or 2) for an outcome-based model, like a regression model, an estimate comes from the model extrapolating rather than from observed comparisons.
+positively provides diagnostics for positivity violations and extrapolation in causal inference. Causal effect estimates rest on the positivity assumption: every unit must have a non-zero probability of receiving each level of the exposure within every stratum of the covariates. Where that probability is zero, or close to it, you face one of two problems: 1) for an exposure-based model, like Inverse Probability Weighting, you get a biased and unstable estimate or 2) for an outcome-based model, like a regression model, an estimate comes from the model extrapolating rather than from observed comparisons.
 
 ## Installation
 
@@ -41,12 +41,18 @@ check <- check_positivity(pos_violations, exposure, c(x1, x2, region))
 check
 ```
 
-The positivity regression tree (`port`) reports each problem as a rule over the covariates. `tidy()` gives one row per reported subgroup, and the `low_support` column marks those whose exposure prevalence falls below `beta` or above `1 - beta` among subgroups at least `alpha` of the sample.
+`sniff_violations()` gathers what the run found into one table, across every diagnostic, with the number behind each row in the `threshold` column where there is one.
+
+```{r sniff}
+sniff_violations(check)
+```
+
+The positivity regression tree (`port`) reports each problem as a rule over the covariates. Pull that diagnostic out with `$` and read its full results with `tidy()`, one row per reported subgroup. The `low_support` column marks those whose exposure prevalence falls below `beta` or above `1 - beta` among subgroups at least `alpha` of the sample.
 
 ```{r port-low-support, message = FALSE}
 library(dplyr)
 
-check[["port"]] |>
+check$port |>
   tidy() |>
   filter(low_support)
 ```

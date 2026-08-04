@@ -71,9 +71,11 @@ heavy_tail <- rlnorm(1000, meanlog = 0, sdlog = 1.4)
 heavy_tail <- heavy_tail / mean(heavy_tail)
 ```
 
-Passing the well-behaved ratios prints a compact numeric summary: the mean, a
-set of upper quantiles, the maximum, the proportion of ratios above each
-threshold, and the Kish effective sample size as a fraction of the sample size.
+Passing the well-behaved ratios prints a compact numeric summary: the number of
+ratios and time points, the mean, the median and the upper quantiles, the
+maximum, the proportion of ratios above each threshold, the proportion that are
+exactly zero, and the Kish effective sample size as a fraction of the sample
+size.
 
 ```{r well-behaved}
 check_density_ratios(well_behaved)
@@ -102,7 +104,7 @@ The `autoplot()` method draws the distribution of the raw ratios. The long
 right tail is the visual counterpart of the collapsed effective sample size.
 
 ```{r heavy-tail-plot, fig.alt = "Histogram of hand-built density ratios with a long right tail extending well above the bulk of the distribution near one."}
-ggplot2::autoplot(heavy_ratios, type = "distribution")
+autoplot(heavy_ratios, type = "distribution")
 ```
 
 ## A mean below one signals leaked support
@@ -164,7 +166,7 @@ time points. The gap between the upper quantiles and the median widens with each
 step, which is the sequential positivity signature.
 
 ```{r matrix-plot, fig.alt = "Cumulative-product quantiles of density ratios across three time points, with upper quantiles rising away from the median as time increases."}
-ggplot2::autoplot(longitudinal, type = "cumulative")
+autoplot(longitudinal, type = "cumulative")
 ```
 
 ## A fitted longitudinal policy with lmtp
@@ -212,7 +214,7 @@ describes the overlap for the full four-step history. A large gap between them
 points to sequential positivity strain that no single time point reveals.
 
 ```{r lmtp-plot, eval = requireNamespace("lmtp", quietly = TRUE), fig.alt = "Cumulative-product quantiles of lmtp density ratios across four time points, showing the spread of the history weight widening over time."}
-ggplot2::autoplot(check_density_ratios(fit), type = "cumulative")
+autoplot(check_density_ratios(fit), type = "cumulative")
 ```
 
 ## Inverse-probability weights from a propensity model
@@ -239,10 +241,11 @@ are and how much of the sample they leave effective.
 ## Where to go next
 
 The *Getting started with positively* vignette introduces `check_positivity()`
-and the diagnostics it composes for point treatments. `check_density_ratios()`
-sits outside that entry point because it requires user-supplied ratios, but it
-reads and plots through the same `tidy()`, `glance()`, and `autoplot()`
-interface as every other diagnostic in the package.
+and the diagnostics it composes for point treatments. `check_positivity()` does
+not compose `check_density_ratios()`, because the ratios have to be supplied by
+you rather than computed from the data, but `check_density_ratios()` reads and
+plots through the same `tidy()`, `glance()`, and `autoplot()` interface as every
+other diagnostic in the package.
 
 ## References
 

@@ -54,12 +54,19 @@ with the columns \code{diagnostic}, \code{statistic}, \code{value}, and \code{th
 child contributes the statistics its \code{\link[generics:glance]{generics::glance()}} computed, so the
 overview reads the same way whichever diagnostics were run.
 
-Extract a child diagnostic with \code{x[["port"]]} or \code{x$port}, and list the
+\code{\link[=sniff_violations]{sniff_violations()}} reports what the run found, one row per finding across
+every child, where \code{\link[=summary]{summary()}} reports a statistic per child whether or not
+anything was found.
+
+Extract a child diagnostic with \code{x$port} or \code{x[["port"]]}, and list the
 diagnostics the container holds with \code{names(x)}. Both extractors reject a
 name the container does not hold rather than returning \code{NULL}. A child
 carries its own \code{\link[generics:tidy]{generics::tidy()}} and \code{\link[generics:glance]{generics::glance()}} methods, which
 are where a diagnostic's full results and its wide, typed statistics are
 read.
+
+\code{\link[=autoplot]{autoplot()}} draws each child's default view as one panel, and
+\code{autoplot(x, "port")} draws a single child.
 }
 \examples{
 set.seed(1)
@@ -72,9 +79,11 @@ res <- check_positivity(df, exposure, x1, diagnostics = "port")
 # The overview across every child.
 summary(res)
 
+# What the run found, one row per finding.
+sniff_violations(res)
+
 # List the diagnostics and extract one child.
 names(res)
-res[["port"]]
 res$port
 
 # A child carries its own results and its own statistics.
