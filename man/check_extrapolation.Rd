@@ -51,12 +51,13 @@ with columns \code{.id} (the row index), \code{exposure} (the exposure value),
 flag, or \code{NA} when the hull test did not run), and \code{low_support} (\code{TRUE}
 when the nearest opposite-group unit lies farther away than one geometric
 variability). It also carries the scalar properties
-\verb{@geometric_variability} and \verb{@hull_run}, and a per-group \verb{@summary} tibble
-with one row per exposure level and columns \code{exposure}, \code{n},
-\code{mean_frac_nearby}, \code{mean_gower_min}, \code{prop_supported} (the one geometric
-variability fraction described in Details), and \code{prop_in_hull} (the
-fraction inside the opposite group's hull, \code{NA} when the hull test did not
-run).
+\verb{@geometric_variability} and \verb{@hull_run}.
+
+\code{\link[=summary]{summary()}} aggregates the results by exposure group, returning one row per
+exposure level with the columns \code{exposure}, \code{n}, \code{mean_gower_min},
+\code{prop_supported} (the one geometric variability fraction described in
+Details), and \code{prop_in_hull} (the fraction inside the opposite group's
+hull, \code{NA} when the hull test did not run).
 
 \code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
 \code{nearby}, \code{geometric_variability}, \code{mean_frac_nearby}, \code{prop_supported},
@@ -93,9 +94,9 @@ per-unit statistics are reported: \code{gower_min} (distance to the nearest
 opposite-group unit), \code{gower_mean} (mean distance to the opposite group), and
 \code{frac_nearby} (the fraction of the opposite group within \code{nearby} geometric
 variabilities). A planted support gap raises \code{gower_min} and lowers
-\code{frac_nearby} in both directions. The per-group \verb{@summary} column
-\code{prop_supported}, and the \code{prop_supported} statistic in \code{\link[=glance]{glance()}} and the
-print method, share one fixed definition: the fraction of units whose nearest
+\code{frac_nearby} in both directions. The per-group \code{prop_supported} reported by
+\code{\link[=summary]{summary()}}, the \code{prop_supported} statistic in \code{\link[=glance]{glance()}}, and the print
+method share one fixed definition: the fraction of units whose nearest
 opposite-group unit lies within one geometric variability
 (\code{gower_min <= geometric_variability}), independent of \code{nearby}. The per-unit
 \code{low_support} column is the complement of that condition, so \code{prop_supported}

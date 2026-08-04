@@ -369,6 +369,16 @@ method(glance, hat_values_result) <- function(x, ...) {
   )
 }
 
+method(statistic_thresholds, hat_values_result) <- function(x) {
+  c(
+    phi_hat = x@null_quantile,
+    # A candidate is high leverage when its hat value exceeds threshold * p / n,
+    # so the count's cut is stated in hat-value units rather than as the
+    # multiplier.
+    n_high_leverage = x@params$threshold * x@p / x@n
+  )
+}
+
 method(print, hat_values_result) <- function(x, ...) {
   n_high_leverage <- sum(x@results$high_leverage)
   n_candidates <- nrow(x@results)

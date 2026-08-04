@@ -294,6 +294,40 @@ test_that("glance() headline values match the point-treatment summaries", {
   expect_equal(glanced$ess_fraction, stat_value(summ, "ess_fraction"))
 })
 
+test_that("summary() reports the headline weight statistics", {
+  # The five ratios of the glance() block above: the mean is 8 / 5, two of the
+  # five are zero, and the Kish effective sample size is 8^2 / 30, so its
+  # fraction is 64 / 150.
+  res <- check_density_ratios(c(0, 0, 1, 2, 5))
+  summarized <- summary(res)
+
+  # The sample size is metadata the container states once, but the number of
+  # time points is a reading of the ratios supplied and stays.
+  expect_type(summarized$value, "double")
+  expect_equal(
+    summarized,
+    tibble::tibble(
+      statistic = c("n_times", "mean", "max", "prop_zero", "ess_fraction"),
+      value = c(1, 1.6, 5, 0.4, 64 / 150),
+      # Weight concentration is reported as a magnitude. Nothing here was read
+      # against a cut, so no row carries one.
+      threshold = rep(NA_real_, 5)
+    )
+  )
+})
+
+test_that("summary() counts the time points of a multi-wave run", {
+  m <- matrix(gen_lognormal_ratios(300, k = 1, seed = 1), nrow = 100, ncol = 3)
+  summarized <- summary(check_density_ratios(m))
+
+  expect_identical(
+    summarized$statistic,
+    c("n_times", "mean", "max", "prop_zero", "ess_fraction")
+  )
+  expect_identical(summarized$value[[1]], 3)
+  expect_true(all(is.na(summarized$threshold)))
+})
+
 test_that("glance() stays one row when probs omits the maximum", {
   res <- check_density_ratios(
     gen_lognormal_ratios(200, k = 1),

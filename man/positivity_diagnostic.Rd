@@ -26,9 +26,9 @@ An abstract class object. Construction of a subclass returns a
 diagnostic result inherits from. It cannot be instantiated directly. It fixes
 the shared property set (a tidy results tibble, the exposure column names and
 type, the sample size, the resolved method parameters, and the originating
-call) and supplies the \code{\link[generics:tidy]{generics::tidy()}}, \code{\link[generics:glance]{generics::glance()}}, and
-\code{\link[=print]{print()}} behavior that every diagnostic reuses. Package developers extend
-it when adding a new diagnostic.
+call) and supplies the \code{\link[generics:tidy]{generics::tidy()}}, \code{\link[generics:glance]{generics::glance()}},
+\code{\link[=summary]{summary()}}, and \code{\link[=print]{print()}} behavior that every diagnostic reuses. Package
+developers extend it when adding a new diagnostic.
 }
 \details{
 \code{\link[generics:tidy]{generics::tidy()}} returns \verb{@results} unchanged. The inherited
@@ -36,4 +36,29 @@ it when adding a new diagnostic.
 single column \code{n}, the sample size, because a subclass that adds no
 statistics of its own has nothing else to report. Each diagnostic overrides
 it to state its own statistics beside \code{n}, typed as they are computed.
+
+\code{\link[=summary]{summary()}} reports those statistics in long form, with the columns
+\code{statistic}, \code{value}, and \code{threshold}. Not every \code{\link[generics:glance]{generics::glance()}} column
+earns a row. \code{value} is numeric throughout, so the character and logical
+statistics stay behind in the wide output, as do the sample size, the
+resolved method parameters, and any column that another statistic reports as
+its threshold, which would otherwise be stated twice.
+
+\code{threshold} is the one number behind the row, stated in the units of the
+quantity it cuts, which are not always the units of \code{value}. Where the
+statistic is itself a reading, the cut applies to that reading, so \code{phi_hat}
+sits beside the null quantile it was compared against. Where the statistic
+counts how many rows crossed a cut, the cut applies to the per-row quantity
+rather than to the count, so a count of low-support subgroups sits beside a
+subgroup prevalence and a count of high-leverage candidates beside a hat
+value.
+
+\code{threshold} is \code{NA} wherever there is no one number to state. That covers a
+statistic that is a raw magnitude, a statistic governed by several
+parameters with no single cut, a run that resolved a different cut at each
+wave rather than one throughout, and a statistic whose cut is real but is
+not one of the pairings the package tracks. An \code{NA} therefore reports that
+the summary has no cut to show, not that the diagnostic compared nothing
+against anything. The pairings are fixed inside positively; a diagnostic
+defined outside the package reports \code{NA} throughout.
 }

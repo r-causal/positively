@@ -1,8 +1,9 @@
 # check_positivity() is the top-level entry point. It resolves the exposure type
 # once, announces it once, composes the applicable check_*() diagnostics with
 # their defaults (overridable through `args`), and returns a positivity_check
-# container. The container's tidy(), glance(), and print() methods live here
-# alongside it; the container class itself is defined in aaa-classes.R.
+# container. The container's summary() method lives here alongside it; the
+# container class itself, with its print and extraction methods, is defined in
+# aaa-classes.R.
 
 # The diagnostics check_positivity() can dispatch, in design-doc order.
 # check_eta_bias() and check_density_ratios() are deliberately absent: they need
@@ -571,67 +572,24 @@ validate_composed_args <- function(
 #' @rdname positivity_check
 #' @usage NULL
 #' @order 2
-method(tidy, positivity_check) <- function(x, diagnostic = NULL, ...) {
-  if (is.null(diagnostic)) {
-    return(combined_container_summary(x))
-  }
-
-  idx <- match(diagnostic, names(x@checks))
-  if (length(diagnostic) != 1 || is.na(idx)) {
-    abort(
-      c(
-        "{.arg diagnostic} must name a diagnostic in this container.",
-        i = "Available diagnostics are {.val {names(x@checks)}}."
-      ),
-      error_class = "positively_diagnostic_error"
-    )
-  }
-  x@checks[[idx]]@results
-}
-
-#' The long combined summary across a container's children
-#'
-#' Stacks each child's [generics::glance()] row into `diagnostic`, `statistic`,
-#' and `value` rows, coercing values to character so that statistics of mixed
-#' type share one column.
-#'
-#' @param x A [positivity_check] object.
-#'
-#' @return A tibble with columns `diagnostic`, `statistic`, and `value`.
-#' @keywords internal
-#' @noRd
-combined_container_summary <- function(x) {
-  if (length(x@checks) == 0) {
+method(summary, positivity_check) <- function(object, ...) {
+  if (length(object@checks) == 0) {
     return(tibble::tibble(
       diagnostic = character(0),
       statistic = character(0),
-      value = character(0)
+      value = numeric(0),
+      threshold = numeric(0)
     ))
   }
-  rows <- purrr::map2(names(x@checks), x@checks, function(name, check) {
-    glanced <- generics::glance(check)
-    tibble::tibble(
-      diagnostic = name,
-      statistic = names(glanced),
-      value = vapply(
-        glanced,
-        function(column) as.character(column[[1]]),
-        character(1)
-      )
-    )
-  })
-  purrr::list_rbind(rows)
-}
-
-#' @rdname positivity_check
-#' @usage NULL
-#' @order 3
-method(glance, positivity_check) <- function(x, ...) {
-  if (length(x@checks) == 0) {
-    return(tibble::tibble(diagnostic = character(0)))
-  }
-  rows <- purrr::map2(names(x@checks), x@checks, function(name, check) {
-    tibble::tibble(diagnostic = name, generics::glance(check))
-  })
+  # The rows come from each child's glance() statistics rather than from its
+  # summary(), because a diagnostic is free to summarize something other than
+  # its own statistics: check_extrapolation() summarizes by exposure group.
+  rows <- purrr::map2(
+    names(object@checks),
+    object@checks,
+    function(name, check) {
+      tibble::tibble(diagnostic = name, glance_statistics(check))
+    }
+  )
   purrr::list_rbind(rows)
 }

@@ -293,6 +293,78 @@ test_that("glance() counts censoring subgroups apart from exposure subgroups", {
   expect_gt(glanced$n_low_support, 0L)
 })
 
+test_that("summary() reads each low-support count against its own beta", {
+  local_quiet()
+  data <- dgp_longitudinal_binary_censoring(n = 800, seed = 7)
+  res <- check_port_seq(
+    data,
+    c(a1, a2, a3),
+    list(l0, l1, l2),
+    .censoring = c(c1, c2, c3)
+  )
+  summarized <- summary(res)
+
+  # The counts are the statistics; the number of time points is one too. alpha,
+  # beta, and gamma are settings, and the two betas reach the threshold column.
+  expect_identical(
+    summarized$statistic,
+    c(
+      "n_times",
+      "n_subgroups",
+      "n_low_support",
+      "n_censoring_subgroups",
+      "n_censoring_low_support"
+    )
+  )
+
+  # A fixed beta settles the exposure and censoring thresholds at the same
+  # number, so this block pins the shape end to end and the block below pins
+  # which property each row reads.
+  expect_identical(
+    summarized$threshold,
+    c(NA_real_, NA_real_, 0.05, NA_real_, 0.05)
+  )
+})
+
+test_that("summary() takes the censoring threshold from @censoring_beta", {
+  # No check_port_seq() call separates the two thresholds: a numeric beta sets
+  # both sides to it, and beta = "gruber" resolves each per time, which sends
+  # both through common_beta() to NA. Only a hand-built result holds them apart,
+  # so this is the block that would catch the censoring count reading @beta.
+  res <- port_result(
+    results = tibble::tibble(
+      time = rep(1L, 5),
+      type = c("exposure", "exposure", "exposure", "censoring", "censoring"),
+      low_support = c(TRUE, TRUE, FALSE, TRUE, FALSE)
+    ),
+    exposure = "a1",
+    exposure_type = "binary",
+    n = 100L,
+    params = list(),
+    call = quote(check_port_seq()),
+    trees = list(),
+    alpha = 0.05,
+    beta = 0.05,
+    censoring_beta = 0.2,
+    gamma = 2
+  )
+
+  expect_identical(
+    summary(res),
+    tibble::tibble(
+      statistic = c(
+        "n_times",
+        "n_subgroups",
+        "n_low_support",
+        "n_censoring_subgroups",
+        "n_censoring_low_support"
+      ),
+      value = c(1, 3, 2, 2, 1),
+      threshold = c(NA_real_, NA_real_, 0.05, NA_real_, 0.2)
+    )
+  )
+})
+
 test_that("check_port_seq() runs on a continuous exposure by categorizing it", {
   local_quiet()
   # dgp_longitudinal() carries continuous time-varying exposures. sPoRT

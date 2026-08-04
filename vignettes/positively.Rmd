@@ -93,26 +93,26 @@ first signals that this dataset has positivity problems.
 
 ## Reading the container
 
-Two accessors summarize the container as a whole. `glance()` returns one row per
-diagnostic with its headline statistics.
+`summary()` summarizes the container as a whole. It reports one row per
+statistic per diagnostic: the `value` the diagnostic computed and, for the
+statistics it pairs with a cut, the `threshold` behind that value. A threshold
+is stated in the units of the quantity it cuts, which are not always the units
+of the value beside it. The `port` count of low-support subgroups sits beside
+`beta`, a prevalence, because the cut was applied to each subgroup's prevalence
+in turn and the count is what came back. An `NA` means the overview has no one
+number to show, not that the diagnostic read nothing against anything.
 
-```{r glance}
-glance(check)
+```{r summary-container}
+summary(check)
 ```
 
-`tidy()` on the container returns a long summary that stacks every diagnostic's
-glance statistics into `diagnostic`, `statistic`, and `value` columns.
+To pull a single diagnostic out of the container, name it with `$` or `[[`. Its
+`tidy()` method returns that diagnostic's own tidy tibble, one row per unit or
+per subgroup depending on the method, and its `glance()` method returns the wide
+row of statistics the overview drew on.
 
-```{r tidy-container}
-tidy(check)
-```
-
-To pull a single diagnostic's full results out of the container, name it in
-`tidy()`. This returns that diagnostic's own tidy tibble, one row per unit or
-per subgroup depending on the method.
-
-```{r tidy-named}
-tidy(check, diagnostic = "port")
+```{r tidy-child}
+tidy(check$port)
 ```
 
 Each diagnostic can also be called directly. Calling
@@ -236,12 +236,13 @@ extrapolation <- check_extrapolation(pos_violations, exposure, c(x1, x2, region)
 tidy(extrapolation)
 ```
 
-The per-group summary is available through the `@summary` property. It reports,
-for each exposure group, the average fraction of the opposite group lying nearby
-and the share of units inside the opposite group's hull.
+`summary()` aggregates the results by exposure group. It reports, for each
+group, the average distance to the nearest opposite-group unit, the share of
+units with a neighbor within one geometric variability, and the share inside the
+opposite group's hull.
 
 ```{r extrapolation-summary}
-extrapolation@summary
+summary(extrapolation)
 ```
 
 The same planted labels trace the extrapolation results to the unit level.

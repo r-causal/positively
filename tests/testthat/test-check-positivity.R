@@ -525,13 +525,14 @@ test_that("args naming exposure_type for a diagnostic is rejected", {
   expect_false(inherits(cnd, "positively_composition_error"))
 })
 
-test_that("tidy() is reachable without qualifying the generic", {
+test_that("tidy() and glance() are reachable without qualifying the generic", {
   local_quiet()
   data <- dgp_good_positivity(n = 200)
   res <- check_positivity(data, exposure, c(x1, x2), diagnostics = "port")
-  # tidy() and glance() are re-exported, so the bare generics resolve.
-  expect_s3_class(tidy(res), "tbl_df")
-  expect_s3_class(glance(res), "tbl_df")
+  # tidy() and glance() are re-exported, so the bare generics resolve on a
+  # child. Neither is defined on the container.
+  expect_s3_class(tidy(res$port), "tbl_df")
+  expect_s3_class(glance(res$port), "tbl_df")
 })
 
 # ---- Per-method argument passthrough --------------------------------------
@@ -564,49 +565,34 @@ test_that("args reaches a diagnostic that only some exposure types run", {
   expect_length(child_named(res, "hat_values")@null_dist, 25L)
 })
 
-# ---- Container tidy(), glance(), and print() ------------------------------
+# ---- The container's removed broom methods --------------------------------
 
-test_that("tidy() on the container returns a long combined summary", {
-  local_quiet()
-  data <- dgp_good_positivity(n = 200)
-  res <- check_positivity(
-    data,
-    exposure,
-    c(x1, x2),
-    diagnostics = c("port", "extrapolation")
-  )
-  combined <- generics::tidy(res)
-  expect_s3_class(combined, "tbl_df")
-  expect_setequal(names(combined), c("diagnostic", "statistic", "value"))
-  expect_setequal(unique(combined$diagnostic), c("port", "extrapolation"))
-})
-
-test_that("tidy() with a diagnostic name returns that child's results", {
-  local_quiet()
-  data <- dgp_good_positivity(n = 200)
-  res <- check_positivity(
-    data,
-    exposure,
-    c(x1, x2),
-    diagnostics = c("port", "extrapolation")
-  )
-  expect_identical(
-    generics::tidy(res, diagnostic = "port"),
-    child_named(res, "port")@results
-  )
-})
-
-test_that("tidy() rejects an unknown diagnostic name", {
+test_that("the container has no tidy() and no glance() method", {
   local_quiet()
   data <- dgp_good_positivity(n = 200)
   res <- check_positivity(data, exposure, c(x1, x2), diagnostics = "port")
+  container_class <- class(res)[[1]]
+
+  # Nothing is registered for the container, so both calls fail in dispatch
+  # rather than in a method kept only to refuse. summary() is the container's
+  # overview now.
+  expect_null(utils::getS3method("tidy", container_class, optional = TRUE))
+  expect_null(utils::getS3method("glance", container_class, optional = TRUE))
+  expect_error(generics::tidy(res), "no applicable method")
+  expect_error(generics::glance(res), "no applicable method")
+
+  # The second shape, a wide results tibble for one named child, goes with it.
   expect_error(
-    generics::tidy(res, diagnostic = "nonexistent"),
-    class = "positively_error"
+    generics::tidy(res, diagnostic = "port"),
+    "no applicable method"
   )
+
+  # Only the container lost them. The children keep both.
+  expect_s3_class(generics::tidy(res$port), "tbl_df")
+  expect_s3_class(generics::glance(res$port), "tbl_df")
 })
 
-test_that("glance() on the container has one row per diagnostic", {
+test_that("tidy() on an extracted child returns its results unchanged", {
   local_quiet()
   data <- dgp_good_positivity(n = 200)
   res <- check_positivity(
@@ -615,12 +601,260 @@ test_that("glance() on the container has one row per diagnostic", {
     c(x1, x2),
     diagnostics = c("port", "extrapolation")
   )
-  glanced <- generics::glance(res)
-  expect_s3_class(glanced, "tbl_df")
-  expect_identical(nrow(glanced), 2L)
-  expect_true("diagnostic" %in% names(glanced))
-  expect_setequal(glanced$diagnostic, c("port", "extrapolation"))
+  expect_identical(generics::tidy(res$port), child_named(res, "port")@results)
+  expect_identical(
+    generics::tidy(res$extrapolation),
+    child_named(res, "extrapolation")@results
+  )
 })
+
+# ---- Container summary() ---------------------------------------------------
+
+test_that("summary() on the container reports the statistics of each child", {
+  local_quiet()
+  data <- dgp_practical_violation(n = 200)
+  res <- check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = c("port", "extrapolation", "edp")
+  )
+  summarized <- summary(res)
+
+  expect_s3_class(summarized, "tbl_df")
+  expect_identical(
+    names(summarized),
+    c("diagnostic", "statistic", "value", "threshold")
+  )
+  expect_type(summarized$diagnostic, "character")
+  expect_type(summarized$statistic, "character")
+  expect_type(summarized$value, "double")
+  expect_type(summarized$threshold, "double")
+
+  # Children appear in the order they were requested.
+  expect_identical(
+    unique(summarized$diagnostic),
+    c("port", "extrapolation", "edp")
+  )
+
+  # One row per statistic the diagnostic computed, in the order glance() states
+  # them. The sample size and the resolved method parameters are not statistics:
+  # the container states n once and the parameters reach the threshold column.
+  expect_identical(
+    summarized$statistic[summarized$diagnostic == "port"],
+    c("n_subgroups", "n_low_support")
+  )
+  expect_identical(
+    summarized$statistic[summarized$diagnostic == "extrapolation"],
+    c(
+      "geometric_variability",
+      "mean_frac_nearby",
+      "prop_supported",
+      "prop_in_hull"
+    )
+  )
+  expect_identical(
+    summarized$statistic[summarized$diagnostic == "edp"],
+    c("n_values", "edp_min", "edp_max")
+  )
+  expect_false(any(
+    c("n", "n_rows", "exposure", "exposure_type", "alpha", "beta", "gamma") %in%
+      summarized$statistic
+  ))
+})
+
+test_that("the container's summary values come from the children's results", {
+  local_quiet()
+  data <- dgp_practical_violation(n = 200)
+  res <- check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = c("port", "extrapolation", "edp")
+  )
+  summarized <- summary(res)
+  value_of <- function(diagnostic, statistic) {
+    row <- summarized$diagnostic == diagnostic &
+      summarized$statistic == statistic
+    summarized$value[row]
+  }
+
+  # Every value is pinned against the child's own results tibble or scalar
+  # properties rather than against glance(), so the assertion does not travel
+  # with whatever glance() happens to report.
+  port_results <- child_named(res, "port")@results
+  expect_identical(
+    value_of("port", "n_subgroups"),
+    as.numeric(nrow(port_results))
+  )
+  expect_identical(
+    value_of("port", "n_low_support"),
+    as.numeric(sum(port_results$low_support))
+  )
+
+  extrapolation <- child_named(res, "extrapolation")
+  expect_equal(
+    value_of("extrapolation", "geometric_variability"),
+    extrapolation@geometric_variability
+  )
+  expect_equal(
+    value_of("extrapolation", "mean_frac_nearby"),
+    mean(extrapolation@results$frac_nearby)
+  )
+  expect_equal(
+    value_of("extrapolation", "prop_supported"),
+    mean(!extrapolation@results$low_support)
+  )
+  expect_equal(
+    value_of("extrapolation", "prop_in_hull"),
+    mean(extrapolation@results$in_hull)
+  )
+
+  edp <- child_named(res, "edp")
+  expect_identical(
+    value_of("edp", "n_values"),
+    as.numeric(length(edp@params$values))
+  )
+  expect_equal(value_of("edp", "edp_min"), min(edp@results$edp))
+  expect_equal(value_of("edp", "edp_max"), max(edp@results$edp))
+})
+
+test_that("the container's summary pairs a statistic with the cut behind it", {
+  local_quiet()
+  data <- dgp_practical_violation(n = 200)
+  res <- check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = c("port", "extrapolation", "edp")
+  )
+  summarized <- summary(res)
+  threshold_of <- function(diagnostic, statistic) {
+    row <- summarized$diagnostic == diagnostic &
+      summarized$statistic == statistic
+    summarized$threshold[row]
+  }
+
+  # beta is the prevalence a subgroup is compared against, so it is the cut that
+  # produced the count of low-support subgroups.
+  expect_identical(
+    threshold_of("port", "n_low_support"),
+    child_named(res, "port")@beta
+  )
+
+  # alpha and gamma set which subgroups are reported at all rather than cutting
+  # a reported value, and no single one of them produced the count, so the
+  # number of subgroups has no threshold.
+  expect_identical(threshold_of("port", "n_subgroups"), NA_real_)
+
+  # The extrapolation and edp statistics are raw magnitudes with nothing
+  # user-set behind them.
+  not_port <- summarized$diagnostic != "port"
+  expect_true(all(is.na(summarized$threshold[not_port])))
+})
+
+test_that("summary() keeps value numeric where the statistics are not", {
+  local_quiet()
+  data <- dgp_continuous_support_gap(n = 150)
+  res <- check_positivity(
+    data,
+    exposure,
+    x1,
+    exposure_type = "continuous",
+    diagnostics = c("port", "hat_values", "hdr", "edp"),
+    args = list(hat_values = list(null_reps = 25))
+  )
+  summarized <- summary(res)
+
+  # This run's glance() output includes two character statistics, variant and
+  # density_estimator, and one logical, exceeds_null. A numeric value column
+  # cannot carry the first two without the character coercion this overview
+  # exists to remove, so none of the three appear here. All keep their types in
+  # glance(), which is wide.
+  expect_type(summarized$value, "double")
+  expect_false(any(
+    c("variant", "density_estimator", "exceeds_null", "mass") %in%
+      summarized$statistic
+  ))
+  expect_identical(
+    summarized$statistic[summarized$diagnostic == "hdr"],
+    c("n_values", "nonoverlap_min", "nonoverlap_max")
+  )
+  expect_identical(
+    summarized$statistic[summarized$diagnostic == "hat_values"],
+    c("phi_hat", "n_high_leverage", "n_candidates", "p")
+  )
+})
+
+test_that("phi_hat carries the null quantile it is compared against", {
+  local_quiet()
+  data <- dgp_continuous_support_gap(n = 150)
+  res <- check_positivity(
+    data,
+    exposure,
+    x1,
+    exposure_type = "continuous",
+    diagnostics = "hat_values",
+    args = list(hat_values = list(null_reps = 25))
+  )
+  summarized <- summary(res)
+  hat_values <- child_named(res, "hat_values")
+  phi_row <- summarized$statistic == "phi_hat"
+
+  expect_equal(summarized$value[phi_row], hat_values@phi_hat)
+  expect_equal(summarized$threshold[phi_row], hat_values@null_quantile)
+
+  # exceeds_null is dropped as a logical, but nothing it said is lost: it is
+  # exactly this value against this threshold.
+  exceeds <- summarized$value[phi_row] > summarized$threshold[phi_row]
+  expect_identical(exceeds, hat_values@exceeds_null)
+
+  # The null quantile is the cut beside phi_hat, so it is not also repeated as
+  # a statistic of its own.
+  expect_false("null_quantile" %in% summarized$statistic)
+
+  # The count of high-leverage candidates carries the per-candidate leverage
+  # cutoff, threshold * p / n, stated in the units of a hat value.
+  count_row <- summarized$statistic == "n_high_leverage"
+  cutoff <- hat_values@params$threshold * hat_values@p / hat_values@n
+  expect_equal(summarized$threshold[count_row], cutoff)
+  expect_identical(
+    summarized$value[count_row],
+    as.numeric(sum(hat_values@results$hat_value > cutoff))
+  )
+})
+
+test_that("a child's summary is the container's rows for that child", {
+  local_quiet()
+  data <- dgp_practical_violation(n = 200)
+  res <- check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    diagnostics = c("port", "edp")
+  )
+  overview <- summary(res)
+
+  # summary() is one operation at two levels, so the container's rows for a
+  # child are that child's own summary with the diagnostic named.
+  port_rows <- overview[overview$diagnostic == "port", , drop = FALSE]
+  port_summary <- summary(res$port)
+  expect_identical(
+    names(port_summary),
+    c("statistic", "value", "threshold")
+  )
+  expect_identical(port_summary$statistic, port_rows$statistic)
+  expect_identical(port_summary$value, port_rows$value)
+  expect_identical(port_summary$threshold, port_rows$threshold)
+
+  edp_rows <- overview[overview$diagnostic == "edp", , drop = FALSE]
+  edp_summary <- summary(res$edp)
+  expect_identical(edp_summary$statistic, edp_rows$statistic)
+  expect_identical(edp_summary$value, edp_rows$value)
+  expect_identical(edp_summary$threshold, edp_rows$threshold)
+})
+
+# ---- Container print() -----------------------------------------------------
 
 test_that("printing the container names each diagnostic section", {
   local_quiet()
@@ -1085,10 +1319,8 @@ test_that("the classed errors are stable", {
     exposure,
     tidyselect::everything()
   ))
-  # tidy() rejects an unknown diagnostic name.
-  res <- check_positivity(data, exposure, c(x1, x2), diagnostics = "port")
-  expect_snapshot_abort(generics::tidy(res, diagnostic = "nonexistent"))
   # [[ rejects an unknown diagnostic name.
+  res <- check_positivity(data, exposure, c(x1, x2), diagnostics = "port")
   expect_snapshot_abort(res[["nonexistent"]])
   # [[ rejects an out-of-bounds numeric index.
   expect_snapshot_abort(res[[5]])

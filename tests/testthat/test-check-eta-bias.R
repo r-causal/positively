@@ -1156,6 +1156,44 @@ test_that("glance() reports the bias range across a truncation sweep", {
   expect_equal(glanced$bias_max, max(per_level))
 })
 
+test_that("summary() reports the bias and its Monte Carlo error", {
+  local_quiet()
+  data <- sim_eta_good(n = 300, seed = 1)
+  res <- fit_eta(data, "ipw", n_boot = 50)
+  summarized <- summary(res)
+
+  # The estimator name is a character statistic and the bootstrap draw count is
+  # a setting, so neither takes a row. The truth is a quantity the run computed
+  # rather than a setting the caller chose, so it does.
+  expect_identical(summarized$statistic, c("truth", "bias", "mc_se"))
+  expect_type(summarized$value, "double")
+  expect_identical(summarized$value, c(res@truth, bias_of(res), mc_se_of(res)))
+
+  # ETA.Bias is read against no cut. Its own reference point, the truth, is a
+  # row of its own rather than a threshold beside the bias, because the bias is
+  # already the signed distance between the two.
+  expect_true(all(is.na(summarized$threshold)))
+})
+
+test_that("summary() follows the sweep's glance() shape", {
+  local_quiet()
+  data <- sim_eta_good(n = 300, seed = 1)
+  res <- fit_eta(data, "ipw", truncation_grid = c(0, 0.05, 0.1), n_boot = 50)
+  summarized <- summary(res)
+
+  # A sweep reports a range in place of a single bias, so summary() states
+  # whatever this run's glance() computed rather than a fixed statistic set.
+  expect_identical(
+    summarized$statistic,
+    c("truth", "n_levels", "bias_min", "bias_max")
+  )
+  expect_identical(
+    summarized$value,
+    c(res@truth, 3, min(res@results$bias), max(res@results$bias))
+  )
+  expect_true(all(is.na(summarized$threshold)))
+})
+
 # ---- Autoplot contract ----------------------------------------------------
 
 test_that("autoplot() returns a ggplot for each type", {

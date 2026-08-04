@@ -2,8 +2,7 @@
 % Please edit documentation in R/aaa-classes.R, R/check-positivity.R
 \name{positivity_check}
 \alias{positivity_check}
-\alias{tidy,positively::positivity_check-method}
-\alias{glance,positively::positivity_check-method}
+\alias{summary,positively::positivity_check-method}
 \alias{[[,positively::positivity_check-method}
 \alias{$,positively::positivity_check-method}
 \alias{names,positively::positivity_check-method}
@@ -36,9 +35,8 @@ diagnostics are sequential.}
 \item{call}{The originating call.}
 }
 \value{
-A \code{positivity_check} object. Its \code{\link[generics:tidy]{generics::tidy()}} method returns a
-\link[tibble:tibble]{tibble} and its \code{\link[generics:glance]{generics::glance()}} method returns a
-one-row-per-diagnostic tibble.
+A \code{positivity_check} object. Its \code{\link[=summary]{summary()}} method returns a
+\link[tibble:tibble]{tibble} with one row per statistic per diagnostic.
 }
 \description{
 \code{positivity_check} is the S7 container returned by \code{\link[=check_positivity]{check_positivity()}}. It
@@ -48,17 +46,17 @@ type, sample size, and call the run resolved. Its print method shows each
 child's summary in its own section.
 }
 \details{
-The container has \code{\link[generics:tidy]{generics::tidy()}} and \code{\link[generics:glance]{generics::glance()}} methods.
-\code{tidy(x)} returns a long combined summary with one row per glance statistic
-per child and the columns \code{diagnostic}, \code{statistic}, and \code{value};
-\code{tidy(x, diagnostic = "port")} returns that named child's \verb{@results} tibble
-instead. \code{glance(x)} returns one row per diagnostic, prefixed with a
-\code{diagnostic} column, stacking each child's \code{\link[generics:glance]{generics::glance()}} row and
-filling any column a child lacks with \code{NA}.
+\code{\link[=summary]{summary()}} gives the overview of the run: one row per statistic per child,
+with the columns \code{diagnostic}, \code{statistic}, \code{value}, and \code{threshold}. Each
+child contributes the statistics its \code{\link[generics:glance]{generics::glance()}} computed, so the
+overview reads the same way whichever diagnostics were run.
 
 Extract a child diagnostic with \code{x[["port"]]} or \code{x$port}, and list the
 diagnostics the container holds with \code{names(x)}. Both extractors reject a
-name the container does not hold rather than returning \code{NULL}.
+name the container does not hold rather than returning \code{NULL}. A child
+carries its own \code{\link[generics:tidy]{generics::tidy()}} and \code{\link[generics:glance]{generics::glance()}} methods, which
+are where a diagnostic's full results and its wide, typed statistics are
+read.
 }
 \examples{
 set.seed(1)
@@ -68,17 +66,15 @@ df <- data.frame(exposure = rbinom(n, 1, plogis(0.5 * x1)), x1 = x1)
 
 res <- check_positivity(df, exposure, x1, diagnostics = "port")
 
-# The long combined summary across every child.
-tidy(res)
-
-# One named child's results tibble.
-tidy(res, diagnostic = "port")
-
-# One row per diagnostic.
-glance(res)
+# The overview across every child.
+summary(res)
 
 # List the diagnostics and extract one child.
 names(res)
 res[["port"]]
 res$port
+
+# A child carries its own results and its own statistics.
+tidy(res$port)
+glance(res$port)
 }

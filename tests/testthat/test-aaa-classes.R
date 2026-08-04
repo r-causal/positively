@@ -103,6 +103,37 @@ test_that("the inherited glance() carries the sample size and nothing else", {
   expect_identical(glanced$n, 42L)
 })
 
+test_that("the default summary() reports a diagnostic's own statistics", {
+  # The inherited glance() reports only the sample size, and the sample size is
+  # metadata the container states once rather than a statistic a diagnostic
+  # computed, so a subclass that adds nothing of its own summarizes to no rows.
+  # The column set and its types still have to hold, because the container
+  # stacks these rows across its children.
+  summarized <- summary(make_test_diagnostic(n = 42L))
+
+  expect_s3_class(summarized, "tbl_df")
+  expect_identical(names(summarized), c("statistic", "value", "threshold"))
+  expect_identical(nrow(summarized), 0L)
+  expect_type(summarized$statistic, "character")
+  expect_type(summarized$value, "double")
+  expect_type(summarized$threshold, "double")
+})
+
+test_that("summary() on a container with no children keeps the column set", {
+  summarized <- summary(make_test_container(checks = list()))
+
+  expect_s3_class(summarized, "tbl_df")
+  expect_identical(
+    names(summarized),
+    c("diagnostic", "statistic", "value", "threshold")
+  )
+  expect_identical(nrow(summarized), 0L)
+  expect_type(summarized$diagnostic, "character")
+  expect_type(summarized$statistic, "character")
+  expect_type(summarized$value, "double")
+  expect_type(summarized$threshold, "double")
+})
+
 test_that("the parent validator rejects a non-scalar exposure_type", {
   expect_error(
     make_test_diagnostic(exposure_type = c("binary", "continuous")),

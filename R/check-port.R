@@ -909,6 +909,18 @@ method(glance, port_result) <- function(x, ...) {
   tibble::as_tibble(columns)
 }
 
+method(statistic_thresholds, port_result) <- function(x) {
+  # alpha and gamma decide which subgroups are searched and reported at all
+  # rather than cutting a reported value, so the subgroup counts have no
+  # threshold. beta is the prevalence each reported subgroup is compared
+  # against, and the censoring side resolves its own from the censoring risk
+  # sets.
+  c(
+    n_low_support = common_beta(x@beta),
+    n_censoring_low_support = common_beta(x@censoring_beta)
+  )
+}
+
 method(print, port_result) <- function(x, ...) {
   low_support_count <- sum(x@results$low_support)
   cat_cli({

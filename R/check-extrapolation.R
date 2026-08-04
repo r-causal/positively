@@ -4,9 +4,8 @@
 #'
 #' `extrapolation_result` is the S7 class returned by [check_extrapolation()]. It
 #' extends [positivity_diagnostic] with the geometric variability radius and a
-#' flag recording whether the convex-hull test ran, and it exposes a per-group
-#' `@summary` tibble through a read-only getter. It is created internally and is
-#' not constructed directly by users.
+#' flag recording whether the convex-hull test ran. It is created internally and
+#' is not constructed directly by users.
 #'
 #' @keywords internal
 #' @noRd
@@ -15,10 +14,7 @@ extrapolation_result <- new_class(
   parent = positivity_diagnostic,
   properties = list(
     geometric_variability = class_double,
-    hull_run = class_logical,
-    summary = new_property(
-      getter = function(self) extrapolation_summary(self)
-    )
+    hull_run = class_logical
   ),
   validator = function(self) {
     if (length(self@geometric_variability) != 1) {
@@ -60,9 +56,9 @@ extrapolation_result <- new_class(
 #' opposite-group unit), `gower_mean` (mean distance to the opposite group), and
 #' `frac_nearby` (the fraction of the opposite group within `nearby` geometric
 #' variabilities). A planted support gap raises `gower_min` and lowers
-#' `frac_nearby` in both directions. The per-group `@summary` column
-#' `prop_supported`, and the `prop_supported` statistic in [glance()] and the
-#' print method, share one fixed definition: the fraction of units whose nearest
+#' `frac_nearby` in both directions. The per-group `prop_supported` reported by
+#' [summary()], the `prop_supported` statistic in [glance()], and the print
+#' method share one fixed definition: the fraction of units whose nearest
 #' opposite-group unit lies within one geometric variability
 #' (`gower_min <= geometric_variability`), independent of `nearby`. The per-unit
 #' `low_support` column is the complement of that condition, so `prop_supported`
@@ -118,12 +114,13 @@ extrapolation_result <- new_class(
 #'   flag, or `NA` when the hull test did not run), and `low_support` (`TRUE`
 #'   when the nearest opposite-group unit lies farther away than one geometric
 #'   variability). It also carries the scalar properties
-#'   `@geometric_variability` and `@hull_run`, and a per-group `@summary` tibble
-#'   with one row per exposure level and columns `exposure`, `n`,
-#'   `mean_frac_nearby`, `mean_gower_min`, `prop_supported` (the one geometric
-#'   variability fraction described in Details), and `prop_in_hull` (the
-#'   fraction inside the opposite group's hull, `NA` when the hull test did not
-#'   run).
+#'   `@geometric_variability` and `@hull_run`.
+#'
+#'   [summary()] aggregates the results by exposure group, returning one row per
+#'   exposure level with the columns `exposure`, `n`, `mean_gower_min`,
+#'   `prop_supported` (the one geometric variability fraction described in
+#'   Details), and `prop_in_hull` (the fraction inside the opposite group's
+#'   hull, `NA` when the hull test did not run).
 #'
 #'   [generics::glance()] returns a one-row tibble with `n` (the sample size),
 #'   `nearby`, `geometric_variability`, `mean_frac_nearby`, `prop_supported`,
@@ -377,36 +374,33 @@ resolve_hull <- function(hull, n_numeric, call = rlang::caller_env()) {
   TRUE
 }
 
-#' The per-group summary of an extrapolation diagnostic
-#'
-#' Aggregates the per-unit results to one row per exposure level, reporting the
-#' group size, the mean support statistics, the fraction of units with an
-#' opposite-group neighbor within one geometric variability, and the fraction
-#' inside the opposite group's convex hull.
-#'
-#' @param self An `extrapolation_result`.
-#'
-#' @return A tibble with one row per exposure level.
-#' @keywords internal
-#' @noRd
-extrapolation_summary <- function(self) {
-  results <- self@results
+# ---- Methods --------------------------------------------------------------
+
+method(summary, extrapolation_result) <- function(object, ...) {
+  results <- object@results
   levels_exposure <- sort(unique(results$exposure))
+  # frac_nearby has no per-group mean worth reporting: it is the fraction of the
+  # opposite group within the radius, so the group-0 mean is the count of nearby
+  # cross-group pairs over n0 * n1 and the group-1 mean is the same quantity
+  # with its factors swapped. The two are equal by construction. The per-unit
+  # column stays in @results, where it does distinguish units.
   rows <- lapply(levels_exposure, function(level) {
     in_group <- results$exposure == level
     tibble::tibble(
       exposure = level,
       n = sum(in_group),
-      mean_frac_nearby = mean(results$frac_nearby[in_group]),
       mean_gower_min = mean(results$gower_min[in_group]),
       prop_supported = mean(!results$low_support[in_group]),
-      prop_in_hull = mean(results$in_hull[in_group])
+      # The hull fraction is unknown rather than zero when the test did not run.
+      prop_in_hull = if (object@hull_run) {
+        mean(results$in_hull[in_group])
+      } else {
+        NA_real_
+      }
     )
   })
   vctrs::vec_rbind(!!!rows)
 }
-
-# ---- Methods --------------------------------------------------------------
 
 method(glance, extrapolation_result) <- function(x, ...) {
   results <- x@results

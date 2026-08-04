@@ -155,15 +155,6 @@
 ---
 
     Code
-      generics::tidy(res, diagnostic = "nonexistent")
-    Condition
-      Error in `generics::tidy()`:
-      ! `diagnostic` must name a diagnostic in this container.
-      i Available diagnostics are "port".
-
----
-
-    Code
       res[["nonexistent"]]
     Condition
       Error in `res[["nonexistent"]]`:

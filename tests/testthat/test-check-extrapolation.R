@@ -445,21 +445,93 @@ test_that("extrapolation carries a per-unit low_support column", {
   expect_equal(mean(res@results$low_support), 1 - glance(res)$prop_supported)
 })
 
-test_that("the per-group summary getter returns one row per exposure level", {
+test_that("summary() returns one row per exposure level", {
   local_quiet()
   data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
   res <- check_extrapolation(data, exposure, tidyselect::starts_with("x"))
+  summarized <- summary(res)
 
-  expect_s3_class(res@summary, "tbl_df")
-  expect_identical(nrow(res@summary), 2L)
-  expect_true("exposure" %in% names(res@summary))
+  expect_s3_class(summarized, "tbl_df")
+  expect_identical(nrow(summarized), 2L)
+  expect_identical(
+    names(summarized),
+    c("exposure", "n", "mean_gower_min", "prop_supported", "prop_in_hull")
+  )
 
   # The summary derives prop_supported from low_support instead of repeating
   # the Gower comparison, so pin the per-group values against that comparison.
   supported <- res@results$gower_min <= res@geometric_variability
   expect_equal(
-    res@summary$prop_supported,
+    summarized$prop_supported,
     as.numeric(tapply(supported, res@results$exposure, mean))
+  )
+})
+
+test_that("the computed summary property is gone", {
+  local_quiet()
+  data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
+  res <- check_extrapolation(data, exposure, tidyselect::starts_with("x"))
+
+  # The per-group aggregate is a summary() method now, so `@` access is not
+  # taught for it and the property no longer exists to be reached for.
+  expect_false("summary" %in% S7::prop_names(res))
+  expect_error(res@summary, "Can't find property")
+})
+
+test_that("summary() drops mean_frac_nearby, whose group means are forced equal", {
+  local_quiet()
+  data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
+  res <- check_extrapolation(data, exposure, tidyselect::starts_with("x"))
+  results <- res@results
+  summarized <- summary(res)
+
+  expect_s3_class(summarized, "tbl_df")
+  expect_false("mean_frac_nearby" %in% names(summarized))
+
+  # frac_nearby counts the fraction of the opposite group within the radius, so
+  # the group-0 mean is cross_pairs / (n0 * n1) and the group-1 mean is the same
+  # quantity with its factors swapped. The equality is an identity rather than a
+  # property of this data, which is why the column carries no group-level
+  # information. gower_min, computed over the same pairs, does separate the
+  # groups.
+  frac_means <- tapply(results$frac_nearby, results$exposure, mean)
+  expect_equal(frac_means[[1]], frac_means[[2]])
+  gower_means <- tapply(results$gower_min, results$exposure, mean)
+  gower_gap <- abs(gower_means[[1]] - gower_means[[2]])
+  expect_gt(gower_gap, 1e-6)
+
+  # The per-unit column stays, because unit by unit it is informative.
+  expect_true("frac_nearby" %in% names(results))
+})
+
+test_that("summary() aggregates the hand-computed example by exposure group", {
+  local_quiet()
+  # The three-unit example used for glance() below. The geometric variability is
+  # 2/9 and the Gower distances are d(1, 2) = 1/6, d(1, 3) = 5/6, d(2, 3) = 1.
+  # The single treated unit sits 1/6 from its nearest control, so group 1 is
+  # fully supported and its mean nearest distance is 1/6. Of the two controls,
+  # unit 2 is 1/6 from the treated unit and unit 3 is 5/6 away, which exceeds one
+  # geometric variability, so group 0 is half supported and its mean nearest
+  # distance is (1/6 + 5/6) / 2.
+  data <- tibble::tibble(
+    exposure = c(1L, 0L, 0L),
+    x1 = c(1, 0, 2),
+    x2 = c(0, 0, 2),
+    g = factor(c("a", "a", "b"))
+  )
+  res <- check_extrapolation(data, exposure, c(x1, x2, g), hull = FALSE)
+
+  expect_equal(
+    summary(res),
+    tibble::tibble(
+      exposure = c(0L, 1L),
+      n = c(2L, 1L),
+      mean_gower_min = c(0.5, 1 / 6),
+      prop_supported = c(0.5, 1),
+      # The hull test did not run, so the fraction inside it is unknown rather
+      # than zero, in the per-group summary as in glance().
+      prop_in_hull = c(NA_real_, NA_real_)
+    )
   )
 })
 

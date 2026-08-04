@@ -8,9 +8,9 @@
 #' diagnostic result inherits from. It cannot be instantiated directly. It fixes
 #' the shared property set (a tidy results tibble, the exposure column names and
 #' type, the sample size, the resolved method parameters, and the originating
-#' call) and supplies the [generics::tidy()], [generics::glance()], and
-#' [print()] behavior that every diagnostic reuses. Package developers extend
-#' it when adding a new diagnostic.
+#' call) and supplies the [generics::tidy()], [generics::glance()],
+#' [summary()], and [print()] behavior that every diagnostic reuses. Package
+#' developers extend it when adding a new diagnostic.
 #'
 #' @details
 #' [generics::tidy()] returns `@results` unchanged. The inherited
@@ -18,6 +18,31 @@
 #' single column `n`, the sample size, because a subclass that adds no
 #' statistics of its own has nothing else to report. Each diagnostic overrides
 #' it to state its own statistics beside `n`, typed as they are computed.
+#'
+#' [summary()] reports those statistics in long form, with the columns
+#' `statistic`, `value`, and `threshold`. Not every [generics::glance()] column
+#' earns a row. `value` is numeric throughout, so the character and logical
+#' statistics stay behind in the wide output, as do the sample size, the
+#' resolved method parameters, and any column that another statistic reports as
+#' its threshold, which would otherwise be stated twice.
+#'
+#' `threshold` is the one number behind the row, stated in the units of the
+#' quantity it cuts, which are not always the units of `value`. Where the
+#' statistic is itself a reading, the cut applies to that reading, so `phi_hat`
+#' sits beside the null quantile it was compared against. Where the statistic
+#' counts how many rows crossed a cut, the cut applies to the per-row quantity
+#' rather than to the count, so a count of low-support subgroups sits beside a
+#' subgroup prevalence and a count of high-leverage candidates beside a hat
+#' value.
+#'
+#' `threshold` is `NA` wherever there is no one number to state. That covers a
+#' statistic that is a raw magnitude, a statistic governed by several
+#' parameters with no single cut, a run that resolved a different cut at each
+#' wave rather than one throughout, and a statistic whose cut is real but is
+#' not one of the pairings the package tracks. An `NA` therefore reports that
+#' the summary has no cut to show, not that the diagnostic compared nothing
+#' against anything. The pairings are fixed inside positively; a diagnostic
+#' defined outside the package reports `NA` throughout.
 #'
 #' @usage NULL
 #' @param results A [tibble][tibble::tibble] of tidy diagnostic output.
@@ -67,17 +92,17 @@ positivity_diagnostic <- new_class(
 #' child's summary in its own section.
 #'
 #' @details
-#' The container has [generics::tidy()] and [generics::glance()] methods.
-#' `tidy(x)` returns a long combined summary with one row per glance statistic
-#' per child and the columns `diagnostic`, `statistic`, and `value`;
-#' `tidy(x, diagnostic = "port")` returns that named child's `@results` tibble
-#' instead. `glance(x)` returns one row per diagnostic, prefixed with a
-#' `diagnostic` column, stacking each child's [generics::glance()] row and
-#' filling any column a child lacks with `NA`.
+#' [summary()] gives the overview of the run: one row per statistic per child,
+#' with the columns `diagnostic`, `statistic`, `value`, and `threshold`. Each
+#' child contributes the statistics its [generics::glance()] computed, so the
+#' overview reads the same way whichever diagnostics were run.
 #'
 #' Extract a child diagnostic with `x[["port"]]` or `x$port`, and list the
 #' diagnostics the container holds with `names(x)`. Both extractors reject a
-#' name the container does not hold rather than returning `NULL`.
+#' name the container does not hold rather than returning `NULL`. A child
+#' carries its own [generics::tidy()] and [generics::glance()] methods, which
+#' are where a diagnostic's full results and its wide, typed statistics are
+#' read.
 #'
 #' @param checks A named list of [positivity_diagnostic] objects, in the order
 #'   the diagnostics were requested. Each name is the diagnostic that produced
@@ -89,9 +114,8 @@ positivity_diagnostic <- new_class(
 #' @param n The number of observations, an integer.
 #' @param call The originating call.
 #'
-#' @return A `positivity_check` object. Its [generics::tidy()] method returns a
-#'   [tibble][tibble::tibble] and its [generics::glance()] method returns a
-#'   one-row-per-diagnostic tibble.
+#' @return A `positivity_check` object. Its [summary()] method returns a
+#'   [tibble][tibble::tibble] with one row per statistic per diagnostic.
 #'
 #' @examples
 #' set.seed(1)
@@ -101,19 +125,17 @@ positivity_diagnostic <- new_class(
 #'
 #' res <- check_positivity(df, exposure, x1, diagnostics = "port")
 #'
-#' # The long combined summary across every child.
-#' tidy(res)
-#'
-#' # One named child's results tibble.
-#' tidy(res, diagnostic = "port")
-#'
-#' # One row per diagnostic.
-#' glance(res)
+#' # The overview across every child.
+#' summary(res)
 #'
 #' # List the diagnostics and extract one child.
 #' names(res)
 #' res[["port"]]
 #' res$port
+#'
+#' # A child carries its own results and its own statistics.
+#' tidy(res$port)
+#' glance(res$port)
 #' @order 1
 #' @export
 positivity_check <- new_class(
@@ -168,6 +190,85 @@ method(glance, positivity_diagnostic) <- function(x, ...) {
   tibble::tibble(n = x@n)
 }
 
+# The glance() columns that get no summary() row. `n` is sample-size metadata,
+# which a container states once rather than once per child. alpha through n_boot
+# are settings the caller chose rather than findings the run produced.
+# null_quantile is neither: it is dropped because phi_hat already reports it as
+# a threshold, and a column that appears in the threshold column would otherwise
+# be stated twice. Being a cut is not on its own grounds for dropping a column:
+# geometric_variability is one, is paired with nothing here, and keeps its row.
+non_statistic_columns <- function() {
+  c("n", "alpha", "beta", "gamma", "nearby", "mass", "n_boot", "null_quantile")
+}
+
+#' The cut behind each of a diagnostic's statistics
+#'
+#' Names the one number behind a statistic, for the statistics that have one,
+#' stated in the units of the quantity it cuts. For a reported reading that
+#' quantity is the reading itself, as `phi_hat` is compared against the null
+#' quantile. For a count it is the per-row quantity being counted, as
+#' `n_low_support` counts the subgroups whose prevalence fell below `beta` or
+#' rose above `1 - beta`, so a threshold need not share the units of the value
+#' beside it.
+#'
+#' A statistic absent from the returned vector reports `NA`, and absence is not
+#' a claim that no cut exists. It covers a raw magnitude with nothing behind it,
+#' a statistic governed by several parameters with no single cut, and a
+#' statistic whose cut is real but unpaired here: `prop_supported` is the
+#' fraction of units within one `@geometric_variability` and is not paired. A
+#' named entry can also resolve to `NA` on its own: `common_beta()` returns `NA`
+#' when a sequential run settled on a different prevalence threshold at each
+#' wave, so there is no one number to state.
+#'
+#' The generic is deliberately unexported, so the pairings are a
+#' package-internal facility. A diagnostic subclassed outside positively can
+#' override [generics::glance()] and [summary()] but reports `NA` thresholds.
+#'
+#' @param x A [positivity_diagnostic].
+#'
+#' @return A named numeric vector, keyed by statistic name.
+#' @keywords internal
+#' @noRd
+statistic_thresholds <- new_generic("statistic_thresholds", "x")
+
+method(statistic_thresholds, positivity_diagnostic) <- function(x) {
+  rlang::set_names(numeric(0), character(0))
+}
+
+#' A diagnostic's statistics in long form
+#'
+#' Pivots the numeric statistics of [generics::glance()] into one row each and
+#' pairs every row with its threshold. Shared by the default [summary()] method
+#' and by the container, which builds its overview from its children's
+#' statistics rather than from their [summary()] output, since a child may
+#' summarize something else entirely.
+#'
+#' @param x A [positivity_diagnostic].
+#'
+#' @return A tibble with columns `statistic`, `value`, and `threshold`.
+#' @keywords internal
+#' @noRd
+glance_statistics <- function(x) {
+  glanced <- generics::glance(x)
+  is_statistic <- vapply(glanced, is.numeric, logical(1)) &
+    !names(glanced) %in% non_statistic_columns()
+  statistics <- glanced[is_statistic]
+  thresholds <- statistic_thresholds(x)
+  tibble::tibble(
+    statistic = names(statistics),
+    value = unname(vapply(
+      statistics,
+      function(column) as.numeric(column[[1]]),
+      numeric(1)
+    )),
+    threshold = unname(thresholds[names(statistics)])
+  )
+}
+
+method(summary, positivity_diagnostic) <- function(object, ...) {
+  glance_statistics(object)
+}
+
 # Render a cli block to a string and write it to stdout. Print methods need
 # their output on stdout so that both `print()` at the console and testthat's
 # output capture see it; cli would otherwise divert to the message stream
@@ -200,7 +301,7 @@ method(print, positivity_check) <- function(x, ...) {
 
 #' @rdname positivity_check
 #' @usage NULL
-#' @order 4
+#' @order 3
 method(`[[`, positivity_check) <- function(x, i, ...) {
   if (length(i) != 1) {
     abort(
@@ -234,7 +335,7 @@ method(`[[`, positivity_check) <- function(x, i, ...) {
 
 #' @rdname positivity_check
 #' @usage NULL
-#' @order 5
+#' @order 4
 method(`$`, positivity_check) <- function(x, name) {
   extract_named_check(x, name)
 }
@@ -250,7 +351,7 @@ rm(`$`)
 
 #' @rdname positivity_check
 #' @usage NULL
-#' @order 6
+#' @order 5
 method(names, positivity_check) <- function(x) {
   names(x@checks) %||% character(0)
 }

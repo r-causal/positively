@@ -213,11 +213,11 @@ opposite-group units, so any g-computation prediction for it under the missing
 exposure is extrapolation by construction. The test runs automatically when
 there are at most ten numeric covariates and the lpSolve package is
 installed; lpSolve is a suggested dependency, so install it to enable the
-hull test. The per-group summary reports the fraction of each group inside the
-opposite group's hull.
+hull test. `summary()` aggregates the results by exposure group, reporting the
+fraction of each group inside the opposite group's hull.
 
 ```{r extrapolation-summary}
-extrapolation@summary
+summary(extrapolation)
 ```
 
 The `type = "hull"` plot shows how many units of each group fall inside the
