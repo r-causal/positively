@@ -23,8 +23,9 @@ measure the support around each intervention, and the extrapolation check
 locates units with no near neighbor in the opposite exposure group. The two
 diagnostics in this vignette answer a different question. They take the
 estimator you intend to use as given, and ask what a positivity violation does
-to that estimator's answer. `check_eta_bias()` estimates the bias a chosen
-estimator and truncation rule incur under the data's own fitted mechanisms.
+to that estimator's answer. `check_eta_bias()` estimates the bias a positivity
+violation inflicts on a chosen estimator under the data's own fitted mechanisms,
+and the further bias a truncation rule would add on top of it.
 `check_extrapolation()`, read through the lens of g-computation, shows which
 units force the outcome model to predict outside the region where it was
 trained.
@@ -71,80 +72,156 @@ continuous outcome that depends on the exposure and the covariates. Its true
 average treatment effect is one.
 
 ```{r outcome}
-set.seed(2024)
+set.seed(2025)
 eta_data <- pos_violations |>
-  mutate(y = exposure + x1 + 0.5 * x2 + rnorm(n()))
+  mutate(y = exposure + 2 * x1 + 0.5 * x2 + rnorm(n()))
 ```
 
 `check_eta_bias()` accepts numeric, logical, factor, and character covariates;
 its fitted models expand factor and character covariates into indicator terms.
 Here we supply the numeric covariates `x1` and `x2`. The steep dependence of the
 exposure on `x1` is the source of the extreme propensities that inverse
-probability weighting reacts to. We diagnose
-the inverse-probability-weighting estimator, which divides by the fitted
-propensity and is therefore the estimator most exposed to a positivity
-violation.
+probability weighting reacts to, and the outcome leans on `x1` more heavily than
+on `x2`, so the violation has something to act on. We diagnose the
+inverse-probability-weighting estimator, which divides by the fitted propensity
+and is therefore the estimator most exposed to a positivity violation.
 
-The truncation sweep is the useful mode. A vector of lower bounds passed to
-`truncation_grid` becomes a set of truncation levels `c(lower, 1 - lower)`, and
-every level reuses one shared set of bootstrap draws and model refits, so
-differences across the sweep reflect the truncation bound alone. A lower bound
-of zero applies no truncation.
+The bootstrap is random, so we set a seed in the chunk. We use `n_boot = 500`
+draws, which takes about half a second with these covariates and the default
+model formulas. The number of draws sets the Monte Carlo standard error attached
+to each estimate, and that error has to be small relative to the bias you are
+trying to read. The bias below is under a tenth of the target, so a few dozen
+draws would leave it buried in Monte Carlo noise.
 
-The bootstrap is random, so we set a seed in the chunk. We use `n_boot = 25` to
-keep the vignette fast. This is a toy setting; in practice use several hundred
-bootstrap draws so that the Monte Carlo standard error is small relative to the
-bias you are trying to read.
+The headline measurement is the untruncated run. With no truncation the
+estimator uses the fitted propensities as they stand, so the reported ETA.Bias
+is the bias the positivity violation itself inflicts on inverse probability
+weighting.
 
-```{r eta-bias}
-set.seed(2024)
-eta <- check_eta_bias(
+```{r eta-ipw}
+set.seed(1)
+eta_ipw <- check_eta_bias(
+  eta_data,
+  exposure,
+  y,
+  c(x1, x2),
+  estimator = "ipw",
+  n_boot = 500
+)
+eta_ipw
+```
+
+The printed output reports the target truth, the estimator, and the ETA.Bias
+with its Monte Carlo standard error. `tidy()` returns the same quantities as a
+table, one row per truncation level, along with the mean bootstrap estimate.
+
+```{r eta-ipw-results}
+tidy(eta_ipw)
+```
+
+The bias is positive and sits about three Monte Carlo standard errors above
+zero, so it is a feature of the fitted mechanism rather than bootstrap noise.
+The mechanism is the one the dataset was built to carry. Exposure depends
+steeply on `x1`, so the fitted propensity approaches zero in the lower tail of
+`x1` and one in the upper tail. Weighting by the inverse of those propensities
+represents the two tails unevenly, and because the outcome depends on `x1`, the
+weighted contrast tilts away from the target.
+
+The `type = "bootstrap"` plot shows the distribution of the bootstrap estimates
+with the target truth marked, one facet per truncation level. There is a single
+level here, so there is a single facet. Its spread is the sampling variability
+of the estimator under the fitted mechanism, and the offset between its center
+and the dashed line is the ETA.Bias. The long left tail is the other half of the
+picture: on the occasional draw a propensity lands close enough to zero or one
+that one observation's weight dominates the estimate.
+
+```{r eta-bootstrap, fig.alt = "A single-facet histogram of bootstrap estimates for the untruncated inverse-probability-weighting estimator, with a tall peak just to the right of a dashed line at the target truth and a long thin left tail reaching below minus two."}
+autoplot(eta_ipw, type = "bootstrap")
+```
+
+The three estimators respond differently, and running them on the same settings
+makes the contrast concrete. G-computation ignores the propensity altogether.
+The augmented, doubly robust estimator uses it and then corrects with the
+outcome model.
+
+```{r eta-comparison, message = FALSE}
+set.seed(1)
+eta_gcomp <- check_eta_bias(
+  eta_data,
+  exposure,
+  y,
+  c(x1, x2),
+  estimator = "gcomp",
+  n_boot = 500
+)
+
+set.seed(1)
+eta_aipw <- check_eta_bias(
+  eta_data,
+  exposure,
+  y,
+  c(x1, x2),
+  estimator = "aipw",
+  n_boot = 500
+)
+
+bind_rows(
+  ipw = tidy(eta_ipw),
+  gcomp = tidy(eta_gcomp),
+  aipw = tidy(eta_aipw),
+  .id = "estimator"
+) |>
+  select(estimator, bias, mc_se)
+```
+
+G-computation sits within one Monte Carlo standard error of zero, which is what
+it should do: the target truth is itself a g-computation estimate, so the only
+distance between the two is bootstrap noise. The augmented estimator also sits
+within two standard errors of zero, its outcome-model correction absorbing most
+of the weighting bias, and it carries more variance than g-computation does.
+Inverse probability weighting is the estimator the violation reaches, which is
+why we diagnose it here.
+
+The second use of the diagnostic evaluates truncation as a response to the
+violation. Bounding the fitted propensity away from zero and one before the
+estimator divides by it is a common reaction to extreme weights, and it has a
+cost of its own. A vector of lower bounds passed to `truncation_grid` becomes a
+set of truncation levels `c(lower, 1 - lower)`, and every level reuses one
+shared set of bootstrap draws and model refits, so differences across the sweep
+reflect the truncation bound alone. A lower bound of zero applies no truncation,
+so the sweep can carry the untruncated run as its first row.
+
+```{r eta-sweep-run, message = FALSE}
+set.seed(1)
+sweep_result <- check_eta_bias(
   eta_data,
   exposure,
   y,
   c(x1, x2),
   estimator = "ipw",
   truncation_grid = c(0, 0.01, 0.05, 0.1),
-  n_boot = 25
+  n_boot = 500
 )
-eta
+tidy(sweep_result)
 ```
 
-The printed output reports the target truth, the number of truncation levels,
-and the range of ETA.Bias across the sweep. `tidy()` returns the full per-level
-table, one row per truncation level with the bias, its Monte Carlo standard
-error, and the mean bootstrap estimate.
-
-```{r eta-results}
-tidy(eta)
-```
-
-Two patterns appear as the lower bound rises. The bias grows, because tighter
-truncation replaces the extreme fitted propensities that carry the tail
-observations with the truncation bound, which pulls the weighted estimate away
-from the target. The Monte Carlo standard error shrinks, because bounding the
-propensity away from zero and one stabilizes the weights. This is the
-bias-variance tradeoff of weight truncation, read off a single fitted mechanism.
+The first row and the rows below it say different things. The first row is the
+untruncated level, and its bias belongs to the positivity violation. Every row
+below it adds bias that the truncation rule introduces, because the bound
+replaces the extreme fitted propensities that carry the tail observations, and
+those are the observations the weighting relies on to represent the tails of
+`x1`. By the time the lower bound reaches 0.1, the bias the truncation rule has
+introduced is an order of magnitude larger than the violation's own. The Monte
+Carlo standard error moves the other way, shrinking as the bound tightens,
+because bounding the propensity stabilizes the weights. That is the variance
+side of the tradeoff: truncation buys stability and pays for it in bias.
 
 The `type = "sweep"` plot shows ETA.Bias against the truncation lower bound with
 a band of plus or minus two Monte Carlo standard errors. The dashed line at zero
 marks the bias a positivity-robust estimator would achieve.
 
-```{r eta-sweep, fig.alt = "ETA.Bias plotted against the truncation lower bound for the inverse-probability-weighting estimator, rising away from zero as the bound tightens, with a two Monte Carlo standard error band."}
-autoplot(eta, type = "sweep")
-```
-
-The three estimators respond differently. G-computation ignores the propensity,
-so its ETA.Bias is Monte Carlo noise around zero and flat across the sweep. The
-augmented, doubly robust estimator stays near zero in bias while carrying more
-variance than g-computation. Inverse probability weighting is the estimator
-whose bias the truncation sweep traces out, which is why we diagnose it here.
-The `type = "bootstrap"` plot shows the distribution of bootstrap estimates at
-each truncation level with the target truth marked, the raw material behind each
-point on the sweep.
-
-```{r eta-bootstrap, fig.alt = "Histograms of bootstrap estimates for the inverse-probability-weighting estimator, one facet per truncation level, each with a dashed line at the target truth."}
-autoplot(eta, type = "bootstrap")
+```{r eta-sweep, fig.alt = "ETA.Bias plotted against the truncation lower bound for the inverse-probability-weighting estimator, rising from just above zero at no truncation to about nine tenths at a lower bound of one tenth, with a two Monte Carlo standard error band that narrows as the bound tightens."}
+autoplot(sweep_result, type = "sweep")
 ```
 
 ETA.Bias captures the positivity, truncation, and sparsity component of bias and
@@ -229,10 +306,11 @@ autoplot(extrapolation, type = "hull")
 ```
 
 Read together, the two diagnostics describe the same positivity violation from
-the estimator's side. ETA.Bias shows the inverse-probability-weighting estimator
-trading bias for variance across the truncation sweep, and the extrapolation
-check shows the g-computation estimator leaning on model predictions for the
-units in the tails and the structural subgroup.
+the estimator's side. ETA.Bias puts a number on what the violation costs the
+inverse-probability-weighting estimator, and on what truncating the weights
+would cost on top of that, and the extrapolation check shows the g-computation
+estimator leaning on model predictions for the units in the tails and the
+structural subgroup.
 
 ## Where to go next
 
