@@ -366,8 +366,8 @@ The other vignettes go deeper into each area:
   values, and highest density region non-overlap, and when each one applies.
 - *Identifying Violations: PoRT and sPoRT* covers subgroup trees, tuning `alpha`,
   `beta`, and `gamma`, and the longitudinal and censoring variants.
-- *Estimator-focused diagnostics* covers ETA.Bias with the truncation sweep and
-  g-computation extrapolation.
+- *Estimator-focused diagnostics* covers ETA.Bias and g-computation
+  extrapolation.
 - *Density ratios and modified treatment policies* covers
   `check_density_ratios()` with hand-built ratios and with a fitted longitudinal
   model.
