@@ -21,6 +21,27 @@ sim_hat_linear <- function(n, beta, q = 1, seed = 1) {
   out
 }
 
+sim_hat_grouped <- function(n = 200, seed = 1) {
+  withr::local_seed(seed)
+  g <- factor(sample(c("a", "b", "c"), n, replace = TRUE))
+  x1 <- stats::rnorm(n)
+  # The dose is shifted by the group as well as by x1, so the grouping shapes
+  # the leverage profile and an equivalence read off it is not read off a
+  # design the factor never reached. The columns beside the factor are the
+  # treatment-contrast indicators model.matrix() expands it into, plus a
+  # logical and a character encoding of the same grouping.
+  shift <- unname(c(a = 0, b = 3, c = -3)[as.character(g)])
+  tibble::tibble(
+    dose = shift + x1 + stats::rnorm(n),
+    x1 = x1,
+    g = g,
+    g_b = as.numeric(g == "b"),
+    g_c = as.numeric(g == "c"),
+    g_is_b = g == "b",
+    g_chr = as.character(g)
+  )
+}
+
 sim_hat_skewed_null <- function(n, seed = 1) {
   withr::local_seed(seed)
   # A right-skewed dose drawn independently of the covariate, so the truth is
@@ -170,13 +191,14 @@ test_that("check_hat_values() aborts on missing exposure or covariate values", {
   )
 })
 
-test_that("check_hat_values() aborts on a non-numeric covariate", {
+test_that("check_hat_values() aborts on a covariate it cannot encode", {
   local_quiet()
   data <- sim_hat_linear(80, beta = 1, seed = 1)
-  data$group <- factor(sample(c("a", "b", "c"), nrow(data), replace = TRUE))
+  data$d <- as.Date("2020-01-01") + seq_len(nrow(data))
   expect_error(
-    check_hat_values(data, dose, group, null_reps = 2),
-    class = "positively_error"
+    check_hat_values(data, dose, c(x1, d), null_reps = 2),
+    class = "positively_type_error",
+    regexp = "must select numeric, logical, factor, or character columns"
   )
 })
 
@@ -220,6 +242,150 @@ test_that("a large constant offset in a covariate does not break the leverage", 
     centered_res@results$high_leverage
   )
   expect_equal(offset_res@phi_hat, centered_res@phi_hat, tolerance = 1e-6)
+})
+
+# ---- Covariate types ------------------------------------------------------
+
+# The design matrix is built from treatment-contrast indicators, so the design
+# behind a factor selection and the design behind that variable's hand-encoded
+# indicator columns are the same matrix. Every equivalence in this section rests
+# on that identity. The null draws are random, so a block comparing anything
+# derived from them seeds each call on its own rather than sharing one stream.
+
+test_that("a factor covariate matches its hand-encoded indicators", {
+  local_quiet()
+  data <- sim_hat_grouped(200, seed = 1)
+
+  factor_fit <- withr::with_seed(
+    2024,
+    check_hat_values(data, dose, c(x1, g), null_reps = 20)
+  )
+  indicator_fit <- withr::with_seed(
+    2024,
+    check_hat_values(data, dose, c(x1, g_b, g_c), null_reps = 20)
+  )
+
+  expect_equal(generics::tidy(factor_fit), generics::tidy(indicator_fit))
+  expect_equal(generics::glance(factor_fit), generics::glance(indicator_fit))
+  # The null replicates rebuild the design around a redrawn dose, so the encoded
+  # columns have to reach that loop as well as the observed fit.
+  expect_equal(factor_fit@null_dist, indicator_fit@null_dist)
+})
+
+test_that("the factor reaches the design rather than being dropped", {
+  local_quiet()
+  data <- sim_hat_grouped(200, seed = 1)
+
+  with_factor <- withr::with_seed(
+    2024,
+    check_hat_values(data, dose, c(x1, g), null_reps = 20)
+  )
+  without_factor <- withr::with_seed(
+    2024,
+    check_hat_values(data, dose, x1, null_reps = 20)
+  )
+
+  # p = intercept + dose + x1 + the two indicators for a three-level factor.
+  expect_identical(with_factor@p, 5L)
+  expect_identical(without_factor@p, 3L)
+  # Dropping the factor silently would satisfy the equivalence above, since both
+  # sides would then fit the same narrower design, so the leverage a group shift
+  # carries is pinned here.
+  leverage_shift <- mean(abs(
+    with_factor@results$hat_value - without_factor@results$hat_value
+  ))
+  expect_gt(leverage_shift, 0.01)
+})
+
+test_that("glance() reports p over the expanded design", {
+  local_quiet()
+  data <- sim_hat_grouped(150, seed = 2)
+  res <- check_hat_values(data, dose, c(x1, g), null_reps = 2)
+  glanced <- generics::glance(res)
+
+  # p = intercept + dose + one numeric covariate + two indicators for a
+  # three-level factor, so the factor counts as its encoded width and not as a
+  # single column.
+  encoded <- stats::model.matrix(
+    ~.,
+    data = as.data.frame(data[c("x1", "g")])
+  )[, -1, drop = FALSE]
+  expect_identical(ncol(encoded), 3L)
+  expect_identical(glanced$p, ncol(encoded) + 2L)
+  expect_identical(glanced$p, 5L)
+  expect_identical(glanced$p, res@p)
+  # The cutoff the flags are read against moves with the expanded p.
+  expect_identical(
+    res@results$high_leverage,
+    res@results$hat_value > 2 * glanced$p / res@n
+  )
+})
+
+test_that("check_hat_values() accepts logical and character covariates", {
+  local_quiet()
+  data <- sim_hat_grouped(200, seed = 1)
+
+  # Only the observed profile is compared, which is fixed by the data, so these
+  # calls need no seed of their own.
+  #
+  # The character column holds the factor's labels and is read as a factor over
+  # the same alphabetically ordered levels.
+  expect_equal(
+    generics::tidy(check_hat_values(data, dose, c(x1, g_chr), null_reps = 2)),
+    generics::tidy(check_hat_values(data, dose, c(x1, g), null_reps = 2))
+  )
+  # The logical column is the "b" indicator, so it stands in for that one dummy.
+  expect_equal(
+    generics::tidy(check_hat_values(data, dose, c(x1, g_is_b), null_reps = 2)),
+    generics::tidy(check_hat_values(data, dose, c(x1, g_b), null_reps = 2))
+  )
+})
+
+test_that("check_hat_values() rejects missing values in an encodable covariate", {
+  local_quiet()
+  data <- sim_hat_grouped(120, seed = 1)
+  data$g[1] <- NA
+  data$g_chr[2] <- NA
+
+  expect_error(
+    check_hat_values(data, dose, c(x1, g), null_reps = 2),
+    class = "positively_missing_error"
+  )
+  expect_error(
+    check_hat_values(data, dose, c(x1, g_chr), null_reps = 2),
+    class = "positively_missing_error"
+  )
+})
+
+test_that("a covariate with one observed level aborts as a rank failure", {
+  local_quiet()
+  # A single observed level encodes to nothing a contrast can be taken over, so
+  # the report has to be the package's rank error rather than whatever the
+  # encoder raises.
+  data <- sim_hat_grouped(200, seed = 1)
+  one_group <- data[data$g == "a", ]
+  one_group$g <- droplevels(one_group$g)
+
+  expect_error(
+    check_hat_values(one_group, dose, c(x1, g), null_reps = 2),
+    class = "positively_rank_error",
+    regexp = "design matrix"
+  )
+  expect_error(
+    check_hat_values(one_group, dose, c(x1, g_chr), null_reps = 2),
+    class = "positively_rank_error",
+    regexp = "design matrix"
+  )
+
+  # A level that is declared but never observed is the same failure: the column
+  # it encodes to is constant.
+  unobserved <- one_group
+  unobserved$g <- factor(as.character(unobserved$g), levels = c("a", "b"))
+  expect_error(
+    check_hat_values(unobserved, dose, c(x1, g), null_reps = 2),
+    class = "positively_rank_error",
+    regexp = "design matrix"
+  )
 })
 
 # ---- Declared exposure type ------------------------------------------------
@@ -960,16 +1126,12 @@ test_that("the data-integrity error messages are stable", {
   na_covariate$x1[1] <- NA
   expect_snapshot_abort(check_hat_values(na_covariate, dose, x1, null_reps = 2))
 
-  factor_covariate <- data
-  factor_covariate$group <- factor(
-    sample(c("a", "b"), nrow(data), replace = TRUE)
+  date_covariate <- data
+  date_covariate$d <- as.Date("2020-01-01") + seq_len(nrow(data))
+  expect_snapshot_abort(
+    check_hat_values(date_covariate, dose, c(x1, d), null_reps = 2),
+    class = "positively_type_error"
   )
-  expect_snapshot_abort(check_hat_values(
-    factor_covariate,
-    dose,
-    group,
-    null_reps = 2
-  ))
 
   constant_covariate <- data
   constant_covariate$constant <- 1

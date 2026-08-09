@@ -42,10 +42,12 @@ hat_values_result <- new_class(
 #'
 #' @details
 #' The method (the paper's Box 1) fits the linear design matrix
-#' \eqn{M = [1, D, X]}, where `D` is the continuous exposure and `X` the
-#' covariates, so the number of parameters is \eqn{p = q + 2} for `q`
-#' covariates. For each requested exposure percentile \eqn{d_q} and each
-#' observed covariate row \eqn{x_i}, it forms the candidate point
+#' \eqn{M = [1, D, X]}, where `D` is the continuous exposure and `X` the encoded
+#' covariates, so the number of parameters is \eqn{p = q + 2} for `q` encoded
+#' design columns. A numeric or logical covariate contributes one column; a
+#' factor or character covariate contributes one indicator column per level
+#' beyond its reference level. For each requested exposure percentile \eqn{d_q}
+#' and each observed covariate row \eqn{x_i}, it forms the candidate point
 #' \eqn{x_* = (1, d_q, x_i)} and computes its leverage (hat value)
 #' \eqn{h_* = x_*^\top (M^\top M)^{-1} x_*}. A candidate is flagged as high
 #' leverage when \eqn{h_* > \mathrm{threshold} \times p / n}, with the default
@@ -83,7 +85,10 @@ hat_values_result <- new_class(
 #'   the exposure is detected as binary or categorical; declaring
 #'   `exposure_type = "continuous"` passes any numeric column through the type
 #'   gate.
-#' @param .covariates The covariate columns, selected with tidyselect.
+#' @param .covariates The covariate columns, selected with tidyselect. Numeric,
+#'   logical, factor, and character columns are accepted; factor and character
+#'   columns are expanded to indicator columns internally, one per level beyond
+#'   the reference level.
 #' @param probs A numeric vector of exposure percentiles, each in `[0, 1]`, at
 #'   which candidate points are formed. Defaults to `seq(0.05, 0.95, by =
 #'   0.05)`.
@@ -114,7 +119,8 @@ hat_values_result <- new_class(
 #'   (the leverage), and `high_leverage` (the logical flag). It also carries the
 #'   scalar properties `@phi_hat`, `@null_dist`, `@null_quantile`,
 #'   `@exceeds_null`, and `@p`, the number of model parameters
-#'   \eqn{p = q + 2} that sets the \eqn{2p/n} leverage cutoff.
+#'   \eqn{p = q + 2} for `q` encoded design columns, which sets the
+#'   \eqn{2p/n} leverage cutoff.
 #'
 #'   [generics::glance()] returns a one-row tibble with `n` (the sample size),
 #'   `phi_hat`, `null_quantile`, `exceeds_null` (kept logical), the counts
@@ -181,11 +187,12 @@ check_hat_values <- function(
   validate_column_selection(covariate_pos, ".covariates")
 
   covariate_names <- names(covariate_pos)
-  validate_numeric_columns(.data, covariate_names, ".covariates")
+  validate_encodable_columns(.data, covariate_names, ".covariates")
+  validate_complete_columns(.data, covariate_names, ".covariates")
   validate_numeric_columns(.data, exposure_name, ".exposure")
 
   dose <- as.double(exposure_vec)
-  covariates <- as.matrix(.data[covariate_pos])
+  covariates <- encode_covariate_matrix(.data[covariate_pos])
   n <- nrow(.data)
 
   design <- cbind(1, dose, covariates)
@@ -257,6 +264,49 @@ check_hat_values <- function(
   )
 }
 
+#' Expand covariate columns into the numeric block of the design matrix
+#'
+#' Numeric and logical columns each contribute one column; factor and character
+#' columns expand to treatment-contrast indicators, one per level beyond the
+#' reference level. The intercept `stats::model.matrix()` prepends is dropped,
+#' because the design matrix carries its own.
+#'
+#' @param covariates A data frame of the selected covariate columns.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return A numeric matrix with one row per observation and one column per
+#'   encoded term.
+#' @noRd
+encode_covariate_matrix <- function(covariates, call = rlang::caller_env()) {
+  # Fixing character columns to factors once on the observed data pins their
+  # levels, so the encoding does not depend on which rows a later step sees.
+  covariates[] <- lapply(covariates, function(column) {
+    if (is.character(column)) factor(column) else column
+  })
+
+  # A factor with one observed level has no contrast to take, and
+  # stats::model.matrix() reports that as a bare condition from
+  # `contrasts<-`, so the shortfall is caught before it gets there.
+  single_level <- names(covariates)[vapply(
+    covariates,
+    function(column) is.factor(column) && nlevels(droplevels(column)) < 2,
+    logical(1)
+  )]
+  if (length(single_level) > 0) {
+    abort(
+      c(
+        "The design matrix formed from {.arg .exposure} and {.arg .covariates} is not full rank.",
+        x = "{.val {single_level}} {?has/have} fewer than two observed levels.",
+        i = "A factor or character covariate needs at least two observed levels to enter the design."
+      ),
+      error_class = "positively_rank_error",
+      call = call
+    )
+  }
+
+  stats::model.matrix(~., data = covariates)[, -1, drop = FALSE]
+}
+
 #' Invert a design cross-product from its QR decomposition
 #'
 #' Forms \eqn{(M^\top M)^{-1}} from the QR decomposition of \eqn{M} as
@@ -286,7 +336,7 @@ gram_inverse_from_qr <- function(design_qr, p) {
 #' @param gram_inverse The inverse of the design cross-product, a `p` by `p`
 #'   matrix.
 #' @param candidate_values A numeric vector of candidate exposure values.
-#' @param covariates The observed covariate matrix, `n` by `q`.
+#' @param covariates The encoded covariate matrix, `n` by `q`.
 #'
 #' @return A numeric vector of length `length(candidate_values) * n`, ordered so
 #'   that all `n` covariate rows for the first candidate value come first.
@@ -308,7 +358,7 @@ candidate_hat_values <- function(gram_inverse, candidate_values, covariates) {
 #' \eqn{\hat{\phi}} at the same candidate points.
 #'
 #' @param dose The observed exposure vector.
-#' @param covariates The observed covariate matrix.
+#' @param covariates The encoded covariate matrix.
 #' @param candidate_values The candidate exposure values, held fixed from the
 #'   observed exposure.
 #' @param cutoff The leverage cutoff `threshold * p / n`.

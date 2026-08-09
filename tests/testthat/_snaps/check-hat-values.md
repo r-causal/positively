@@ -114,12 +114,12 @@
 ---
 
     Code
-      check_hat_values(factor_covariate, dose, group, null_reps = 2)
+      check_hat_values(date_covariate, dose, c(x1, d), null_reps = 2)
     Condition
       Error in `check_hat_values()`:
-      ! `.covariates` must select numeric columns.
-      x "group" is not numeric.
-      i Encode factor or character covariates as numeric indicators first.
+      ! `.covariates` must select numeric, logical, factor, or character columns.
+      x "d" is another type.
+      i Convert date or other ordered columns to numeric first.
 
 ---
 

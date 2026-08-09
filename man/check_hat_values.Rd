@@ -25,7 +25,10 @@ the exposure is detected as binary or categorical; declaring
 \code{exposure_type = "continuous"} passes any numeric column through the type
 gate.}
 
-\item{.covariates}{The covariate columns, selected with tidyselect.}
+\item{.covariates}{The covariate columns, selected with tidyselect. Numeric,
+logical, factor, and character columns are accepted; factor and character
+columns are expanded to indicator columns internally, one per level beyond
+the reference level.}
 
 \item{probs}{A numeric vector of exposure percentiles, each in \verb{[0, 1]}, at
 which candidate points are formed. Defaults to \code{seq(0.05, 0.95, by = 0.05)}.}
@@ -62,7 +65,8 @@ percentile), \code{value} (the candidate exposure value \eqn{d_q}), \code{hat_va
 (the leverage), and \code{high_leverage} (the logical flag). It also carries the
 scalar properties \verb{@phi_hat}, \verb{@null_dist}, \verb{@null_quantile},
 \verb{@exceeds_null}, and \verb{@p}, the number of model parameters
-\eqn{p = q + 2} that sets the \eqn{2p/n} leverage cutoff.
+\eqn{p = q + 2} for \code{q} encoded design columns, which sets the
+\eqn{2p/n} leverage cutoff.
 
 \code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
 \code{phi_hat}, \code{null_quantile}, \code{exceeds_null} (kept logical), the counts
@@ -79,10 +83,12 @@ independently of the covariates.
 }
 \details{
 The method (the paper's Box 1) fits the linear design matrix
-\eqn{M = [1, D, X]}, where \code{D} is the continuous exposure and \code{X} the
-covariates, so the number of parameters is \eqn{p = q + 2} for \code{q}
-covariates. For each requested exposure percentile \eqn{d_q} and each
-observed covariate row \eqn{x_i}, it forms the candidate point
+\eqn{M = [1, D, X]}, where \code{D} is the continuous exposure and \code{X} the encoded
+covariates, so the number of parameters is \eqn{p = q + 2} for \code{q} encoded
+design columns. A numeric or logical covariate contributes one column; a
+factor or character covariate contributes one indicator column per level
+beyond its reference level. For each requested exposure percentile \eqn{d_q}
+and each observed covariate row \eqn{x_i}, it forms the candidate point
 \eqn{x_* = (1, d_q, x_i)} and computes its leverage (hat value)
 \eqn{h_* = x_*^\top (M^\top M)^{-1} x_*}. A candidate is flagged as high
 leverage when \eqn{h_* > \mathrm{threshold} \times p / n}, with the default
