@@ -147,6 +147,47 @@ sim_hdr_seq_separated <- function(n = 400, seed = 1) {
   )
 }
 
+# A three-level factor covariate carried alongside the treatment-contrast
+# indicators lm() would expand it into, plus a logical and a character encoding
+# of the same grouping. The group shifts are large against the residual spread,
+# so a target sitting on one group's dose is unsupported at the other two
+# groups' profiles and no equivalence below is read off a flat curve.
+sim_hdr_grouped <- function(n = 200, seed = 1) {
+  withr::local_seed(seed)
+  g <- factor(sample(c("a", "b", "c"), n, replace = TRUE))
+  l <- stats::rnorm(n)
+  shift <- unname(c(a = 0, b = 5, c = -5)[as.character(g)])
+  tibble::tibble(
+    exposure = shift + 0.5 * l + stats::rnorm(n, 0, 0.5),
+    l = l,
+    g = g,
+    g_b = as.numeric(g == "b"),
+    g_c = as.numeric(g == "c"),
+    g_is_b = g == "b",
+    g_chr = as.character(g)
+  )
+}
+
+# Three waves whose doses all shift with one two-level factor, carried alongside
+# the single indicator lm() would expand it into. Each wave's two groups sit
+# about eight residual standard deviations apart, so either target on the pooled
+# grid is unsupported at roughly half the profiles.
+sim_hdr_seq_grouped <- function(n = 200, seed = 1) {
+  withr::local_seed(seed)
+  g <- factor(rep(c("ctl", "trt"), length.out = n))
+  shift <- 4 * (g == "trt")
+  tibble::tibble(
+    g = g,
+    g_trt = as.numeric(g == "trt"),
+    l1 = stats::rnorm(n),
+    l2 = stats::rnorm(n),
+    l3 = stats::rnorm(n),
+    a1 = shift + stats::rnorm(n, 0, 0.5),
+    a2 = shift + stats::rnorm(n, 0, 0.5),
+    a3 = shift + stats::rnorm(n, 0, 0.5)
+  )
+}
+
 # The non-overlap value at a single target, matched exactly on the grid value.
 tau_at <- function(res, a) {
   res@results$nonoverlap[res@results$value == a]
@@ -305,6 +346,154 @@ test_that("check_hdr() rejects a density_estimator that is not an hdr_density", 
   expect_error(
     check_hdr(data, exposure, l, density_estimator = list()),
     class = "positively_error"
+  )
+})
+
+# ---- Covariate types ------------------------------------------------------
+
+# lm() fits a factor through its treatment-contrast indicators, so the design
+# matrix behind a factor selection and the design matrix behind the same
+# variable's hand-encoded indicator columns are the same matrix. Every
+# equivalence in this section rests on that identity.
+
+test_that("check_hdr() accepts a factor covariate", {
+  local_quiet()
+  data <- sim_hdr_grouped(200, seed = 1)
+  values <- c(-5, 0, 5)
+
+  factor_fit <- check_hdr(data, exposure, c(l, g), values = values)
+  indicator_fit <- check_hdr(data, exposure, c(l, g_b, g_c), values = values)
+
+  expect_equal(generics::tidy(factor_fit), generics::tidy(indicator_fit))
+  # Each target belongs to one of the three groups, so most profiles exclude it.
+  # A curve pinned at zero would satisfy the equality above without testing it.
+  expect_true(all(generics::tidy(factor_fit)$nonoverlap > 0.5))
+})
+
+test_that("check_hdr() accepts logical and character covariates", {
+  local_quiet()
+  data <- sim_hdr_grouped(200, seed = 1)
+  values <- c(-5, 0, 5)
+
+  # The character column holds the factor's labels, and lm() reads it as a
+  # factor over the same alphabetically ordered levels.
+  expect_equal(
+    generics::tidy(check_hdr(data, exposure, c(l, g_chr), values = values)),
+    generics::tidy(check_hdr(data, exposure, c(l, g), values = values))
+  )
+  # The logical column is the "b" indicator, so it stands in for that one dummy.
+  expect_equal(
+    generics::tidy(check_hdr(data, exposure, c(l, g_is_b), values = values)),
+    generics::tidy(check_hdr(data, exposure, c(l, g_b), values = values))
+  )
+})
+
+test_that("check_hdr() rejects a Date covariate", {
+  local_quiet()
+  data <- sim_hdr_linear(80, seed = 1)
+  data$d <- as.Date("2020-01-01") + seq_len(nrow(data))
+
+  expect_snapshot_abort(
+    check_hdr(data, exposure, c(l, d)),
+    class = "positively_type_error"
+  )
+})
+
+test_that("check_hdr() rejects missing values in an accepted covariate type", {
+  local_quiet()
+  data <- sim_hdr_grouped(200, seed = 1)
+  data$g[1] <- NA
+  data$g_chr[2] <- NA
+
+  expect_error(
+    check_hdr(data, exposure, c(l, g)),
+    class = "positively_missing_error"
+  )
+  expect_error(
+    check_hdr(data, exposure, c(l, g_chr)),
+    class = "positively_missing_error"
+  )
+})
+
+test_that("check_hdr_seq() accepts a factor covariate", {
+  local_quiet()
+  data <- sim_hdr_seq_grouped(200, seed = 1)
+  values <- c(0, 4)
+
+  factor_fit <- check_hdr_seq(
+    data,
+    c(a1, a2, a3),
+    list(c(l1, g), c(l2, g), c(l3, g)),
+    values = values
+  )
+  indicator_fit <- check_hdr_seq(
+    data,
+    c(a1, a2, a3),
+    list(c(l1, g_trt), c(l2, g_trt), c(l3, g_trt)),
+    values = values
+  )
+
+  expect_equal(generics::tidy(factor_fit), generics::tidy(indicator_fit))
+  expect_true(all(generics::tidy(factor_fit)$nonoverlap > 0.3))
+})
+
+test_that("check_hdr_seq() accepts a factor .baseline", {
+  local_quiet()
+  data <- sim_hdr_seq_grouped(200, seed = 1)
+  values <- c(0, 4)
+
+  # lag = 0 keeps prior exposures out of the conditioning sets, so the baseline
+  # is the only route to the grouping that determines the dose.
+  factor_fit <- check_hdr_seq(
+    data,
+    c(a1, a2, a3),
+    list(l1, l2, l3),
+    .baseline = g,
+    values = values,
+    lag = 0
+  )
+  indicator_fit <- check_hdr_seq(
+    data,
+    c(a1, a2, a3),
+    list(l1, l2, l3),
+    .baseline = g_trt,
+    values = values,
+    lag = 0
+  )
+
+  expect_equal(generics::tidy(factor_fit), generics::tidy(indicator_fit))
+  expect_true(all(generics::tidy(factor_fit)$nonoverlap > 0.3))
+})
+
+test_that("check_hdr_seq() rejects a Date covariate or baseline", {
+  local_quiet()
+  data <- sim_hdr_seq_grouped(200, seed = 1)
+  data$d <- as.Date("2020-01-01") + seq_len(nrow(data))
+
+  expect_snapshot_abort(
+    check_hdr_seq(data, c(a1, a2, a3), list(c(l1, d), l2, l3)),
+    class = "positively_type_error"
+  )
+  expect_snapshot_abort(
+    check_hdr_seq(data, c(a1, a2, a3), list(l1, l2, l3), .baseline = d),
+    class = "positively_type_error"
+  )
+})
+
+test_that("check_hdr_seq() rejects missing values in a covariate or baseline", {
+  local_quiet()
+  data <- sim_hdr_seq_grouped(200, seed = 1)
+  data$g[1] <- NA
+
+  # The covariate sets and the baseline reach the completeness gate by separate
+  # routes, so each needs its own call to be exercised.
+  expect_error(
+    check_hdr_seq(data, c(a1, a2, a3), list(c(l1, g), l2, l3)),
+    class = "positively_missing_error"
+  )
+  expect_error(
+    check_hdr_seq(data, c(a1, a2, a3), list(l1, l2, l3), .baseline = g),
+    class = "positively_missing_error"
   )
 })
 

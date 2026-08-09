@@ -57,6 +57,14 @@ grid, so the minimum contract is two functions.
 Membership of a target \code{a} in the HDR at row \eqn{j} is the test
 \eqn{\hat{f}(a \mid l_j) \ge f_\alpha(l_j)}, and the non-overlap ratio
 \eqn{\hat{\tau}(a)} is the fraction of rows whose HDR excludes \code{a}.
+
+\code{fit()} and \code{density()} receive the analysis data as a data frame holding the
+exposure and the covariate columns as they were selected, so a factor or
+character covariate arrives as a factor or character column. Encoding those
+columns is the estimator's work. \code{\link[=hdr_density_normal]{hdr_density_normal()}} leaves it to
+\code{\link[stats:lm]{stats::lm()}}, which expands them into contrast terms from the formula; an
+estimator that needs a numeric design matrix should build one with
+\code{\link[stats:model.matrix]{stats::model.matrix()}}.
 }
 \examples{
 # A normal-equivalent estimator built through the public contract.

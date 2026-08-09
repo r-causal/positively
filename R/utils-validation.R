@@ -442,6 +442,53 @@ validate_numeric_columns <- function(
   invisible(.data)
 }
 
+#' Validate that selected columns hold a type a model formula can encode
+#'
+#' Accepts numeric, logical, factor, and character columns, the types a model
+#' formula expands into terms on its own. Missingness is a separate question, so
+#' a caller that rejects `NA` pairs this with `validate_complete_columns()`.
+#'
+#' @param .data The data frame.
+#' @param columns A character vector of column names to check.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `.data`, invisibly, when every named column holds an accepted type.
+#' @keywords internal
+#' @noRd
+validate_encodable_columns <- function(
+  .data,
+  columns,
+  arg_name,
+  call = rlang::caller_env()
+) {
+  unsupported <- columns[
+    !vapply(
+      columns,
+      function(column) {
+        values <- .data[[column]]
+        is.numeric(values) ||
+          is.logical(values) ||
+          is.factor(values) ||
+          is.character(values)
+      },
+      logical(1)
+    )
+  ]
+  if (length(unsupported) > 0) {
+    abort(
+      c(
+        "{.arg {arg_name}} must select numeric, logical, factor, or character columns.",
+        x = "{.val {unsupported}} {?is/are} another type.",
+        i = "Convert date or other ordered columns to numeric first."
+      ),
+      error_class = "positively_type_error",
+      call = call
+    )
+  }
+  invisible(.data)
+}
+
 #' Validate that selected columns contain no missing values
 #'
 #' @param .data The data frame.

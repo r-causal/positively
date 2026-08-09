@@ -1,3 +1,33 @@
+# check_hdr() rejects a Date covariate
+
+    Code
+      check_hdr(data, exposure, c(l, d))
+    Condition
+      Error in `check_hdr()`:
+      ! `.covariates` must select numeric, logical, factor, or character columns.
+      x "d" is another type.
+      i Convert date or other ordered columns to numeric first.
+
+# check_hdr_seq() rejects a Date covariate or baseline
+
+    Code
+      check_hdr_seq(data, c(a1, a2, a3), list(c(l1, d), l2, l3))
+    Condition
+      Error in `check_hdr_seq()`:
+      ! `.covariates` must select numeric, logical, factor, or character columns.
+      x "d" is another type.
+      i Convert date or other ordered columns to numeric first.
+
+---
+
+    Code
+      check_hdr_seq(data, c(a1, a2, a3), list(l1, l2, l3), .baseline = d)
+    Condition
+      Error in `check_hdr_seq()`:
+      ! `.baseline` must select numeric, logical, factor, or character columns.
+      x "d" is another type.
+      i Convert date or other ordered columns to numeric first.
+
 # the point print method is stable
 
     Code

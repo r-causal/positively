@@ -176,7 +176,8 @@ check_hdr <- function(
   }
 
   validate_numeric_columns(.data, exposure_name, ".exposure")
-  validate_numeric_columns(.data, covariate_names, ".covariates")
+  validate_encodable_columns(.data, covariate_names, ".covariates")
+  validate_complete_columns(.data, covariate_names, ".covariates")
 
   n <- nrow(.data)
   if (n < 2) {
@@ -849,13 +850,12 @@ check_hdr_seq <- function(
   baseline_names <- eval_optional_selection(rlang::enquo(.baseline), .data)
 
   validate_numeric_columns(.data, exposure_names, ".exposures")
-  validate_numeric_columns(
-    .data,
-    unique(unlist(covariate_sets)),
-    ".covariates"
-  )
+  covariate_names <- unique(unlist(covariate_sets))
+  validate_encodable_columns(.data, covariate_names, ".covariates")
+  validate_complete_columns(.data, covariate_names, ".covariates")
   if (length(baseline_names) > 0) {
-    validate_numeric_columns(.data, baseline_names, ".baseline")
+    validate_encodable_columns(.data, baseline_names, ".baseline")
+    validate_complete_columns(.data, baseline_names, ".baseline")
   }
 
   n <- nrow(.data)

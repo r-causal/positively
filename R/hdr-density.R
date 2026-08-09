@@ -55,6 +55,14 @@ hdr_density <- new_class(
 #' \eqn{\hat{f}(a \mid l_j) \ge f_\alpha(l_j)}, and the non-overlap ratio
 #' \eqn{\hat{\tau}(a)} is the fraction of rows whose HDR excludes `a`.
 #'
+#' `fit()` and `density()` receive the analysis data as a data frame holding the
+#' exposure and the covariate columns as they were selected, so a factor or
+#' character covariate arrives as a factor or character column. Encoding those
+#' columns is the estimator's work. [hdr_density_normal()] leaves it to
+#' [stats::lm()], which expands them into contrast terms from the formula; an
+#' estimator that needs a numeric design matrix should build one with
+#' [stats::model.matrix()].
+#'
 #' @param fit A function of `(formula, data)` returning fitted state as a list.
 #' @param density A function of `(state, a, newdata)` returning the conditional
 #'   density \eqn{\hat{f}(a \mid l)} for target `a` over the rows of `newdata`.
