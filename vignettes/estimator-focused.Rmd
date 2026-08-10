@@ -77,9 +77,7 @@ eta_data <- pos_violations |>
   mutate(y = exposure + 2 * x1 + 0.5 * x2 + rnorm(n()))
 ```
 
-`check_eta_bias()` accepts numeric, logical, factor, and character covariates;
-its fitted models expand factor and character covariates into indicator terms.
-Here we supply the numeric covariates `x1` and `x2`. The steep dependence of the
+We supply the covariates `x1` and `x2`. The steep dependence of the
 exposure on `x1` is the source of the extreme propensities that inverse
 probability weighting reacts to, and the outcome leans on `x1` more heavily than
 on `x2`, so the violation has something to act on. We diagnose the
