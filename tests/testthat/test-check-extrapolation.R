@@ -215,21 +215,24 @@ test_that("a declared binary type reproduces the auto path exactly", {
   expect_identical(declared@n, auto@n)
 })
 
-test_that("a declared binary type skips the detection alert", {
+test_that("check_extrapolation() announces nothing on either type path", {
+  withr::local_options(positively.quiet = FALSE)
   data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
+
   # This test observes messages rather than muffling them, so the hull is turned
   # off explicitly: the automatic hull announces its own skip when lpSolve is not
   # installed, which is a supported configuration and unrelated to detection.
-  # The auto path announces what it inferred. A declared type is taken as given,
-  # so there is nothing to announce.
-  expect_message(
+  # check_extrapolation() supports one exposure type, so a returning call took
+  # the only path there is and the announcement would restate what the function
+  # already promises. A declared type does not announce, so both paths must be
+  # silent.
+  expect_no_message(
     check_extrapolation(
       data,
       exposure,
       tidyselect::starts_with("x"),
       hull = FALSE
-    ),
-    "Treating `.exposure` as binary"
+    )
   )
   expect_no_message(
     check_extrapolation(
@@ -1019,9 +1022,15 @@ test_that("the chunked large-n Gower path matches the unchunked result", {
 })
 
 test_that("a large sample emits a chunking alert", {
-  withr::local_options(positively.gower_chunk_threshold = 25)
+  withr::local_options(
+    positively.quiet = FALSE,
+    positively.gower_chunk_threshold = 25
+  )
   data <- sim_extrap_gaussian(60, p = 2, sep = 0, seed = 1)
-  expect_message(
+  # The inner expectation muffles the alert it matches, so the outer one holds
+  # the call to that alert alone: the chunking notice reaches the user and
+  # nothing else does.
+  expect_no_message(
     expect_message(
       check_extrapolation(
         data,
@@ -1030,8 +1039,7 @@ test_that("a large sample emits a chunking alert", {
         hull = FALSE
       ),
       "row chunks"
-    ),
-    "Treating `.exposure` as binary"
+    )
   )
 })
 

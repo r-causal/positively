@@ -571,6 +571,19 @@ test_that("check_hdr() rejects a type outside its supported menu", {
   )
 })
 
+test_that("check_hdr() announces nothing on either exposure_type path", {
+  withr::local_options(positively.quiet = FALSE)
+  data <- sim_hdr_linear(100, beta = 1, seed = 1)
+
+  # check_hdr() supports one exposure type, so a returning call took the only
+  # path there is and the announcement would restate what the function already
+  # promises. A declared type does not announce, so both paths must be silent.
+  expect_no_message(check_hdr(data, exposure, l, values = 0))
+  expect_no_message(
+    check_hdr(data, exposure, l, values = 0, exposure_type = "continuous")
+  )
+})
+
 # ---- Degenerate exposures -------------------------------------------------
 
 test_that("check_hdr() aborts on a constant exposure", {

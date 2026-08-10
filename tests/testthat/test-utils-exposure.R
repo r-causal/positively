@@ -6,6 +6,12 @@
 # given. Under "auto" the detected type must still land in the diagnostic's
 # supported set, so an unsupported detection aborts. Structure is validated on
 # both paths, so a detected type and a declared type fail for the same reasons.
+#
+# The announcement carries information only where the reading decides something.
+# A diagnostic that supports several exposure types runs different math for
+# each, so which one it read is worth saying; a diagnostic that supports one
+# type has nothing to report on success, and the abort it raises on an
+# unsupported reading names the detected type itself.
 
 test_that("detect_exposure_type() identifies binary exposures", {
   withr::local_options(positively.quiet = TRUE)
@@ -90,19 +96,78 @@ test_that("resolve_exposure_type() detects and announces when given 'auto'", {
   expect_identical(resolved, "binary")
 })
 
+test_that("a diagnostic supporting one type announces nothing it resolved", {
+  withr::local_options(positively.quiet = FALSE)
+  # What the announcement adds is which branch the call took. A diagnostic
+  # offering one exposure type has no branch to report: the type is fixed by its
+  # documentation, and every call that returns took it.
+  dose <- seq(0, 1, length.out = 50)
+
+  single <- expect_silent(
+    resolve_exposure_type(
+      "auto",
+      dose,
+      supported = "continuous",
+      fn = "check_hdr"
+    )
+  )
+  expect_identical(single, "continuous")
+
+  expect_message(
+    several <- resolve_exposure_type(
+      "auto",
+      dose,
+      supported = c("binary", "categorical", "continuous"),
+      fn = "check_edp"
+    ),
+    "Treating `.exposure` as continuous",
+    fixed = TRUE
+  )
+  expect_identical(several, "continuous")
+})
+
+test_that("a single-type diagnostic still names a reading it cannot run", {
+  withr::local_options(positively.quiet = FALSE)
+  # Nothing is lost on the failure path. Where the reading decides whether the
+  # call runs at all, it is reported in the abort, which is the only place a
+  # user has to act on it.
+  unsupported <- function() {
+    resolve_exposure_type(
+      "auto",
+      c(0, 1, 0, 1),
+      supported = "continuous",
+      fn = "check_hdr"
+    )
+  }
+
+  expect_no_message(
+    expect_error(unsupported(), class = "positively_exposure_type_error")
+  )
+  err <- expect_error(
+    unsupported(),
+    class = "positively_exposure_type_error"
+  )
+  expect_match(
+    conditionMessage(err),
+    "`.exposure` was detected as \"binary\".",
+    fixed = TRUE
+  )
+})
+
 test_that("resolve_exposure_type() suppresses the announcement on request", {
   withr::local_options(positively.quiet = FALSE)
   # The announcement names `.exposure`, so a caller resolving several exposure
   # columns in one call would emit a misnamed message per column. Such callers
   # pass announce = FALSE; the default announces.
   dose <- seq(0, 1, length.out = 50)
+  supported <- c("binary", "categorical", "continuous")
 
   expect_message(
     announced <- resolve_exposure_type(
       "auto",
       dose,
-      supported = "continuous",
-      fn = "check_hdr_seq"
+      supported = supported,
+      fn = "check_port_seq"
     ),
     "Treating"
   )
@@ -112,8 +177,8 @@ test_that("resolve_exposure_type() suppresses the announcement on request", {
     resolve_exposure_type(
       "auto",
       dose,
-      supported = "continuous",
-      fn = "check_hdr_seq",
+      supported = supported,
+      fn = "check_port_seq",
       announce = FALSE
     )
   )
@@ -125,11 +190,12 @@ test_that("the announced argument name is the one the caller resolves", {
   # The announcement names an argument, so it has to name the caller's own. A
   # diagnostic whose exposure argument is `.exposures` would otherwise send
   # users to an argument it does not have.
+  supported <- c("binary", "categorical", "continuous")
   expect_message(
     resolve_exposure_type(
       "auto",
       c(0, 1, 0, 1),
-      supported = "binary",
+      supported = supported,
       fn = "check_fake",
       arg = ".exposures"
     ),
@@ -140,7 +206,7 @@ test_that("the announced argument name is the one the caller resolves", {
     resolve_exposure_type(
       "auto",
       c(0, 1, 0, 1),
-      supported = "binary",
+      supported = supported,
       fn = "check_fake"
     ),
     "Treating `.exposure` as binary",

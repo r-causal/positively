@@ -198,6 +198,23 @@ test_that("declaring binary on a three-level exposure aborts rather than droppin
   )
 })
 
+test_that("check_port() announces the type it detected", {
+  withr::local_options(positively.quiet = FALSE)
+  # check_port() reads a different response for each exposure type it supports,
+  # so which one it read decides what the reported subgroups mean and has to be
+  # said. A declared type is taken as given, so there is nothing to announce.
+  data <- dgp_good_positivity(n = 200, seed = 1)
+
+  expect_message(
+    check_port(data, exposure, c(x1, x2)),
+    "Treating `.exposure` as binary",
+    fixed = TRUE
+  )
+  expect_no_message(
+    check_port(data, exposure, c(x1, x2), exposure_type = "binary")
+  )
+})
+
 test_that("check_port() rejects alpha outside the unit interval", {
   local_quiet()
   data <- dgp_good_positivity(n = 200, seed = 1)

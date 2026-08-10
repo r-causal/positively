@@ -78,10 +78,13 @@ edp
 ```
 
 The message reports that the exposure was detected as continuous. Detection runs
-once per call and announces the type it settles on, so a message of this form
-accompanies every call below that leaves the type to detection, while a declared
-type prints none. It is a default and not an override: the section on declaring
-the exposure type shows how to set the type yourself when the heuristic reads a
+once per call, but only a diagnostic that supports more than one exposure type
+announces what it settled on: `check_edp()` computes a different quantity for
+each type it accepts, so which one it read is worth saying. A diagnostic that
+supports a single type has nothing to report, so `check_hat_values()` and
+`check_hdr()` below stay silent, as does any call that declares the type.
+Detection is a default and not an override: the section on declaring the
+exposure type shows how to set the type yourself when the heuristic reads a
 continuous exposure as something else.
 
 Effective data points are a relative measure, meaningful when compared across

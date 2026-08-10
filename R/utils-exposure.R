@@ -1,7 +1,8 @@
 # Exposure-type detection. positively mirrors the propensity idiom rather than
 # importing it: has_two_levels(), is_categorical(), and detect_exposure_type()
-# classify a column exactly as propensity does, down to the informational
-# message, so that users experience one r-causal ecosystem.
+# classify a column exactly as propensity does, down to the wording of the
+# informational message where one is emitted, so that users experience one
+# r-causal ecosystem.
 #
 # The resolution layer built on top of detection deliberately diverges.
 # Detection supplies a default here, never an override: an explicit
@@ -13,6 +14,12 @@
 # of a type, so a detected type outside the diagnostic's supported set is still
 # an abort; that gate is deliberate, and removing it would silently run a
 # diagnostic on a column no one declared it could handle.
+#
+# Whether the reading is announced diverges too. The announcement reports which
+# branch a call took, so it is worth making only for a diagnostic that supports
+# more than one exposure type. A diagnostic supporting one type reports nothing
+# by resolving successfully, and an unsupported reading is named in the abort
+# either way.
 
 #' Does a vector have exactly two distinct values?
 #'
@@ -55,8 +62,9 @@ is_categorical <- function(.exposure) {
 #' vector with exactly two distinct values is binary; a factor or character
 #' vector with more than two values is categorical; a numeric vector is
 #' categorical when its share of unique values is small, and continuous
-#' otherwise. The detected type is announced through `alert_info()` unless
-#' `options(positively.quiet)` is `TRUE`.
+#' otherwise. The caller decides whether the detected type is announced through
+#' `alert_info()`, which is suppressed in turn when `options(positively.quiet)`
+#' is `TRUE`.
 #'
 #' @param .exposure The exposure vector.
 #' @param arg The argument name the announcement points at. Defaults to
@@ -64,8 +72,8 @@ is_categorical <- function(.exposure) {
 #'   passes its own, so the announcement never names an argument the calling
 #'   function does not have.
 #' @param announce Whether to announce the detected type through `alert_info()`.
-#'   Defaults to `TRUE`; callers that detect several exposures at once pass
-#'   `FALSE` to stay silent.
+#'   Defaults to `TRUE`; a caller passes `FALSE` when the reading is not worth
+#'   reporting, such as one detecting several exposures at once.
 #'
 #' @return A single string: `"binary"`, `"categorical"`, or `"continuous"`.
 #' @keywords internal
@@ -242,8 +250,8 @@ validate_exposure_structure <- function(
 #' @param supported The exposure types the calling diagnostic can compute.
 #' @param arg The argument name the announcement points at.
 #' @param announce Whether a detected type is announced through `alert_info()`.
-#'   Defaults to `TRUE`; callers that classify several exposures at once pass
-#'   `FALSE` to stay silent.
+#'   Defaults to `TRUE`; the caller decides, and one classifying several
+#'   exposures at once passes `FALSE` to stay silent.
 #'
 #' @return A list with `type`, the resolved exposure type; `detected`, the type
 #'   detection read from the column, or `NA_character_` when a type was
@@ -288,9 +296,11 @@ classify_exposure_type <- function(
 #' @param supported The exposure types the calling diagnostic can compute.
 #' @param fn The name of the calling diagnostic, used in error messages.
 #' @param arg The argument name used in error messages.
-#' @param announce Whether a detected type is announced through `alert_info()`.
-#'   Defaults to `TRUE`; callers that resolve several exposures at once pass
-#'   `FALSE` to stay silent.
+#' @param announce Whether a detected type may be announced through
+#'   `alert_info()`. Defaults to `TRUE`; callers that resolve several exposures
+#'   at once pass `FALSE` to stay silent. A single-element `supported` silences
+#'   the announcement regardless, since the reading names no branch a caller
+#'   supporting one type could have taken differently.
 #' @param call The calling environment, used to build the error's call.
 #'
 #' @return A single string: `"binary"`, `"categorical"`, or `"continuous"`.
@@ -320,7 +330,7 @@ resolve_exposure_type <- function(
     .exposure,
     supported = supported,
     arg = arg,
-    announce = announce
+    announce = announce && length(supported) > 1
   )
 
   if (classified$problem == "unsupported") {

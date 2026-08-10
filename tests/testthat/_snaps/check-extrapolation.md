@@ -152,7 +152,6 @@
     Code
       check_extrapolation(data, exposure, tidyselect::starts_with("x"))
     Message
-      i Treating `.exposure` as binary
       i Skipping the convex-hull test: 13 numeric covariates exceed the maximum of 10.
     Output
       
@@ -169,8 +168,6 @@
 
     Code
       check_extrapolation(data, exposure, tidyselect::starts_with("x"), hull = TRUE)
-    Message
-      i Treating `.exposure` as binary
     Condition
       Warning in `check_extrapolation()`:
       The convex-hull test is degenerate above 10 numeric covariates.

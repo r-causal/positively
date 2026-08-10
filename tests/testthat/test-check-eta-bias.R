@@ -719,14 +719,15 @@ test_that("a declared binary type reproduces the auto path exactly", {
   expect_identical(declared@boot_estimates, auto@boot_estimates)
 })
 
-test_that("a declared binary type skips the detection alert", {
+test_that("check_eta_bias() announces nothing on either exposure_type path", {
+  withr::local_options(positively.quiet = FALSE)
   data <- sim_eta_good(n = 300, seed = 1)
-  # The auto path announces what it inferred. A declared type is taken as given,
-  # so there is nothing to announce.
-  expect_message(
-    fit_eta(data, "gcomp", n_boot = 10),
-    "Treating `.exposure` as binary"
-  )
+
+  # check_eta_bias() supports one exposure type, so a returning call took the
+  # only path there is and the announcement would restate what the function
+  # already promises. A declared type does not announce, so both paths must be
+  # silent.
+  expect_no_message(fit_eta(data, "gcomp", n_boot = 10))
   expect_no_message(
     fit_eta(data, "gcomp", exposure_type = "binary", n_boot = 10)
   )

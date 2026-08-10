@@ -346,6 +346,23 @@ test_that("declaring binary on a three-level exposure aborts rather than mislabe
   )
 })
 
+test_that("check_edp() announces the type it detected", {
+  withr::local_options(positively.quiet = FALSE)
+  # check_edp() computes a different quantity for each exposure type it
+  # supports, so which one it read decides what the result means and has to be
+  # said. A declared type is taken as given, so there is nothing to announce.
+  data <- sim_edp_gaussian(60)
+
+  expect_message(
+    check_edp(data, exposure, x1, values = 0),
+    "Treating `.exposure` as continuous",
+    fixed = TRUE
+  )
+  expect_no_message(
+    check_edp(data, exposure, x1, values = 0, exposure_type = "continuous")
+  )
+})
+
 # ---- Result class and structure -------------------------------------------
 
 test_that("check_edp() returns an edp_result diagnostic", {

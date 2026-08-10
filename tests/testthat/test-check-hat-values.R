@@ -464,6 +464,30 @@ test_that("check_hat_values() rejects a type outside its supported menu", {
   )
 })
 
+test_that("check_hat_values() announces nothing on either exposure_type path", {
+  withr::local_options(positively.quiet = FALSE)
+  withr::local_seed(2024)
+  data <- sim_hat_linear(n = 60, beta = 1, seed = 1)
+
+  # check_hat_values() supports one exposure type, so a returning call took the
+  # only path there is and the announcement would restate what the function
+  # already promises. A declared type does not announce, so both paths must be
+  # silent.
+  expect_no_message(
+    check_hat_values(data, dose, x1, probs = 0.5, null_reps = 10)
+  )
+  expect_no_message(
+    check_hat_values(
+      data,
+      dose,
+      x1,
+      probs = 0.5,
+      null_reps = 10,
+      exposure_type = "continuous"
+    )
+  )
+})
+
 # ---- Result class and properties ------------------------------------------
 
 test_that("check_hat_values() returns a hat_values_result diagnostic", {
