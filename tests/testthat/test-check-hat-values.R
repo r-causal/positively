@@ -276,14 +276,10 @@ test_that("the factor reaches the design rather than being dropped", {
   local_quiet()
   data <- sim_hat_grouped(200, seed = 1)
 
-  with_factor <- withr::with_seed(
-    2024,
-    check_hat_values(data, dose, c(x1, g), null_reps = 20)
-  )
-  without_factor <- withr::with_seed(
-    2024,
-    check_hat_values(data, dose, x1, null_reps = 20)
-  )
+  # Only the column count and the observed leverage profile are read, and both
+  # are fixed by the data, so these calls need no seed of their own.
+  with_factor <- check_hat_values(data, dose, c(x1, g), null_reps = 2)
+  without_factor <- check_hat_values(data, dose, x1, null_reps = 2)
 
   # p = intercept + dose + x1 + the two indicators for a three-level factor.
   expect_identical(with_factor@p, 5L)
@@ -359,9 +355,12 @@ test_that("check_hat_values() rejects missing values in an encodable covariate",
 
 test_that("a covariate with one observed level aborts as a rank failure", {
   local_quiet()
+  # Wide enough that the bullet the expectations below match does not wrap.
+  withr::local_options(cli.width = 200)
   # A single observed level encodes to nothing a contrast can be taken over, so
   # the report has to be the package's rank error rather than whatever the
-  # encoder raises.
+  # encoder raises. The generic rank fallback carries the same headline, so the
+  # bullet the guard adds is what these match on.
   data <- sim_hat_grouped(200, seed = 1)
   one_group <- data[data$g == "a", ]
   one_group$g <- droplevels(one_group$g)
@@ -369,22 +368,23 @@ test_that("a covariate with one observed level aborts as a rank failure", {
   expect_error(
     check_hat_values(one_group, dose, c(x1, g), null_reps = 2),
     class = "positively_rank_error",
-    regexp = "design matrix"
+    regexp = "fewer than two observed levels"
   )
   expect_error(
     check_hat_values(one_group, dose, c(x1, g_chr), null_reps = 2),
     class = "positively_rank_error",
-    regexp = "design matrix"
+    regexp = "fewer than two observed levels"
   )
 
   # A level that is declared but never observed is the same failure: the column
-  # it encodes to is constant.
+  # it encodes to is constant. Counting declared levels instead would let this
+  # one through to the encoder.
   unobserved <- one_group
   unobserved$g <- factor(as.character(unobserved$g), levels = c("a", "b"))
   expect_error(
     check_hat_values(unobserved, dose, c(x1, g), null_reps = 2),
     class = "positively_rank_error",
-    regexp = "design matrix"
+    regexp = "fewer than two observed levels"
   )
 })
 

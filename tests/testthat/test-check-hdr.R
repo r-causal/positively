@@ -415,6 +415,20 @@ test_that("check_hdr() rejects missing values in an accepted covariate type", {
   )
 })
 
+test_that("an unaccepted covariate type is reported before a missing value", {
+  local_quiet()
+  data <- sim_hdr_linear(80, seed = 1)
+  data$d <- as.Date("2020-01-01") + seq_len(nrow(data))
+  data$l[1] <- NA
+
+  # Both gates have grounds to fire on this selection, so the class says which
+  # one runs first. A type failure is the more specific report of the two.
+  expect_error(
+    check_hdr(data, exposure, c(l, d)),
+    class = "positively_type_error"
+  )
+})
+
 test_that("check_hdr_seq() accepts a factor covariate", {
   local_quiet()
   data <- sim_hdr_seq_grouped(200, seed = 1)
@@ -477,6 +491,19 @@ test_that("check_hdr_seq() rejects a Date covariate or baseline", {
   expect_snapshot_abort(
     check_hdr_seq(data, c(a1, a2, a3), list(l1, l2, l3), .baseline = d),
     class = "positively_type_error"
+  )
+
+  # The two routes share a message body, so the argument the failure is
+  # attributed to is the only thing that separates them. Snapshot expectations
+  # skip on CRAN, so this match is the attribution guard there.
+  baseline_error <- expect_error(
+    check_hdr_seq(data, c(a1, a2, a3), list(l1, l2, l3), .baseline = d),
+    class = "positively_type_error"
+  )
+  expect_match(
+    conditionMessage(baseline_error),
+    "`.baseline` must select",
+    fixed = TRUE
   )
 })
 

@@ -1,12 +1,12 @@
-# check_positivity() is the top-level entry point: it detects the exposure type, runs
-# the default diagnostics for that type (overridable through `diagnostics`),
-# threads per-method options from `args`, and returns a positivity_check
-# container. The default sets are fixed by exposure type: binary runs edp, port,
-# and extrapolation; categorical runs edp and port; continuous runs edp, port,
-# hat_values, and hdr. check_eta_bias() and check_density_ratios() are never run
-# because they need an outcome or user-supplied ratios. These specs assert the
-# plumbing (selection, passthrough, container shape, errors), so they lean on the
-# cheapest diagnostics and shrink the expensive null resampling through `args`.
+# check_positivity() resolves the exposure type, runs the diagnostics that apply
+# to that type (overridable through `diagnostics`), threads per-method options
+# from `args`, and returns a positivity_check container. The default sets are
+# fixed by exposure type: binary runs edp, port, and extrapolation; categorical
+# runs edp and port; continuous runs edp, port, hat_values, and hdr.
+# check_eta_bias() and check_density_ratios() are never run because they need an
+# outcome or user-supplied ratios. These specs assert the plumbing (selection,
+# passthrough, container shape, errors), so they lean on the cheapest
+# diagnostics and shrink the expensive null resampling through `args`.
 
 # The child produced by a named diagnostic, read straight off the named @checks
 # list rather than through `[[` or `$`, which several of these blocks test.
@@ -219,11 +219,11 @@ test_that("a declared type the exposure cannot carry aborts before any child run
   data <- dgp_categorical(150)
   # The exposure is a three-level factor, so a declared binary type is
   # structurally impossible: binary needs exactly two distinct values. The abort
-  # must come from the entry point's own structural check, before any diagnostic
-  # is dispatched, so that no child burns a full computation on a request that
-  # cannot succeed. Recording the dispatches pins that directly; the condition
-  # class pins the source, since anything a child raised would arrive wrapped as
-  # a composition error.
+  # must come from check_positivity()'s own structural check, before any
+  # diagnostic is dispatched, so that no child burns a full computation on a
+  # request that cannot succeed. Recording the dispatches pins that directly;
+  # the condition class pins the source, since anything a child raised would
+  # arrive wrapped as a composition error.
   dispatched <- character()
   testthat::local_mocked_bindings(
     check_port = function(...) {
@@ -453,7 +453,7 @@ test_that("the container metadata agrees with every child's", {
 
 # ---- Child alerts and failures --------------------------------------------
 
-test_that("a child informational alert survives the entry point", {
+test_that("a child informational alert survives composition", {
   withr::local_options(
     positively.quiet = FALSE,
     positively.gower_chunk_threshold = 20
@@ -479,7 +479,7 @@ test_that("a child informational alert survives the entry point", {
 test_that("the detection message is announced exactly once at default verbosity", {
   withr::local_options(positively.quiet = FALSE)
   data <- dgp_good_positivity(n = 60)
-  # The entry point resolves the exposure type once and forwards it to every
+  # check_positivity() resolves the exposure type once and forwards it to every
   # child, so extrapolation receives a concrete type and never detects one for
   # itself. The announcement therefore has exactly one source.
   messages <- character()

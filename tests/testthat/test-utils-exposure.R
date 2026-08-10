@@ -684,8 +684,8 @@ test_that("every diagnostic offers exactly the types its registry entry supports
 
 test_that("check_positivity() supports exactly the union of its children's types", {
   # Every composed child is handed check_positivity()'s resolved type, so a type
-  # the entry point accepts that no child accepts has nowhere to run, and a type
-  # a child accepts that the entry point rejects is unreachable through
+  # check_positivity() accepts that no child accepts has nowhere to run, and a
+  # type a child accepts that check_positivity() rejects is unreachable through
   # composition. The test above carries this from the registry to the menus the
   # two sides actually offer.
   registry <- diagnostic_supported_types()

@@ -274,9 +274,10 @@ whole population and the non-overlap ratio has a floor near 0.4.
 check_hdr(clinics, dose, c(site, l))
 ```
 
-The exposure column is a separate matter. These three diagnostics measure
-support along a continuous dose, so the exposure must be numeric whether its type
-is detected or declared.
+The exposure column is a separate matter. `check_hat_values()` and `check_hdr()`
+measure support along a continuous dose, so they need a numeric exposure whether
+its type is detected or declared, while a factor or character exposure moves
+`check_edp()` to its categorical reading rather than to an error.
 
 ## Declaring the exposure type
 
