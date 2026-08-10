@@ -45,8 +45,11 @@ hat_values_result <- new_class(
 #' \eqn{M = [1, D, X]}, where `D` is the continuous exposure and `X` the encoded
 #' covariates, so the number of parameters is \eqn{p = q + 2} for `q` encoded
 #' design columns. A numeric or logical covariate contributes one column; a
-#' factor or character covariate contributes one indicator column per level
-#' beyond its reference level. For each requested exposure percentile \eqn{d_q}
+#' factor or character covariate contributes one fewer column than it has
+#' levels, as treatment-contrast indicators when the factor is unordered and as
+#' polynomial contrasts when it is ordered. The two encodings span the same
+#' space, so `q` and the hat values are the same either way. For each requested
+#' exposure percentile \eqn{d_q}
 #' and each observed covariate row \eqn{x_i}, it forms the candidate point
 #' \eqn{x_* = (1, d_q, x_i)} and computes its leverage (hat value)
 #' \eqn{h_* = x_*^\top (M^\top M)^{-1} x_*}. A candidate is flagged as high
@@ -86,9 +89,11 @@ hat_values_result <- new_class(
 #'   `exposure_type = "continuous"` passes any numeric column through the type
 #'   gate.
 #' @param .covariates The covariate columns, selected with tidyselect. Numeric,
-#'   logical, factor, and character columns are accepted; factor and character
-#'   columns are expanded to indicator columns internally, one per level beyond
-#'   the reference level.
+#'   logical, factor, and character columns are accepted; a factor or character
+#'   column is expanded internally to one fewer column than it has levels, as
+#'   treatment-contrast indicators when the factor is unordered and as
+#'   polynomial contrasts when it is ordered. The two encodings span the same
+#'   space, so the hat values are the same either way.
 #' @param probs A numeric vector of exposure percentiles, each in `[0, 1]`, at
 #'   which candidate points are formed. Defaults to `seq(0.05, 0.95, by =
 #'   0.05)`.
@@ -266,10 +271,11 @@ check_hat_values <- function(
 
 #' Expand covariate columns into the numeric block of the design matrix
 #'
-#' Numeric and logical columns each contribute one column; factor and character
-#' columns expand to treatment-contrast indicators, one per level beyond the
-#' reference level. The intercept `stats::model.matrix()` prepends is dropped,
-#' because the design matrix carries its own.
+#' Numeric and logical columns each contribute one column; a factor or character
+#' column expands to one fewer column than it has levels, as treatment-contrast
+#' indicators when the factor is unordered and as polynomial contrasts when it is
+#' ordered. The intercept `stats::model.matrix()` prepends is dropped, because
+#' the design matrix carries its own.
 #'
 #' @param covariates A data frame of the selected covariate columns.
 #' @param call The calling environment, used to build the error's call.

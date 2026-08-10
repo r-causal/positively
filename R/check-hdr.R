@@ -84,7 +84,11 @@ hdr_result <- new_class(
 #'   exposure is detected as binary or categorical; declaring
 #'   `exposure_type = "continuous"` accepts any numeric column that takes more
 #'   than one value.
-#' @param .covariates The covariate columns, selected with tidyselect.
+#' @param .covariates The covariate columns, selected with tidyselect. Numeric,
+#'   logical, factor, and character columns are accepted, and each reaches the
+#'   density estimator's formula as it was selected. Encoding a non-numeric
+#'   column is the estimator's work, which the default estimator leaves to
+#'   [stats::lm()].
 #' @param mass The HDR probability mass, a single value strictly between 0 and 1.
 #'   Defaults to `0.95`.
 #' @param values A numeric vector of target exposure values at which to evaluate
@@ -753,8 +757,12 @@ hdr_ratios <- function(density_estimator, fitted, analysis, targets) {
 #'   the time-varying covariates. A length-one list is recycled across time
 #'   points. Write it as a literal `list()` call, for example
 #'   `list(l0, l1, l2)`, rather than a pre-built list held in a variable.
+#'   Numeric, logical, factor, and character columns are accepted, and each
+#'   reaches the density estimator's formula as it was selected, as in
+#'   [check_hdr()].
 #' @param .baseline A tidyselect of baseline covariates always included in every
-#'   conditioning set. Defaults to `NULL`.
+#'   conditioning set, accepting the same column types as `.covariates`.
+#'   Defaults to `NULL`.
 #' @param mass The HDR probability mass, a single value strictly between 0 and 1.
 #'   Defaults to `0.95`.
 #' @param values A numeric vector of target exposure values. `NULL` (the

@@ -23,7 +23,11 @@ exposure is detected as binary or categorical; declaring
 \code{exposure_type = "continuous"} accepts any numeric column that takes more
 than one value.}
 
-\item{.covariates}{The covariate columns, selected with tidyselect.}
+\item{.covariates}{The covariate columns, selected with tidyselect. Numeric,
+logical, factor, and character columns are accepted, and each reaches the
+density estimator's formula as it was selected. Encoding a non-numeric
+column is the estimator's work, which the default estimator leaves to
+\code{\link[stats:lm]{stats::lm()}}.}
 
 \item{mass}{The HDR probability mass, a single value strictly between 0 and 1.
 Defaults to \code{0.95}.}

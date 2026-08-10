@@ -230,6 +230,54 @@ geometries of violation.
 Running all three and reading them together shows both the location of a violation
 and the kind of support it lacks.
 
+## Covariate types
+
+The covariates need not be numeric. All three diagnostics accept numeric,
+logical, factor, and character covariate columns, and each uses a non-numeric
+column in the way its own measure of support requires. `check_edp()` treats a
+factor or character covariate as a categorical kernel dimension, where a pair of
+observations either matches on it or contributes `categorical_similarity`.
+`check_hdr()` passes the covariates to the density estimator's formula as they
+were selected, so the default estimator hands them to `lm()`, which encodes them
+as contrast terms. `check_hat_values()` needs a numeric design matrix, so it
+encodes factor and character columns itself, and the parameter count `p` that
+sets the leverage cutoff counts the encoded columns.
+
+Consider a dose recorded at three clinics, where the central clinic prescribes
+higher doses and the dose also rises with `l`.
+
+```{r clinics}
+set.seed(5)
+n <- 300
+site <- factor(sample(c("north", "central", "south"), n, replace = TRUE))
+l <- rnorm(n)
+dose <- 20 + 10 * (site == "central") + 5 * l + rnorm(n, sd = 3)
+clinics <- data.frame(dose = dose, site = site, l = l)
+```
+
+`site` has three levels, so it contributes two columns to the design. With the
+intercept and the exposure, `p` is 5, where `l` on its own would give 3.
+
+```{r clinics-hat}
+set.seed(6)
+hat_site <- check_hat_values(clinics, dose, c(site, l), null_reps = 100)
+glance(hat_site)
+```
+
+The dose depends on both covariates here, so unlike the `a2` example above the
+observed leverage profile exceeds the null quantile. `check_hdr()` takes the same
+columns and agrees from the density side: the conditional dose distribution
+shifts with the clinic and with `l`, so no common dose is supported across the
+whole population and the non-overlap ratio has a floor near 0.4.
+
+```{r clinics-hdr}
+check_hdr(clinics, dose, c(site, l))
+```
+
+The exposure column is a separate matter. These three diagnostics measure
+support along a continuous dose, so the exposure must be numeric whether its type
+is detected or declared.
+
 ## Declaring the exposure type
 
 Every diagnostic infers the exposure type from the data unless you declare it.
@@ -296,7 +344,8 @@ check_positivity(coarse, dose, l, exposure_type = "binary")
 exposure, one time point at a time, fitting the conditional density of each
 exposure on the history that enters its conditioning set. It accepts the same
 wide-format data used above, with an ordered selection of exposure columns and a
-per-time-point list of covariates. The *Identifying violations: PoRT and sPoRT*
+per-time-point list of covariates, and it takes the same covariate types as
+`check_hdr()`. The *Identifying violations: PoRT and sPoRT*
 vignette covers the sequential diagnostics in full, including conditioning-set
 construction and the longitudinal support structure of `pos_violations_long`.
 

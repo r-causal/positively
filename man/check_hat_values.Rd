@@ -26,9 +26,11 @@ the exposure is detected as binary or categorical; declaring
 gate.}
 
 \item{.covariates}{The covariate columns, selected with tidyselect. Numeric,
-logical, factor, and character columns are accepted; factor and character
-columns are expanded to indicator columns internally, one per level beyond
-the reference level.}
+logical, factor, and character columns are accepted; a factor or character
+column is expanded internally to one fewer column than it has levels, as
+treatment-contrast indicators when the factor is unordered and as
+polynomial contrasts when it is ordered. The two encodings span the same
+space, so the hat values are the same either way.}
 
 \item{probs}{A numeric vector of exposure percentiles, each in \verb{[0, 1]}, at
 which candidate points are formed. Defaults to \code{seq(0.05, 0.95, by = 0.05)}.}
@@ -86,8 +88,11 @@ The method (the paper's Box 1) fits the linear design matrix
 \eqn{M = [1, D, X]}, where \code{D} is the continuous exposure and \code{X} the encoded
 covariates, so the number of parameters is \eqn{p = q + 2} for \code{q} encoded
 design columns. A numeric or logical covariate contributes one column; a
-factor or character covariate contributes one indicator column per level
-beyond its reference level. For each requested exposure percentile \eqn{d_q}
+factor or character covariate contributes one fewer column than it has
+levels, as treatment-contrast indicators when the factor is unordered and as
+polynomial contrasts when it is ordered. The two encodings span the same
+space, so \code{q} and the hat values are the same either way. For each requested
+exposure percentile \eqn{d_q}
 and each observed covariate row \eqn{x_i}, it forms the candidate point
 \eqn{x_* = (1, d_q, x_i)} and computes its leverage (hat value)
 \eqn{h_* = x_*^\top (M^\top M)^{-1} x_*}. A candidate is flagged as high
