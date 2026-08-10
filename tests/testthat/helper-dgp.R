@@ -80,6 +80,31 @@ dgp_coarse_dose <- function(n = 150, seed = 1) {
   tibble::tibble(exposure = exposure, x1 = x1)
 }
 
+# A continuous exposure confounded by mixed-type covariates: one numeric
+# covariate and a three-level factor. The exposure is x1 plus a per-level mean
+# shift of -3, 0, and 3, about two within-level standard deviations, so the
+# factor level decides which part of the exposure range a subject reaches. No
+# subject at the "low" level reaches the top tertile of the pooled exposure and
+# none at the "high" level reaches the bottom tertile, which is a violation only
+# a diagnostic that carries the factor into its arithmetic can find: x1 alone
+# leaves the whole range reachable everywhere. Levels are drawn uniformly, so
+# all three are observed at every size the tests use and the factor expands to
+# two indicator columns in a design matrix.
+dgp_continuous_factor_covariate <- function(n = 200, seed = 9) {
+  withr::local_seed(seed)
+  x1 <- stats::rnorm(n)
+  x2 <- factor(
+    sample(c("low", "mid", "high"), n, replace = TRUE),
+    levels = c("low", "mid", "high")
+  )
+  shift <- unname(c(low = -3, mid = 0, high = 3)[as.character(x2)])
+  tibble::tibble(
+    exposure = shift + x1 + stats::rnorm(n),
+    x1 = x1,
+    x2 = x2
+  )
+}
+
 # A three-level categorical exposure with two numeric covariates and no planted
 # structure. The level is drawn independently of both covariates, so there is no
 # positivity violation for a diagnostic to recover. This is the plain categorical

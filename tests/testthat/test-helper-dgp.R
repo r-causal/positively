@@ -53,6 +53,40 @@ test_that("dgp_coarse_dose() dispenses eight levels detection misreads", {
   expect_gt(stats::cor(data$exposure, data$x1), 0.5)
 })
 
+test_that("dgp_continuous_factor_covariate() puts a tertile out of reach", {
+  data <- dgp_continuous_factor_covariate(n = 200, seed = 9)
+  expect_identical(nrow(data), 200L)
+  expect_s3_class(data$x2, "factor")
+  expect_identical(levels(data$x2), c("low", "mid", "high"))
+  # All three levels are drawn, so the factor expands to two indicator columns
+  # and the three-way structure below is a contract rather than an accident of
+  # the seed.
+  expect_length(unique(data$x2), 3L)
+
+  # Quantile bins of the pooled exposure are what a continuous diagnostic reads
+  # the exposure through, so the planted structure is stated against the tertile
+  # cut points, in the half-open form cut() bins on.
+  tertiles <- stats::quantile(data$exposure, c(1 / 3, 2 / 3), names = FALSE)
+  in_bottom <- data$exposure <= tertiles[[1]]
+  in_top <- data$exposure > tertiles[[2]]
+  expect_identical(sum(data$x2 == "low" & in_top), 0L)
+  expect_identical(sum(data$x2 == "high" & in_bottom), 0L)
+  # The middle level reaches both ends, so the two absences are the factor
+  # putting part of the range out of reach rather than an exposure that never
+  # spans its own tertiles.
+  expect_gt(sum(data$x2 == "mid" & in_top), 0)
+  expect_gt(sum(data$x2 == "mid" & in_bottom), 0)
+
+  # The numeric covariate leaves the whole range reachable on either side of its
+  # median, so a diagnostic reading x1 alone has no absence to find and the
+  # violation is carried by the factor.
+  high_x1 <- data$x1 > stats::median(data$x1)
+  expect_gt(sum(high_x1 & in_top), 0)
+  expect_gt(sum(high_x1 & in_bottom), 0)
+  expect_gt(sum(!high_x1 & in_top), 0)
+  expect_gt(sum(!high_x1 & in_bottom), 0)
+})
+
 test_that("dgp_categorical() draws three observed exposure levels", {
   data <- dgp_categorical(n = 150, seed = 1)
   expect_identical(nrow(data), 150L)
@@ -175,6 +209,10 @@ test_that("each data-generating process is deterministic given its seed", {
     dgp_continuous_support_gap(seed = 7)
   )
   expect_identical(dgp_coarse_dose(seed = 7), dgp_coarse_dose(seed = 7))
+  expect_identical(
+    dgp_continuous_factor_covariate(seed = 7),
+    dgp_continuous_factor_covariate(seed = 7)
+  )
   expect_identical(dgp_categorical(seed = 7), dgp_categorical(seed = 7))
   expect_identical(
     dgp_longitudinal_dose(seed = 7),

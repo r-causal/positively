@@ -100,6 +100,84 @@ test_that("a continuous exposure runs edp, port, hat_values, and hdr by default"
   ))
 })
 
+# ---- Mixed-type covariates ------------------------------------------------
+
+test_that("the continuous set runs end to end with a factor covariate", {
+  local_quiet()
+  # The null resampling in hat_values draws, so the whole block is seeded.
+  withr::local_seed(2024)
+  data <- dgp_continuous_factor_covariate(n = 200)
+  # null_reps is shrunk so the hat-values null resampling stays cheap.
+  res <- check_positivity(
+    data,
+    exposure,
+    c(x1, x2),
+    exposure_type = "continuous",
+    args = list(hat_values = list(null_reps = 25))
+  )
+
+  expect_true(S7::S7_inherits(res, positivity_check))
+  expect_identical(names(res), c("edp", "port", "hat_values", "hdr"))
+  # Each name is answered by the class that diagnostic returns, so a container
+  # that composed the right count of children but dispatched one of them
+  # elsewhere does not read as a pass.
+  expect_identical(
+    vapply(res@checks, function(check) S7::S7_class(check)@name, character(1)),
+    c(
+      edp = "edp_result",
+      port = "port_result",
+      hat_values = "hat_values_result",
+      hdr = "hdr_result"
+    )
+  )
+
+  # p is the width of the design hat values are computed on: an intercept, the
+  # dose, x1, and one indicator per factor level beyond the reference, so 5
+  # here. A run that dropped the factor would report 3 and one that counted it
+  # as a single numeric column would report 4.
+  hat_values <- child_named(res, "hat_values")
+  expect_identical(generics::glance(hat_values)$p, 3L + (nlevels(data$x2) - 1L))
+  expect_identical(hat_values@p, generics::glance(hat_values)$p)
+
+  # PoRT has to split on the factor to find the planted structure, because the
+  # level, not x1, is what puts part of the dose range out of reach. Subjects at
+  # the "low" level never reach the top quantile bin, so that rule is reported
+  # on the factor alone and its exposure prevalence is zero.
+  port_results <- child_named(res, "port")@results
+  low_group <- port_results[
+    port_results$description == "x2=low",
+    ,
+    drop = FALSE
+  ]
+  expect_identical(unique(low_group$subgroup), "x2")
+  flagged <- low_group[low_group$low_support, , drop = FALSE]
+  expect_identical(nrow(flagged), 1L)
+  expect_identical(flagged$prevalence, 0)
+})
+
+test_that("auto detection reaches the same set on a factor covariate", {
+  withr::local_options(positively.quiet = FALSE)
+  withr::local_seed(2024)
+  data <- dgp_continuous_factor_covariate(n = 200)
+  # The dose is continuous by the unique-value heuristic as well as by
+  # construction, so the run needs no declared type. check_positivity() supports
+  # every exposure type, so it announces the one it read, and that announcement
+  # is the only message the run emits.
+  expect_message(
+    res <- check_positivity(
+      data,
+      exposure,
+      c(x1, x2),
+      args = list(hat_values = list(null_reps = 25))
+    ),
+    "Treating `.exposure` as continuous"
+  )
+
+  expect_identical(res@exposure_type, "continuous")
+  expect_identical(names(res), c("edp", "port", "hat_values", "hdr"))
+  expect_identical(res@covariates, c("x1", "x2"))
+})
+
 # ---- Explicit method selection --------------------------------------------
 
 test_that("an explicit diagnostics vector is honoured in order", {
