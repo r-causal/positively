@@ -25,13 +25,17 @@ export(sniff_violations)
 export(tidy)
 import(S7)
 importFrom(cli,cli_abort)
-importFrom(generics,glance)
-importFrom(generics,tidy)
+importFrom(generics,
+  glance,
+  tidy
+)
 importFrom(ggplot2,autoplot)
 importFrom(purrr,map)
-importFrom(rlang,"%||%")
-importFrom(rlang,.data)
-importFrom(rlang,caller_env)
+importFrom(rlang,
+  "%||%",
+  .data,
+  caller_env
+)
 importFrom(rpart,rpart)
 importFrom(stats,predict)
 importFrom(tibble,tibble)
