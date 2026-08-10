@@ -2,7 +2,7 @@ Package: positively
 Title: Diagnose Positivity Violations and Extrapolation in Causal
     Inference
 Version: 0.0.0.9000
-Authors@R: 
+Authors@R:
     person("Malcolm", "Barrett", , "malcolmbarrett@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0003-0299-5825"))
 Description: Provides diagnostics for positivity violations and
@@ -17,8 +17,8 @@ URL: https://r-causal.github.io/positively/,
     https://github.com/r-causal/positively
 BugReports: https://github.com/r-causal/positively/issues
 Depends:
-    R (>= 4.2.0)
-Imports: 
+    R (>= 4.3.0)
+Imports:
     cli,
     generics,
     ggplot2,
@@ -31,7 +31,7 @@ Imports:
     tidyselect,
     utils,
     vctrs
-Suggests: 
+Suggests:
     dplyr (>= 1.1.0),
     halfmoon,
     knitr,
@@ -44,7 +44,7 @@ Suggests:
     testthat (>= 3.0.0),
     vdiffr,
     withr
-VignetteBuilder: 
+VignetteBuilder:
     knitr
 Config/roxygen2/version: 8.1.0
 Config/testthat/edition: 3
