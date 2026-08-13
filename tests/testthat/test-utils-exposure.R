@@ -50,11 +50,11 @@ test_that("detect_exposure_type() is silent when positively.quiet is TRUE", {
 })
 
 test_that("the reading is announced once, by positively", {
-  withr::local_options(positively.quiet = FALSE, causalgenerics.quiet = TRUE)
-  # The reading comes from causalgenerics and the announcement does not, so
-  # silencing causalgenerics leaves the message in place while
-  # positively.quiet takes it away. Exactly one message fires, which is what
-  # asking causalgenerics to stay silent buys.
+  withr::local_options(positively.quiet = FALSE, causalgenerics.quiet = FALSE)
+  # The reading comes from causalgenerics and the announcement does not.
+  # With both quiet options off, a second message could only come from
+  # causalgenerics announcing on its own, so exactly one message proves the
+  # wrapper asked causalgenerics to stay silent.
   messages <- capture_messages(detect_exposure_type(c(0, 1, 0, 1)))
   expect_length(messages, 1)
   expect_match(messages, "Treating `.exposure` as binary", fixed = TRUE)
@@ -86,6 +86,17 @@ test_that("missing values are not levels in a factor or character exposure", {
   # remaining entries are missing.
   expect_identical(detect_exposure_type(factor(c("a", "b", NA))), "binary")
   expect_identical(detect_exposure_type(c("a", "b", NA)), "binary")
+})
+
+test_that("a single observed value plus missingness is no longer binary", {
+  withr::local_options(positively.quiet = TRUE)
+  # The other side of the missing-values rule: a constant column with an NA
+  # used to read binary because the NA counted as the second value. With one
+  # observed value the two-value rule cannot fire, so the column falls through
+  # to the unique-value heuristic like any other one-valued column.
+  expect_identical(detect_exposure_type(c(1, 1, 1, NA)), "continuous")
+  expect_identical(detect_exposure_type(c(rep(1, 199), NA)), "categorical")
+  expect_identical(detect_exposure_type(c(TRUE, TRUE, NA)), "continuous")
 })
 
 test_that("missing values do not inflate the categorical unique-value ratio", {
