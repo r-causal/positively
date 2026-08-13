@@ -1,19 +1,20 @@
-# Exposure-type detection. positively mirrors the propensity idiom rather than
-# importing it: has_two_levels(), is_categorical(), and detect_exposure_type()
-# classify a column exactly as propensity does, down to the wording of the
-# informational message where one is emitted, so that users experience one
-# r-causal ecosystem.
+# Exposure-type detection is causalgenerics'. Reading the type from there is
+# what makes a column classify the same way in every r-causal package. The
+# announcement stays here, because it goes through alert_info() and so
+# options(positively.quiet) silences it along with every other informational
+# message the package emits; causalgenerics is asked to stay silent, so one
+# detection reports itself once.
 #
 # The resolution layer built on top of detection deliberately diverges.
 # Detection supplies a default here, never an override: an explicit
 # exposure_type wins outright, and resolve_exposure_type() then validates the
 # resolved type against the column on both paths. An explicit type therefore
 # fails only when that type's math cannot run on the data as given, never
-# because the unique-value heuristic in is_categorical() read the column
-# differently than the user did. Under "auto" the heuristic is the only source
-# of a type, so a detected type outside the diagnostic's supported set is still
-# an abort; that gate is deliberate, and removing it would silently run a
-# diagnostic on a column no one declared it could handle.
+# because the unique-value heuristic in causalgenerics::is_categorical() read
+# the column differently than the user did. Under "auto" the heuristic is the
+# only source of a type, so a detected type outside the diagnostic's supported
+# set is still an abort; that gate is deliberate, and removing it would
+# silently run a diagnostic on a column no one declared it could handle.
 #
 # Whether the reading is announced diverges too. The announcement reports which
 # branch a call took, so it is worth making only for a diagnostic that supports
@@ -21,50 +22,19 @@
 # by resolving successfully, and an unsupported reading is named in the abort
 # either way.
 
-#' Does a vector have exactly two distinct values?
-#'
-#' @param x A vector.
-#'
-#' @return A single logical value.
-#' @keywords internal
-#' @noRd
-has_two_levels <- function(x) {
-  length(unique(x)) == 2
-}
-
-#' Is a numeric vector categorical by the unique-value heuristic?
-#'
-#' A numeric exposure is treated as categorical when the proportion of unique
-#' values to non-missing observations falls below 20 percent.
-#'
-#' @param .exposure A numeric exposure vector.
-#'
-#' @return A single logical value.
-#' @keywords internal
-#' @noRd
-is_categorical <- function(.exposure) {
-  n_non_na <- sum(!is.na(.exposure))
-  if (n_non_na == 0) {
-    return(FALSE)
-  }
-
-  ratio <- length(unique(.exposure)) / n_non_na
-  if (is.nan(ratio)) {
-    return(FALSE)
-  }
-
-  ratio < 0.2
-}
-
 #' Detect the type of an exposure vector
 #'
-#' Classifies an exposure as `"binary"`, `"categorical"`, or `"continuous"`. A
-#' vector with exactly two distinct values is binary; a factor or character
-#' vector with more than two values is categorical; a numeric vector is
-#' categorical when its share of unique values is small, and continuous
-#' otherwise. The caller decides whether the detected type is announced through
-#' `alert_info()`, which is suppressed in turn when `options(positively.quiet)`
-#' is `TRUE`.
+#' Classifies an exposure as `"binary"`, `"categorical"`, or `"continuous"`
+#' through [causalgenerics::detect_exposure_type()]. A vector with exactly two
+#' observed values is binary; a factor or character vector with more than two is
+#' categorical; a numeric vector is categorical when its share of unique values
+#' is small, and continuous otherwise. Missing values are not levels on either
+#' side of that heuristic, so a 0/1 column with an `NA` is binary.
+#'
+#' The announcement is made here rather than by causalgenerics, which reads an
+#' option of its own, so that the message a user silences with
+#' `options(positively.quiet)` covers this one too. causalgenerics is asked to
+#' stay silent, leaving exactly one announcement per detection.
 #'
 #' @param .exposure The exposure vector.
 #' @param arg The argument name the announcement points at. Defaults to
@@ -83,19 +53,11 @@ detect_exposure_type <- function(
   arg = ".exposure",
   announce = TRUE
 ) {
-  exposure_type <- if (has_two_levels(.exposure)) {
-    "binary"
-  } else if (is.factor(.exposure) || is.character(.exposure)) {
-    if (length(unique(.exposure)) > 2) {
-      "categorical"
-    } else {
-      "binary"
-    }
-  } else if (is_categorical(.exposure)) {
-    "categorical"
-  } else {
-    "continuous"
-  }
+  exposure_type <- causalgenerics::detect_exposure_type(
+    .exposure,
+    arg = arg,
+    announce = FALSE
+  )
 
   if (announce) {
     alert_info("Treating {.arg {arg}} as {exposure_type}")
