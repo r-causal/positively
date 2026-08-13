@@ -1,5 +1,5 @@
-# Exposure-type detection mirrors the propensity idiom: detect_exposure_type()
-# announces the type it infers unless options(positively.quiet) suppresses it.
+# Exposure-type detection is causalgenerics': detect_exposure_type() delegates
+# the reading and announces it unless options(positively.quiet) suppresses it.
 # resolve_exposure_type() wraps that detection in the package's policy:
 # detection supplies a default, an explicit exposure_type is authoritative, and
 # an explicit type fails only when that type's math cannot run on the column as
@@ -49,6 +49,17 @@ test_that("detect_exposure_type() is silent when positively.quiet is TRUE", {
   expect_silent(detect_exposure_type(c(0, 1, 0, 1)))
 })
 
+test_that("the reading is announced once, by positively", {
+  withr::local_options(positively.quiet = FALSE, causalgenerics.quiet = TRUE)
+  # The reading comes from causalgenerics and the announcement does not, so
+  # silencing causalgenerics leaves the message in place while
+  # positively.quiet takes it away. Exactly one message fires, which is what
+  # asking causalgenerics to stay silent buys.
+  messages <- capture_messages(detect_exposure_type(c(0, 1, 0, 1)))
+  expect_length(messages, 1)
+  expect_match(messages, "Treating `.exposure` as binary", fixed = TRUE)
+})
+
 test_that("a single-level factor is detected as binary", {
   withr::local_options(positively.quiet = TRUE)
   # A factor with one observed level is not caught by the exactly-two-values
@@ -57,20 +68,41 @@ test_that("a single-level factor is detected as binary", {
   expect_identical(detect_exposure_type(factor(c("a", "a", "a"))), "binary")
 })
 
-test_that("a 0/1 exposure with NA is detected as categorical", {
+test_that("a 0/1 exposure with NA is detected as binary", {
   withr::local_options(positively.quiet = TRUE)
-  # The NA becomes a third unique value, so at a realistic n the unique-value
-  # ratio sends the vector down the categorical branch. This deliberately
-  # mirrors propensity's detection behavior; do not change one without the
-  # other.
+  # Missing values are not levels. A 0/1 column carrying an NA takes exactly two
+  # observed values, so the two-value rule reads it as binary instead of
+  # counting the NA as a third value and passing the column to the unique-value
+  # heuristic.
   exposure <- c(rep(0, 250), rep(1, 249), NA)
+  expect_identical(detect_exposure_type(exposure), "binary")
+  expect_identical(detect_exposure_type(c(0, 1, NA)), "binary")
+})
+
+test_that("missing values are not levels in a factor or character exposure", {
+  withr::local_options(positively.quiet = TRUE)
+  # The same rule reaches the branch that counts a factor's or a character
+  # column's values: two observed values are binary however many of the
+  # remaining entries are missing.
+  expect_identical(detect_exposure_type(factor(c("a", "b", NA))), "binary")
+  expect_identical(detect_exposure_type(c("a", "b", NA)), "binary")
+})
+
+test_that("missing values do not inflate the categorical unique-value ratio", {
+  withr::local_options(positively.quiet = TRUE)
+  # The heuristic weighs observed distinct values against non-missing
+  # observations, so both sides of the ratio count the same rows. Nineteen
+  # distinct values over 100 non-missing observations is 0.19, inside the 20
+  # percent cutoff, and the NA does not raise the numerator to 20 and read the
+  # column as continuous.
+  exposure <- c(rep(seq_len(19), length.out = 100), NA)
   expect_identical(detect_exposure_type(exposure), "categorical")
 })
 
 test_that("an all-NA exposure is detected as continuous", {
   withr::local_options(positively.quiet = TRUE)
   # With no non-missing observations the categorical heuristic returns FALSE, so
-  # detection falls through to continuous. Locked to mirror propensity.
+  # detection falls through to continuous.
   expect_identical(
     detect_exposure_type(c(NA_real_, NA_real_, NA_real_)),
     "continuous"
@@ -380,18 +412,17 @@ test_that("the auto path validates structure as strictly as an explicit type", {
   )
 })
 
-test_that("the auto path rejects date-like and logical exposures", {
+test_that("the auto path rejects date-like exposures", {
   withr::local_options(positively.quiet = TRUE)
-  # Dates, date-times, differences, and logicals store numbers underneath but
-  # are not is.numeric(), so detection reads them as continuous while the
-  # numeric requirement turns them away. Requiring is.numeric() rather than
+  # Dates, date-times, and differences store numbers underneath but are not
+  # is.numeric(), so detection reads them as continuous while the numeric
+  # requirement turns them away. Requiring is.numeric() rather than
   # coercibility is what keeps a factor from passing as a dose, and these
   # columns are the cost of that rule.
   exotic <- list(
     as.Date("2020-01-01") + 0:49,
     as.POSIXct("2020-01-01", tz = "UTC") + seq(0, 4900, by = 100),
-    as.difftime(seq_len(50), units = "days"),
-    c(TRUE, FALSE, NA)
+    as.difftime(seq_len(50), units = "days")
   )
   detected <- vapply(exotic, detect_exposure_type, character(1))
   expect_identical(detected, rep("continuous", length(exotic)))
@@ -407,6 +438,25 @@ test_that("the auto path rejects date-like and logical exposures", {
       class = "positively_exposure_type_error"
     )
   }
+})
+
+test_that("the auto path accepts a logical exposure as binary", {
+  withr::local_options(positively.quiet = TRUE)
+  # A logical column takes two observed values whether or not it carries
+  # missing ones, so it never reaches the continuous branch that would ask it
+  # to be is.numeric(). The binary rule asks only for two distinct values,
+  # which it has.
+  exposure <- c(TRUE, FALSE, NA)
+  expect_identical(detect_exposure_type(exposure), "binary")
+  expect_identical(
+    resolve_exposure_type(
+      "auto",
+      exposure,
+      supported = c("binary", "categorical", "continuous"),
+      fn = "check_edp"
+    ),
+    "binary"
+  )
 })
 
 test_that("validate_exposure_structure() requires a numeric continuous exposure", {

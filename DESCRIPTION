@@ -19,6 +19,7 @@ BugReports: https://github.com/r-causal/positively/issues
 Depends:
     R (>= 4.3.0)
 Imports:
+    causalgenerics (>= 0.1.0.9000),
     cli,
     generics,
     ggplot2,
@@ -46,6 +47,8 @@ Suggests:
     withr
 VignetteBuilder:
     knitr
+Remotes:
+    r-causal/causalgenerics
 Config/roxygen2/version: 8.1.0
 Config/testthat/edition: 3
 Encoding: UTF-8

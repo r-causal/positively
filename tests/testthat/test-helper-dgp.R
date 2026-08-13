@@ -47,7 +47,7 @@ test_that("dgp_coarse_dose() dispenses eight levels detection misreads", {
   # The fixture exists to be misread, so the heuristic itself is the assertion.
   # A hard-coded ratio would keep this test green after a cutoff change that had
   # already stopped detection from misreading the dose.
-  expect_true(is_categorical(data$exposure))
+  expect_true(causalgenerics::is_categorical(data$exposure))
   # The covariate tracks the dose, so a diagnostic run on the declared type has
   # structure to find.
   expect_gt(stats::cor(data$exposure, data$x1), 0.5)
@@ -123,12 +123,12 @@ test_that("dgp_longitudinal_dose() flips type on the wave count", {
     # heuristic itself is the assertion on both sides. Hard-coded ratios would
     # keep this test green after a cutoff change that had already stopped the
     # flip from happening.
-    expect_false(is_categorical(data[[wave]]))
+    expect_false(causalgenerics::is_categorical(data[[wave]]))
   }
 
   pooled <- unlist(data[waves], use.names = FALSE)
   expect_length(unique(pooled), 30L)
-  expect_true(is_categorical(pooled))
+  expect_true(causalgenerics::is_categorical(pooled))
 
   # The covariates track the dose that precedes them, so a run on the declared
   # type has structure to find.
