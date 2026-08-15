@@ -24,7 +24,7 @@
     Condition
       Warning in `check_eta_bias()`:
       Dropped 2 of 50 bootstrap draws with a non-finite estimate.
-      i Such draws arise when a bootstrap exposure lands in a single arm or a refit propensity reaches exactly 0 or 1.
+      i Such draws arise when a bootstrap exposure leaves a level empty, when a fitted probability is exactly 0 or 1, or when a weight is degenerate.
 
 # the continuous truncation grid messages are stable
 

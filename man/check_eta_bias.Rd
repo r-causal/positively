@@ -46,8 +46,9 @@ estimator's correction is a sum over the exposure levels, so it is an error
 for a continuous exposure.}
 
 \item{exposure_formula}{An optional model formula for the treatment mechanism.
-\code{NULL} (the default) fits a main-effects logistic model of the exposure on
-the covariates.}
+\code{NULL} (the default) fits a main-effects model of the exposure on the
+covariates, logistic at two levels, a multinomial logit past two, and a
+normal linear model for a continuous exposure.}
 
 \item{outcome_formula}{An optional model formula for the outcome regression.
 \code{NULL} (the default) fits a main-effects model of the outcome on the
@@ -131,60 +132,102 @@ count is what decides this, not the argument used, so a length-one
 }
 \description{
 \code{check_eta_bias()} implements the ETA.Bias parametric-bootstrap diagnostic of
-Petersen et al. (2012) for point exposures. It estimates the bias that
-a chosen causal estimator would incur under the data's own fitted treatment
-and outcome mechanisms, isolating the component of bias that stems from
-positivity violations, weight truncation, and finite-sample sparsity.
+Petersen et al. (2012) for binary, categorical, and continuous point
+exposures. It estimates the bias that a chosen causal estimator would incur
+under the data's own fitted treatment and outcome mechanisms, isolating the
+component of bias that stems from positivity violations, weight truncation,
+and finite-sample sparsity.
 }
 \details{
 The diagnostic (the paper's Section 4.1) treats the fitted data-generating
 mechanism as a known truth and asks how a candidate estimator behaves under
-it. The algorithm has three steps.
+it. The algorithm has three steps: fit the treatment and outcome mechanisms,
+declare the fitted mechanism the truth, then resample from it and refit. The
+exposure type changes what each step does, and nothing about the order they
+come in.
 
-First, it fits the treatment mechanism \eqn{g_n(1 \mid W)}, a main-effects
-logistic model of the exposure on the covariates, and the outcome regression
+First, it fits the treatment mechanism \eqn{g_n} and the outcome regression
 \eqn{\bar{Q}_n(A, W)}, a main-effects linear or logistic model of the outcome
-on the exposure and covariates. Factor and character covariates enter these
-models as indicator terms, exactly as \code{\link[stats:glm]{stats::glm()}} expands them. An
-exposure of more than two levels fits the treatment mechanism as a
-multinomial logit and so requires the \pkg{nnet} package. The target
-of inference is a single scalar,
-the G-computation estimate on the observed data,
-\eqn{\psi = \frac{1}{n}\sum_i [\bar{Q}_n(1, W_i) - \bar{Q}_n(0, W_i)]}. This
-\code{truth} depends on the outcome model alone. It is identical across estimators
-and constant across truncation levels.
+on the exposure and the covariates. Factor and character covariates enter
+both models as indicator terms, exactly as \code{\link[stats:glm]{stats::glm()}} expands them. The
+treatment mechanism is a main-effects model of the exposure on the covariates
+in the form its type calls for: the logistic model \eqn{g_n(1 \mid W)} at two
+levels; the multinomial logit \eqn{g_n(a \mid W)} past two, which requires the
+\pkg{nnet} package; and for a continuous exposure the normal linear model
+\eqn{A \mid W \sim \mathcal{N}(m_n(W), \sigma_n^2)}, whose spread is the
+pooled maximum-likelihood residual standard deviation
+\eqn{\sigma_n = \sqrt{n^{-1} \sum_i (A_i - m_n(W_i))^2}}.
+
+The \code{truth} is the target the fitted mechanism implies, which is available
+exactly because that fit is the truth of the bootstrap data-generating
+mechanism. It depends on the outcome model alone, so it is identical across
+estimators and constant across truncation levels. A discrete exposure is
+summarized by the saturated factor model, whose coefficients are the
+G-computation contrasts against the reference level \eqn{a_0},
+\eqn{\psi_a = \frac{1}{n}\sum_i [\bar{Q}_n(a, W_i) - \bar{Q}_n(a_0, W_i)]},
+one per non-reference level \eqn{a}. A saturated model restricts nothing, so
+that summary imposes nothing; an exposure coded 0/1 is the two-level case and
+its one contrast is \eqn{\psi_1}. A continuous exposure has no levels to
+saturate. Its counterfactual mean curve
+\eqn{\frac{1}{n}\sum_i \bar{Q}_n(a, W_i)} is evaluated over the unique deciles
+of the observed exposure and projected by least squares onto the working model
+\code{msm_formula} sets, and the truth is the coefficients of that projection of
+the observed fit. Equal weights on a decile grid weight the projection by the
+marginal density of the exposure.
 
 Second, it draws \code{n_boot} bootstrap datasets. Each resamples the covariate
-rows with replacement, draws a bootstrap exposure
-\eqn{A^* \sim \mathrm{Bernoulli}(g_n(1 \mid W^*))} from the untruncated fitted
-propensity, and draws a bootstrap outcome from \eqn{\bar{Q}_n(A^*, W^*)}: for
-continuous outcomes by adding normal or empirical-residual error, and for
-binary outcomes by a Bernoulli draw. Truncation is a property of the
-estimator, not of the data-generating mechanism, so the bootstrap exposure is
-always drawn from the untruncated propensity.
+rows with replacement, draws a bootstrap exposure \eqn{A^*} from the
+untruncated fitted treatment mechanism at the resampled covariates, and draws
+a bootstrap outcome from \eqn{\bar{Q}_n(A^*, W^*)}: for continuous outcomes by
+adding normal or empirical-residual error, and for binary outcomes by a
+Bernoulli draw. The exposure draw is
+\eqn{A^* \sim \mathrm{Bernoulli}(g_n(1 \mid W^*))} at two levels, a
+categorical draw over the fitted probabilities \eqn{g_n(a \mid W^*)} past two,
+and \eqn{A^* \sim \mathcal{N}(m_n(W^*), \sigma_n^2)} for a continuous
+exposure. Truncation is a property of the estimator, not of the
+data-generating mechanism, so the bootstrap exposure is always drawn from the
+untruncated mechanism.
 
 Third, it refits both nuisance models on each bootstrap dataset and applies
-the candidate estimator, bounding the fitted propensity into the truncation
-interval where the estimator uses it. \code{ETA.Bias} is the mean of the bootstrap
-estimates minus \code{truth}, and its Monte Carlo standard error is the standard
-deviation of the bootstrap estimates divided by the square root of the number
-of retained draws. A bootstrap draw whose estimate is non-finite, which can
-happen when a resampled exposure lands in a single arm or a refit propensity
-reaches exactly 0 or 1, is dropped with a warning before the summaries are
-formed.
+the candidate estimator, truncating what that estimator divides by.
+\code{ETA.Bias} is the mean of the bootstrap estimates minus \code{truth}, and its
+Monte Carlo standard error is the standard deviation of the bootstrap
+estimates divided by the square root of the number of retained draws. A
+bootstrap draw whose estimate is non-finite carries no information, and is
+dropped with a warning before the summaries are formed.
+
+What a \code{truncation_grid} entry \eqn{g} truncates also follows the exposure
+type. At two levels it bounds the fitted propensity into \eqn{[g, 1 - g]}: the
+simplex is one-dimensional there, so a lower bound on one level is an upper
+bound on the other and the rule is two-sided. Past two levels it raises every
+fitted probability below \eqn{g} up to \eqn{g} and renormalizes each row to
+sum to one, which is the matrix method of \code{\link[propensity:ps_trunc]{propensity::ps_trunc()}} under
+\code{method = "ps"}. A lower pin on every level already bounds every weight
+denominator, so no upper bound is applied and none is reported. A continuous
+exposure divides by a density rather than by a probability, and \eqn{g} caps
+the stabilized weight \eqn{f_n(A) / f_n(A \mid W)} at its \eqn{1 - g}
+quantile, read once from the observed fit and held fixed across the bootstrap
+draws.
 
 The three estimators behave differently under positivity violations.
-G-computation ignores the propensity entirely, so its ETA.Bias is Monte Carlo
-noise around zero and is flat across a truncation grid. Inverse probability
-weighting divides by the fitted propensity, so extreme scores inflate its
-ETA.Bias, and tightening the truncation bound trades bias for variance. The
-augmented (doubly robust) estimator stays near zero in bias while carrying
-more variance than G-computation.
+G-computation ignores the treatment mechanism entirely, so its ETA.Bias is
+Monte Carlo noise around zero and is flat across a truncation grid. Inverse
+probability weighting divides by the fitted mechanism, so extreme
+probabilities and heavy density ratios inflate its ETA.Bias, and tightening
+the truncation bound trades bias for variance. The augmented (doubly robust)
+estimator stays near zero in bias while carrying more variance than
+G-computation, and it is defined for a discrete estimand alone.
 
 When \code{truncation_grid} is supplied, every grid point reuses one shared set of
 bootstrap draws and nuisance refits, so the sweep isolates the effect of the
 truncation bound alone: the inverse-probability-weighting bias rises and its
 bootstrap spread shrinks as the bound tightens.
+
+A continuous estimand is defined by the working model rather than approximated
+by it, so two analyses of the same data under different \code{msm_formula} values
+are aimed at different targets and report different biases. That is a property
+of the estimand and not an inconsistency: the bias reported is the bias of
+estimating the working model the analysis actually uses.
 
 ETA.Bias captures only the positivity, truncation, and sparsity component of
 bias and excludes model-misspecification bias by construction. It is a red
