@@ -128,6 +128,30 @@ sim_eta_categorical <- function(
   tibble::tibble(a = a, y = y, x1 = x1, x2 = x2)
 }
 
+# A continuous exposure whose treatment mechanism is linear in the two
+# covariates with residual standard deviation `conditional_sd`. That is the one
+# dial: the marginal exposure variance is `2 + conditional_sd^2`, so the
+# stabilized density ratio f(A) / f(A | W) has finite variance only while
+# `conditional_sd` exceeds sqrt(2). A wide setting leaves the ratio near one
+# everywhere; a narrow one makes the mechanism near-deterministic and hands a
+# few observations nearly all the weight, which is the continuous reading of a
+# practical positivity violation. The outcome is linear with effect tau, so the
+# counterfactual surface is exactly linear in the exposure and the default
+# working model's truth is tau.
+sim_eta_continuous <- function(
+  n = 600,
+  conditional_sd = 1,
+  tau = 1,
+  seed = 1
+) {
+  withr::local_seed(seed)
+  x1 <- stats::rnorm(n)
+  x2 <- stats::rnorm(n)
+  a <- x1 + x2 + stats::rnorm(n, sd = conditional_sd)
+  y <- tau * a + x1 + x2 + stats::rnorm(n)
+  tibble::tibble(a = a, y = y, x1 = x1, x2 = x2)
+}
+
 # ---- Local accessors ------------------------------------------------------
 # Each check_eta_bias() call is a single estimator, so a single-run result is a
 # one-row tibble. A fixed seed makes the bootstrap draw reproducible.
@@ -2107,4 +2131,425 @@ test_that("summary() follows the multi-term glance() shape", {
     c(2, 1, min(res@results$bias), max(res@results$bias))
   )
   expect_true(all(is.na(summarized$threshold)))
+})
+
+# ---- Continuous exposures ---------------------------------------------------
+# A continuous exposure has no levels to contrast, so the estimand is the
+# coefficient set of a marginal structural model read over a grid of exposure
+# deciles: one term by default, since the default working model is linear in the
+# exposure. The treatment mechanism is a linear model and the estimator's weight
+# is the stabilized density ratio f(A) / f(A | W), so truncation caps a weight
+# rather than bounding a probability, and the arguments that name a probability
+# bound or a reference level have nothing to act on.
+
+test_that("check_eta_bias() lists continuous among its supported types", {
+  expect_identical(
+    diagnostic_supported_types()[["eta_bias"]],
+    c("binary", "categorical", "continuous")
+  )
+})
+
+test_that("a declared continuous type runs a numeric exposure", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 300, seed = 1)
+  res <- fit_eta(data, "gcomp", exposure_type = "continuous", n_boot = 30)
+
+  expect_identical(S7::S7_class(res)@name, "eta_bias_result")
+  expect_identical(res@exposure_type, "continuous")
+  expect_identical(res@n, 300L)
+})
+
+test_that("a numeric exposure is detected and announced as continuous", {
+  withr::local_options(positively.quiet = FALSE)
+  data <- sim_eta_continuous(n = 300, seed = 1)
+
+  # Three supported types leave three branches the call could have taken, so the
+  # announcement is what names the one it did.
+  expect_message(
+    res <- fit_eta(data, "gcomp", n_boot = 30),
+    "continuous"
+  )
+  expect_identical(res@exposure_type, "continuous")
+})
+
+test_that("the stabilized weights match propensity::wt_ate()", {
+  skip_if_not_installed("propensity")
+  data <- sim_eta_continuous(n = 200, seed = 1)
+  a <- data$a
+  design <- cbind(1, data$x1, data$x2)
+  fitted <- stats::glm.fit(design, a, family = stats::gaussian())$fitted.values
+  # The pooled maximum-likelihood residual standard deviation, which is what
+  # propensity derives for itself when it is handed no sigma.
+  sigma <- sqrt(mean((a - fitted)^2))
+
+  internal <- eta_stabilized_weights(a, fitted, sigma)
+
+  # propensity forms the reciprocal of the conditional density and then
+  # multiplies by the marginal one, where the single quotient is the natural
+  # spelling, so the two agree to floating-point tolerance rather than bit for
+  # bit.
+  expect_equal(
+    internal,
+    as.numeric(propensity::wt_ate(
+      fitted,
+      a,
+      exposure_type = "continuous",
+      stabilize = TRUE
+    ))
+  )
+
+  # Both densities carry the maximum-likelihood variance rather than the n - 1
+  # estimate, on the numerator's marginal fit as much as the denominator's
+  # conditional one.
+  centre <- mean(a)
+  expect_equal(
+    internal,
+    stats::dnorm(a, centre, sqrt(mean((a - centre)^2))) /
+      stats::dnorm(a, fitted, sigma)
+  )
+})
+
+test_that("the default working model is linear in the exposure", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 300, seed = 1)
+  res <- fit_eta(data, "gcomp", exposure_type = "continuous", n_boot = 30)
+
+  # One coefficient past the intercept, so one term and one truth.
+  expect_identical(nrow(res@results), 1L)
+  expect_identical(res@results$term, "a")
+  expect_identical(names(res@truth), "a")
+
+  # A term is a working-model coefficient name, so it follows the exposure
+  # column rather than a fixed label.
+  names(data)[names(data) == "a"] <- "dose"
+  renamed <- withr::with_seed(
+    2024,
+    check_eta_bias(
+      data,
+      dose,
+      y,
+      c(x1, x2),
+      estimator = "gcomp",
+      exposure_type = "continuous",
+      n_boot = 30
+    )
+  )
+  expect_identical(renamed@results$term, "dose")
+  expect_identical(names(renamed@truth), "dose")
+})
+
+test_that("truth is the working model's projection over the exposure deciles", {
+  local_quiet()
+  # A quadratic outcome model curves the counterfactual surface, so projecting
+  # it onto a linear working model depends on where the surface is read. Under a
+  # linear outcome model every grid returns the same slope and this would pin
+  # nothing.
+  data <- sim_eta_continuous(n = 400, conditional_sd = 1.5, seed = 3)
+  data$y <- data$y + 0.8 * data$a^2
+  res <- fit_eta(
+    data,
+    "gcomp",
+    exposure_type = "continuous",
+    outcome_formula = y ~ a + I(a^2) + x1 + x2,
+    n_boot = 20
+  )
+
+  fit <- stats::glm(y ~ a + I(a^2) + x1 + x2, data = data)
+  grid <- unique(unname(stats::quantile(
+    data$a,
+    probs = seq(0.1, 0.9, by = 0.1),
+    type = 7
+  )))
+  surface <- vapply(
+    grid,
+    function(value) {
+      at_value <- data
+      at_value$a <- value
+      mean(stats::predict(fit, newdata = at_value, type = "response"))
+    },
+    numeric(1)
+  )
+  design <- cbind(1, grid)
+  # Equal weights over a quantile grid weight by the marginal density of the
+  # exposure, which is the standard choice of working-model weighting.
+  projection <- drop(solve(crossprod(design), crossprod(design, surface)))
+
+  expect_equal(unname(res@truth), projection[[2]])
+})
+
+test_that("msm_formula replaces the working model and its terms", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 400, conditional_sd = 1.5, seed = 3)
+  data$y <- data$y + 0.8 * data$a^2
+  res <- fit_eta(
+    data,
+    "gcomp",
+    exposure_type = "continuous",
+    outcome_formula = y ~ a + I(a^2) + x1 + x2,
+    msm_formula = ~ a + I(a^2),
+    n_boot = 20
+  )
+
+  expect_identical(nrow(res@results), 2L)
+  expect_identical(res@results$term, c("a", "I(a^2)"))
+  expect_identical(names(res@truth), c("a", "I(a^2)"))
+
+  # The counterfactual surface is exactly quadratic in the exposure here, so a
+  # quadratic working model reproduces it rather than approximating it and the
+  # projection returns the outcome model's own exposure coefficients.
+  fit <- stats::glm(y ~ a + I(a^2) + x1 + x2, data = data)
+  expect_equal(
+    unname(res@truth),
+    unname(stats::coef(fit)[c("a", "I(a^2)")])
+  )
+})
+
+test_that("a quadratic working model takes the multi-term glance shape", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 300, seed = 1)
+  res <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "continuous",
+    msm_formula = ~ a + I(a^2),
+    n_boot = 30
+  )
+  glanced <- generics::glance(res)
+
+  expect_identical(nrow(glanced), 1L)
+  # An estimand of more than one term has one truth per term, so no single truth
+  # describes the run.
+  expect_false("truth" %in% names(glanced))
+  expect_setequal(
+    names(glanced),
+    c(
+      "n",
+      "estimator",
+      "n_boot",
+      "n_terms",
+      "n_levels",
+      "bias_min",
+      "bias_max"
+    )
+  )
+  expect_identical(glanced$n_terms, 2L)
+  expect_identical(glanced$n_levels, 1L)
+})
+
+test_that("a single-term continuous run keeps the scalar-truth glance shape", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 300, seed = 1)
+  res <- fit_eta(data, "ipw", exposure_type = "continuous", n_boot = 30)
+  glanced <- generics::glance(res)
+
+  expect_setequal(
+    names(glanced),
+    c("n", "estimator", "n_boot", "truth", "bias", "mc_se")
+  )
+  expect_equal(glanced$truth, unname(res@truth))
+  expect_equal(glanced$bias, res@results$bias)
+})
+
+test_that("the continuous print method is stable", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 300, seed = 1)
+  res <- fit_eta(data, "ipw", exposure_type = "continuous", n_boot = 30)
+  printed <- printed_text(res)
+
+  expect_match(printed, "continuous", fixed = TRUE)
+  # One term at one truncation level is one row, which reads as a single bias
+  # beside its Monte Carlo error rather than a range over levels.
+  expect_match(printed, "MC SE", fixed = TRUE)
+  expect_no_match(printed, "Truncation levels", fixed = TRUE)
+
+  expect_snapshot(print(res))
+})
+
+test_that("a continuous run caps the weight instead of bounding a probability", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 400, seed = 1)
+  grid <- c(0, 0.05, 0.1)
+  single <- fit_eta(data, "ipw", exposure_type = "continuous", n_boot = 20)
+  swept <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "continuous",
+    truncation_grid = grid,
+    n_boot = 20
+  )
+
+  # There is no lower cap to place on a density ratio, so the lower column is
+  # missing at every level and the upper column carries the cap that was
+  # applied. An untruncated run is capped at infinity, which is the widest
+  # admissible cap rather than an absent one.
+  expect_identical(single@results$truncation_lower, NA_real_)
+  expect_identical(single@results$truncation_upper, Inf)
+  expect_identical(swept@results$truncation_lower, rep(NA_real_, 3L))
+
+  # The cap is the (1 - g) quantile of the stabilized weights under the observed
+  # fit, resolved once and held fixed across bootstrap draws. A grid point of
+  # zero leaves the weights alone rather than capping them at their own maximum,
+  # which would still clip the heavier weights a bootstrap refit produces.
+  ps <- stats::lm(a ~ x1 + x2, data = data)
+  weights <- eta_stabilized_weights(
+    data$a,
+    stats::fitted(ps),
+    sqrt(mean(stats::residuals(ps)^2))
+  )
+  expect_equal(
+    swept@results$truncation_upper,
+    c(
+      Inf,
+      unname(stats::quantile(weights, 0.95, type = 7)),
+      unname(stats::quantile(weights, 0.90, type = 7))
+    )
+  )
+
+  # A larger grid point reads a lower quantile, so the caps fall across the
+  # sweep, and the sweep reports the number of levels it swept even though the
+  # lower bound is missing at every one of them.
+  expect_true(all(diff(swept@results$truncation_upper) < 0))
+  expect_identical(generics::glance(swept)$n_levels, 3L)
+})
+
+# The three arguments a continuous exposure leaves nothing for are refused
+# rather than ignored, since each of them shapes the number that would be
+# reported. Each guard is stated against a detected type, which is the call a
+# user with a numeric exposure makes, and each abort has to name the argument it
+# refuses rather than the exposure type, which is not the thing at fault.
+
+test_that("the two-sided truncation bound is rejected for a continuous exposure", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 200, seed = 1)
+
+  # `truncation` names a lower and an upper probability bound, and a continuous
+  # exposure has no fitted probability to bound.
+  err <- expect_error(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      truncation = c(0.05, 0.95),
+      n_boot = 10
+    ),
+    class = "positively_args_error"
+  )
+  expect_match(conditionMessage(err), "truncation", fixed = TRUE)
+})
+
+test_that("the augmented estimator is rejected for a continuous exposure", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 200, seed = 1)
+
+  # The augmentation term integrates the outcome residual over the exposure
+  # grid, which is not computed on this path.
+  err <- expect_error(
+    check_eta_bias(data, a, y, c(x1, x2), estimator = "aipw", n_boot = 10),
+    class = "positively_args_error"
+  )
+  expect_match(conditionMessage(err), "aipw", fixed = TRUE)
+
+  # The refusal comes before the bootstrap, so a caller learns of it without
+  # paying for a run that cannot finish.
+  testthat::local_mocked_bindings(
+    eta_bias_bootstrap = function(...) stop("The bootstrap must not run.")
+  )
+  expect_error(
+    check_eta_bias(data, a, y, c(x1, x2), estimator = "aipw", n_boot = 10),
+    class = "positively_args_error"
+  )
+})
+
+test_that("reference_level is rejected for a continuous exposure", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 200, seed = 1)
+
+  # `reference_level` names the level every contrast is taken against, which is
+  # a statement about a discrete exposure. A continuous estimand is a set of
+  # working-model coefficients, so there is no level to hold the others against
+  # and honouring the argument would report a number it did not shape.
+  err <- expect_error(
+    check_eta_bias(data, a, y, c(x1, x2), reference_level = 0, n_boot = 10),
+    class = "positively_args_error"
+  )
+  expect_match(conditionMessage(err), "reference_level", fixed = TRUE)
+})
+
+test_that("the continuous guard messages are stable", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 200, seed = 1)
+
+  expect_snapshot_abort(
+    check_eta_bias(data, a, y, c(x1, x2), estimator = "aipw", n_boot = 10),
+    class = "positively_args_error"
+  )
+  expect_snapshot_abort(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      truncation = c(0.05, 0.95),
+      n_boot = 10
+    ),
+    class = "positively_args_error"
+  )
+  expect_snapshot_abort(
+    check_eta_bias(data, a, y, c(x1, x2), reference_level = 0, n_boot = 10),
+    class = "positively_args_error"
+  )
+})
+
+test_that("a wide treatment mechanism leaves continuous ETA.Bias near zero", {
+  local_quiet()
+  # A conditional standard deviation of 3 against a marginal one near 3.3 leaves
+  # the density ratio close to one everywhere, which is the continuous reading
+  # of good overlap.
+  data <- sim_eta_continuous(n = 600, conditional_sd = 3, seed = 1)
+  ipw <- fit_eta(data, "ipw", exposure_type = "continuous", n_boot = 100)
+  gcomp <- fit_eta(data, "gcomp", exposure_type = "continuous", n_boot = 100)
+
+  expect_lt(abs(bias_of(ipw)), 0.05)
+  expect_lt(abs(bias_of(gcomp)), 0.02)
+})
+
+test_that("a sharp treatment mechanism inflates ipw and leaves gcomp flat", {
+  local_quiet()
+  # A conditional standard deviation of 0.6 puts the density ratio below the
+  # sqrt(2) threshold where its variance stops being finite, so a handful of
+  # draws carry most of the weight.
+  data <- sim_eta_continuous(n = 600, conditional_sd = 0.6, seed = 1)
+  grid <- c(0, 0.05)
+  ipw <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "continuous",
+    truncation_grid = grid,
+    n_boot = 100
+  )
+  gcomp <- fit_eta(
+    data,
+    "gcomp",
+    exposure_type = "continuous",
+    truncation_grid = grid,
+    n_boot = 100
+  )
+
+  uncapped <- ipw@results$truncation_upper == Inf
+  bias_uncapped <- ipw@results$bias[uncapped]
+  bias_capped <- ipw@results$bias[!uncapped]
+
+  expect_gt(bias_uncapped, 0.15)
+  expect_gt(bias_uncapped, 3 * ipw@results$mc_se[uncapped])
+
+  # G-computation reads no weight, so the cap cannot move it and its residual
+  # bias is Monte Carlo noise.
+  expect_lt(max(abs(gcomp@results$bias)), 0.05)
+  expect_equal(diff(gcomp@results$bias), 0)
+  expect_gt(abs(bias_uncapped), 10 * max(abs(gcomp@results$bias)))
+
+  # Capping the weight trades more bias for a tighter bootstrap spread, the same
+  # trade the binary truncation sweep reports.
+  expect_gt(abs(bias_capped - bias_uncapped), 0.05)
 })
