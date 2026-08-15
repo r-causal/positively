@@ -48,7 +48,9 @@ eta_bias_result <- new_class(
 #' logistic model of the exposure on the covariates, and the outcome regression
 #' \eqn{\bar{Q}_n(A, W)}, a main-effects linear or logistic model of the outcome
 #' on the exposure and covariates. Factor and character covariates enter these
-#' models as indicator terms, exactly as [stats::glm()] expands them. The target
+#' models as indicator terms, exactly as [stats::glm()] expands them. An
+#' exposure of more than two levels fits the treatment mechanism as a
+#' multinomial logit and so requires the \pkg{nnet} package. The target
 #' of inference is a single scalar,
 #' the G-computation estimate on the observed data,
 #' \eqn{\psi = \frac{1}{n}\sum_i [\bar{Q}_n(1, W_i) - \bar{Q}_n(0, W_i)]}. This
@@ -266,6 +268,20 @@ check_eta_bias <- function(
     exposure_type,
     reference_level = reference_level
   )
+
+  # The multinomial treatment mechanism is the only part of the run that needs
+  # nnet, and it is refit once per bootstrap draw, so availability is settled
+  # here rather than inside the loop. Two levels take a logistic fit and never
+  # reach it.
+  if (spec$k > 2 && !rlang::is_installed("nnet")) {
+    abort(
+      c(
+        "A categorical exposure of more than two levels requires the {.pkg nnet} package.",
+        i = "Install {.pkg nnet} to run {.fn check_eta_bias} on this exposure."
+      ),
+      error_class = "positively_missing_package_error"
+    )
+  }
 
   # The truncation bounds are resolved after the exposure type, because the
   # largest usable lower bound depends on the number of levels.

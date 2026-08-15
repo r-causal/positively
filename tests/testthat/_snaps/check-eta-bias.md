@@ -201,6 +201,15 @@
     Output
       ipw estimator against a truth of 0.623; ETA.Bias -0.003 (MC SE 0.022) from 50 bootstrap draws
 
+# a three-level exposure without nnet aborts
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), exposure_type = "categorical", n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! A categorical exposure of more than two levels requires the nnet package.
+      i Install nnet to run `check_eta_bias()` on this exposure.
+
 # reference_level rejects an unknown or non-scalar level
 
     Code

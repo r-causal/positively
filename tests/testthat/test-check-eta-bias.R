@@ -1659,6 +1659,7 @@ test_that("check_eta_bias() lists categorical among its supported types", {
 
 test_that("a declared categorical type runs a three-level exposure", {
   local_quiet()
+  skip_if_not_installed("nnet")
   data <- sim_eta_categorical(n = 300, seed = 1)
   res <- fit_eta(data, "gcomp", exposure_type = "categorical", n_boot = 30)
 
@@ -1669,6 +1670,7 @@ test_that("a declared categorical type runs a three-level exposure", {
 
 test_that("a three-level exposure is detected and announced as categorical", {
   withr::local_options(positively.quiet = FALSE)
+  skip_if_not_installed("nnet")
   data <- sim_eta_categorical(n = 300, seed = 1)
 
   # Two supported types make the reading worth reporting, since the
@@ -1678,6 +1680,29 @@ test_that("a three-level exposure is detected and announced as categorical", {
     "categorical"
   )
   expect_identical(res@exposure_type, "categorical")
+})
+
+test_that("a three-level exposure without nnet aborts", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 200, seed = 1)
+
+  # Mocked rather than skipped, so the reader without nnet sees a refusal this
+  # suite has read, rather than one that fires only on machines it never runs on.
+  testthat::local_mocked_bindings(
+    is_installed = function(...) FALSE,
+    .package = "rlang"
+  )
+  expect_snapshot_abort(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      exposure_type = "categorical",
+      n_boot = 10
+    ),
+    class = "positively_missing_package_error"
+  )
 })
 
 test_that("a two-level exposure declared categorical reduces to the binary path", {
@@ -1728,6 +1753,7 @@ test_that("a two-level categorical run keeps the two-sided truncation bound", {
 
 test_that("a categorical run yields k - 1 terms per truncation level", {
   local_quiet()
+  skip_if_not_installed("nnet")
   data <- sim_eta_categorical(n = 300, seed = 1)
   grid <- c(0, 0.05, 0.1)
   res <- fit_eta(
@@ -1753,6 +1779,7 @@ test_that("a categorical run yields k - 1 terms per truncation level", {
 
 test_that("term leads the categorical results columns", {
   local_quiet()
+  skip_if_not_installed("nnet")
   data <- sim_eta_categorical(n = 300, seed = 1)
   res <- fit_eta(data, "ipw", exposure_type = "categorical", n_boot = 30)
 
@@ -1772,6 +1799,7 @@ test_that("term leads the categorical results columns", {
 
 test_that("every estimator returns finite categorical estimates", {
   local_quiet()
+  skip_if_not_installed("nnet")
   data <- sim_eta_categorical(n = 300, seed = 1)
   for (estimator in c("gcomp", "ipw", "aipw")) {
     res <- fit_eta(data, estimator, exposure_type = "categorical", n_boot = 30)
@@ -1784,6 +1812,7 @@ test_that("every estimator returns finite categorical estimates", {
 
 test_that("the formula path serves a categorical exposure", {
   local_quiet()
+  skip_if_not_installed("nnet")
   data <- sim_eta_categorical(n = 300, seed = 1)
   matrix_path <- fit_eta(
     data,
@@ -1827,6 +1856,7 @@ test_that("the formula path serves a categorical exposure", {
 
 test_that("reference_level defaults to the first level and can be reset", {
   local_quiet()
+  skip_if_not_installed("nnet")
   data <- sim_eta_categorical(n = 300, seed = 1)
   default <- fit_eta(data, "gcomp", exposure_type = "categorical", n_boot = 30)
   reset <- fit_eta(
@@ -1883,6 +1913,7 @@ test_that("reference_level rejects an unknown or non-scalar level", {
 
 test_that("a categorical run records no upper truncation bound", {
   local_quiet()
+  skip_if_not_installed("nnet")
   data <- sim_eta_categorical(n = 300, seed = 1)
 
   single <- fit_eta(data, "ipw", exposure_type = "categorical", n_boot = 20)
@@ -1903,6 +1934,9 @@ test_that("a categorical run records no upper truncation bound", {
 
 test_that("the two-sided truncation bound is rejected past two levels", {
   local_quiet()
+  # The nnet guard resolves ahead of the truncation bounds, so this abort is
+  # reachable only where the categorical path could have run.
+  skip_if_not_installed("nnet")
   data <- sim_eta_categorical(n = 200, seed = 1)
 
   # `truncation` names a lower and an upper probability bound, which describes
@@ -1938,6 +1972,7 @@ test_that("the two-sided truncation bound is rejected past two levels", {
 
 test_that("the categorical truncation grid stops at 1 over the level count", {
   local_quiet()
+  skip_if_not_installed("nnet")
   data <- sim_eta_categorical(n = 300, seed = 1)
 
   err <- expect_error(
@@ -1969,6 +2004,7 @@ test_that("the categorical truncation grid stops at 1 over the level count", {
 
 test_that("a categorical violation leaves gcomp flat and inflates ipw", {
   local_quiet()
+  skip_if_not_installed("nnet")
   # The reference level is rare wherever either covariate is large, so both
   # contrasts against it lean on a sparse arm.
   data <- sim_eta_categorical(n = 600, steepness = 4, seed = 1)
@@ -2009,6 +2045,7 @@ test_that("a categorical violation leaves gcomp flat and inflates ipw", {
 
 test_that("a multi-term run prints one reading per term", {
   local_quiet()
+  skip_if_not_installed("nnet")
   data <- sim_eta_categorical(n = 300, seed = 1)
   res <- fit_eta(data, "ipw", exposure_type = "categorical", n_boot = 50)
   printed <- printed_text(res)
@@ -2026,6 +2063,7 @@ test_that("a multi-term run prints one reading per term", {
 
 test_that("glance() reports the term count in place of a single truth", {
   local_quiet()
+  skip_if_not_installed("nnet")
   data <- sim_eta_categorical(n = 300, seed = 1)
   res <- fit_eta(data, "ipw", exposure_type = "categorical", n_boot = 50)
   glanced <- generics::glance(res)
@@ -2055,6 +2093,7 @@ test_that("glance() reports the term count in place of a single truth", {
 
 test_that("summary() follows the multi-term glance() shape", {
   local_quiet()
+  skip_if_not_installed("nnet")
   data <- sim_eta_categorical(n = 300, seed = 1)
   res <- fit_eta(data, "ipw", exposure_type = "categorical", n_boot = 50)
   summarized <- summary(res)
