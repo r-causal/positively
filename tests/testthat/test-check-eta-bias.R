@@ -101,6 +101,33 @@ sim_eta_character <- function(seed = 1, n = 400) {
   tibble::tibble(a = a, y = y, x1 = x1, x2 = x2, region = region)
 }
 
+# A three-level exposure drawn from a multinomial logit, with the planted
+# violation on the reference level: level "a" carries the flat linear predictor,
+# so wherever x1 or x2 is large the other two levels take nearly all the mass
+# and "a" becomes rare. That leaves both contrasts against "a" exposed to the
+# same sparsity. `steepness` dials the severity; the default of 2 is moderate,
+# well short of the 4 the statistical block reaches for. The outcome is linear
+# with a per-level effect, so the two truths land near tau_b and tau_c.
+sim_eta_categorical <- function(
+  n = 600,
+  steepness = 2,
+  tau_b = 1,
+  tau_c = 2,
+  seed = 1
+) {
+  withr::local_seed(seed)
+  x1 <- stats::rnorm(n)
+  x2 <- stats::rnorm(n)
+  odds <- exp(cbind(0, steepness * x1, steepness * x2))
+  probs <- odds / rowSums(odds)
+  # An inverse-CDF draw, one uniform per row, as the bootstrap exposure draw
+  # makes past two levels.
+  drawn <- rowSums(matrix(stats::runif(n), n, 3) > t(apply(probs, 1, cumsum)))
+  a <- factor(c("a", "b", "c")[pmin(drawn, 2L) + 1L], levels = c("a", "b", "c"))
+  y <- tau_b * (a == "b") + tau_c * (a == "c") + x1 + x2 + stats::rnorm(n)
+  tibble::tibble(a = a, y = y, x1 = x1, x2 = x2)
+}
+
 # ---- Local accessors ------------------------------------------------------
 # Each check_eta_bias() call is a single estimator, so a single-run result is a
 # one-row tibble. A fixed seed makes the bootstrap draw reproducible.
@@ -998,6 +1025,110 @@ test_that("a row already above the bound survives truncation unchanged", {
   expect_equal(truncate_probabilities(gmat, 0.1, NA_real_), gmat)
 })
 
+test_that("the truncation grid ceiling is 1 over the level count", {
+  # Two levels give the familiar `[0, 0.5)`; three give `[0, 1/3)`. The
+  # acceptance set is exact at the ceiling, so a bound a hair below it is
+  # admitted while the ceiling itself is not.
+  expect_error(
+    validate_truncation_grid(0.5, k = 2),
+    class = "positively_range_error"
+  )
+  expect_identical(validate_truncation_grid(c(0, 0.4999), k = 2), c(0, 0.4999))
+
+  expect_error(
+    validate_truncation_grid(1 / 3, k = 3),
+    class = "positively_range_error"
+  )
+  expect_identical(validate_truncation_grid(c(0, 0.333), k = 3), c(0, 0.333))
+})
+
+# ---- Oracles against propensity -------------------------------------------
+# The bootstrap loop cannot afford a call into propensity per draw, so it
+# spells the truncation rule and the weight formula out itself. These blocks
+# hold both spellings to the package they mirror.
+
+test_that("simplex truncation matches propensity::ps_trunc()", {
+  skip_if_not_installed("propensity")
+  gmat <- rbind(
+    c(0.02, 0.18, 0.80),
+    c(0.30, 0.35, 0.35),
+    c(0.05, 0.05, 0.90)
+  )
+  colnames(gmat) <- c("a", "b", "c")
+  exposure <- factor(colnames(gmat), levels = colnames(gmat))
+
+  oracle <- propensity::ps_trunc(
+    gmat,
+    .exposure = exposure,
+    method = "ps",
+    lower = 0.1
+  )
+  # ps_trunc() records no upper bound for a matrix, which is the property the
+  # categorical results carry through as a missing `truncation_upper`.
+  expect_identical(attr(oracle, "ps_trunc_meta")$upper_bound, NA_real_)
+
+  expected <- matrix(
+    as.numeric(oracle),
+    nrow = nrow(gmat),
+    ncol = ncol(gmat),
+    dimnames = dimnames(gmat)
+  )
+  expect_equal(truncate_probabilities(gmat, 0.1, NA_real_), expected)
+})
+
+test_that("the categorical estimator weights match propensity::wt_ate()", {
+  skip_if_not_installed("propensity")
+  withr::local_seed(7)
+  n <- 40
+  level_labels <- c("a", "b", "c")
+  gmat <- matrix(stats::runif(n * 3), n, 3)
+  gmat <- gmat / rowSums(gmat)
+  colnames(gmat) <- level_labels
+  exposure <- factor(
+    sample(level_labels, n, replace = TRUE),
+    levels = level_labels
+  )
+  y <- stats::rnorm(n)
+  # G-computation plays no part in the Hajek estimate, so the outcome
+  # predictions are free to be anything.
+  qmat <- matrix(0, n, 3)
+
+  weights <- as.numeric(propensity::wt_ate(
+    gmat,
+    exposure,
+    exposure_type = "categorical"
+  ))
+  spec <- eta_spec(exposure, "categorical")
+
+  # The per-level weight is 1{A = k} / g_k, which is the ATE weight on the rows
+  # holding level k and zero elsewhere.
+  for (level in seq_along(level_labels)) {
+    internal <- (spec$a == spec$grid[[level]]) / gmat[, level]
+    expect_equal(
+      internal,
+      ifelse(exposure == level_labels[[level]], weights, 0)
+    )
+  }
+
+  # The contrast the estimator forms from those weights is the same difference
+  # of weighted means built from wt_ate() directly.
+  hajek <- vapply(
+    level_labels,
+    function(label) {
+      keep <- exposure == label
+      sum(weights[keep] * y[keep]) / sum(weights[keep])
+    },
+    numeric(1)
+  )
+  expect_equal(
+    eta_estimate("ipw", spec$a, y, gmat, qmat, spec),
+    c(
+      "b - a" = hajek[["b"]] - hajek[["a"]],
+      "c - a" = hajek[["c"]] - hajek[["a"]]
+    )
+  )
+})
+
 # ---- Statistical behavior -------------------------------------------------
 
 test_that("good overlap leaves every estimator near zero", {
@@ -1500,4 +1631,388 @@ test_that("a fitted ETA bias run has nothing to report", {
 
   expect_gt(max(abs(res@results$bias)), 0)
   expect_identical(nrow(sniff_violations(res)), 0L)
+})
+
+# ---- Categorical exposures -------------------------------------------------
+# An exposure of more than two levels reports one contrast per non-reference
+# level, so a run holds k - 1 terms at every truncation level. Two levels is the
+# reduction case: the machinery reads the level count rather than the declared
+# label, so declaring "categorical" on a two-level exposure returns the binary
+# run unchanged, down to the bootstrap draws.
+
+test_that("check_eta_bias() lists categorical among its supported types", {
+  expect_identical(
+    diagnostic_supported_types()[["eta_bias"]],
+    c("binary", "categorical")
+  )
+})
+
+test_that("a declared categorical type runs a three-level exposure", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 300, seed = 1)
+  res <- fit_eta(data, "gcomp", exposure_type = "categorical", n_boot = 30)
+
+  expect_identical(S7::S7_class(res)@name, "eta_bias_result")
+  expect_identical(res@exposure_type, "categorical")
+  expect_identical(res@n, 300L)
+})
+
+test_that("a three-level exposure is detected and announced as categorical", {
+  withr::local_options(positively.quiet = FALSE)
+  data <- sim_eta_categorical(n = 300, seed = 1)
+
+  # Two supported types make the reading worth reporting, since the
+  # announcement now names which of the two branches the call took.
+  expect_message(
+    res <- fit_eta(data, "gcomp", n_boot = 30),
+    "categorical"
+  )
+  expect_identical(res@exposure_type, "categorical")
+})
+
+test_that("a two-level exposure declared categorical reduces to the binary path", {
+  local_quiet()
+  data <- sim_eta_good(n = 300, seed = 1)
+  binary <- fit_eta(data, "ipw", exposure_type = "binary", n_boot = 50)
+  categorical <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "categorical",
+    n_boot = 50
+  )
+
+  # The declared label is recorded, and nothing else follows from it: both runs
+  # face two levels, so both take the two-level treatment model and the two-level
+  # exposure draw, leaving the bootstrap stream and every summary built from it
+  # identical rather than merely close.
+  expect_identical(categorical@exposure_type, "categorical")
+  expect_identical(categorical@results, binary@results)
+  expect_identical(categorical@truth, binary@truth)
+  expect_identical(categorical@boot_estimates, binary@boot_estimates)
+})
+
+test_that("a two-level categorical run keeps the two-sided truncation bound", {
+  local_quiet()
+  data <- sim_eta_violation(n = 400, seed = 1)
+  binary <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "binary",
+    truncation = c(0.05, 0.95),
+    n_boot = 50
+  )
+  categorical <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "categorical",
+    truncation = c(0.05, 0.95),
+    n_boot = 50
+  )
+
+  # The two-sided bound is a statement about a one-dimensional simplex, so it is
+  # the level count that decides whether it means anything. At two levels it
+  # does, whichever label the caller declared.
+  expect_identical(categorical@results, binary@results)
+  expect_equal(categorical@results$truncation_upper, 0.95)
+})
+
+test_that("a categorical run yields k - 1 terms per truncation level", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 300, seed = 1)
+  grid <- c(0, 0.05, 0.1)
+  res <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "categorical",
+    truncation_grid = grid,
+    n_boot = 30
+  )
+
+  expect_identical(nrow(res@results), 6L)
+  # Terms are contrasts against the reference level, which defaults to the first.
+  expect_identical(unique(res@results$term), c("b - a", "c - a"))
+  expect_setequal(res@results$truncation_lower, grid)
+
+  # One truth per term, keyed by term, and one bootstrap-estimate vector per
+  # term and truncation level.
+  expect_length(res@truth, 2L)
+  expect_identical(names(res@truth), c("b - a", "c - a"))
+  expect_length(res@boot_estimates, nrow(res@results))
+  expect_true(all(lengths(res@boot_estimates) == 30))
+})
+
+test_that("term leads the categorical results columns", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 300, seed = 1)
+  res <- fit_eta(data, "ipw", exposure_type = "categorical", n_boot = 30)
+
+  # The dimension column leads, so the order is pinned rather than the set.
+  expect_identical(
+    names(res@results),
+    c(
+      "term",
+      "truncation_lower",
+      "truncation_upper",
+      "bias",
+      "mc_se",
+      "boot_mean"
+    )
+  )
+})
+
+test_that("every estimator returns finite categorical estimates", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 300, seed = 1)
+  for (estimator in c("gcomp", "ipw", "aipw")) {
+    res <- fit_eta(data, estimator, exposure_type = "categorical", n_boot = 30)
+    expect_identical(nrow(res@results), 2L)
+    expect_true(all(is.finite(res@results$bias)))
+    expect_true(all(is.finite(res@results$mc_se)))
+    expect_true(all(is.finite(res@truth)))
+  }
+})
+
+test_that("reference_level defaults to the first level and can be reset", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 300, seed = 1)
+  default <- fit_eta(data, "gcomp", exposure_type = "categorical", n_boot = 30)
+  reset <- fit_eta(
+    data,
+    "gcomp",
+    exposure_type = "categorical",
+    reference_level = "b",
+    n_boot = 30
+  )
+
+  expect_identical(unique(default@results$term), c("b - a", "c - a"))
+  expect_identical(names(default@truth), c("b - a", "c - a"))
+  expect_identical(unique(reset@results$term), c("a - b", "c - b"))
+  expect_identical(names(reset@truth), c("a - b", "c - b"))
+
+  # The saturated model is the same fit either way, so the two contrast sets
+  # describe the same three counterfactual means and compose exactly:
+  # (c - b) - (a - b) is c - a.
+  expect_equal(
+    unname(reset@truth[["c - b"]] - reset@truth[["a - b"]]),
+    unname(default@truth[["c - a"]])
+  )
+})
+
+test_that("reference_level rejects an unknown or non-scalar level", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 200, seed = 1)
+
+  expect_snapshot_abort(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      exposure_type = "categorical",
+      reference_level = "zzz",
+      n_boot = 10
+    ),
+    class = "positively_args_error"
+  )
+  expect_snapshot_abort(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      exposure_type = "categorical",
+      reference_level = c("a", "b"),
+      n_boot = 10
+    ),
+    class = "positively_args_error"
+  )
+})
+
+test_that("a categorical run records no upper truncation bound", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 300, seed = 1)
+
+  single <- fit_eta(data, "ipw", exposure_type = "categorical", n_boot = 20)
+  swept <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "categorical",
+    truncation_grid = c(0, 0.05, 0.1),
+    n_boot = 20
+  )
+
+  # A lower pin on every level already bounds every weight denominator, so past
+  # two levels there is no upper bound to apply and none to report.
+  expect_identical(single@results$truncation_upper, rep(NA_real_, 2L))
+  expect_identical(single@results$truncation_lower, rep(0, 2L))
+  expect_identical(swept@results$truncation_upper, rep(NA_real_, 6L))
+})
+
+test_that("the two-sided truncation bound is rejected past two levels", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 200, seed = 1)
+
+  # `truncation` names a lower and an upper probability bound, which describes
+  # the binary simplex and nothing else. Silently ignoring it would change the
+  # number reported without saying so. The abort has to name the argument it
+  # refuses, since the exposure type is not the argument at fault.
+  err <- expect_error(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      exposure_type = "categorical",
+      truncation = c(0.05, 0.95),
+      n_boot = 10
+    ),
+    class = "positively_args_error"
+  )
+  expect_match(conditionMessage(err), "truncation", fixed = TRUE)
+
+  expect_snapshot_abort(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      truncation = c(0.05, 0.95),
+      n_boot = 10
+    ),
+    class = "positively_args_error"
+  )
+})
+
+test_that("the categorical truncation grid stops at 1 over the level count", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 300, seed = 1)
+
+  err <- expect_error(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      exposure_type = "categorical",
+      truncation_grid = c(0.1, 0.4),
+      n_boot = 10
+    ),
+    class = "positively_range_error"
+  )
+  expect_match(conditionMessage(err), "0.333", fixed = TRUE)
+  expect_match(conditionMessage(err), "1/k", fixed = TRUE)
+  expect_match(conditionMessage(err), "3 levels", fixed = TRUE)
+
+  # A bound below the ceiling leaves room on the simplex and is accepted.
+  res <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "categorical",
+    truncation_grid = c(0, 0.3),
+    n_boot = 20
+  )
+  expect_identical(nrow(res@results), 4L)
+})
+
+test_that("a categorical violation leaves gcomp flat and inflates ipw", {
+  local_quiet()
+  # The reference level is rare wherever either covariate is large, so both
+  # contrasts against it lean on a sparse arm.
+  data <- sim_eta_categorical(n = 600, steepness = 4, seed = 1)
+  grid <- c(0, 0.05, 0.1, 0.2)
+  gcomp <- fit_eta(
+    data,
+    "gcomp",
+    exposure_type = "categorical",
+    truncation_grid = grid,
+    n_boot = 100
+  )
+  ipw <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "categorical",
+    truncation_grid = grid,
+    n_boot = 100
+  )
+
+  for (term in c("b - a", "c - a")) {
+    gcomp_term <- gcomp@results[gcomp@results$term == term, ]
+    ipw_term <- ipw@results[ipw@results$term == term, ]
+    gcomp_term <- gcomp_term[order(gcomp_term$truncation_lower), ]
+    ipw_term <- ipw_term[order(ipw_term$truncation_lower), ]
+
+    # G-computation reads no fitted probability, so truncation cannot move it
+    # and its residual bias is Monte Carlo noise.
+    expect_lt(max(abs(gcomp_term$bias)), 0.05)
+    expect_equal(diff(gcomp_term$bias), rep(0, length(grid) - 1))
+
+    # The untruncated weights already carry clear bias, and clamping every level
+    # from below trades more of it for a tighter bootstrap spread.
+    expect_gt(ipw_term$bias[[1]], 0.15)
+    expect_gt(ipw_term$bias[[1]], 3 * ipw_term$mc_se[[1]])
+    expect_true(all(diff(abs(ipw_term$bias)) > 0))
+  }
+})
+
+test_that("a multi-term run prints one reading per term", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 300, seed = 1)
+  res <- fit_eta(data, "ipw", exposure_type = "categorical", n_boot = 50)
+  printed <- printed_text(res)
+
+  # One truncation level and two terms is two rows, so a reading keyed on the
+  # row count alone would report a range over levels there is only one of. Each
+  # term states its own bias and Monte Carlo error instead.
+  expect_match(printed, "b - a", fixed = TRUE)
+  expect_match(printed, "c - a", fixed = TRUE)
+  expect_match(printed, "MC SE", fixed = TRUE)
+  expect_no_match(printed, "Truncation levels", fixed = TRUE)
+
+  expect_snapshot(print(res))
+})
+
+test_that("glance() reports the term count in place of a single truth", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 300, seed = 1)
+  res <- fit_eta(data, "ipw", exposure_type = "categorical", n_boot = 50)
+  glanced <- generics::glance(res)
+
+  expect_identical(nrow(glanced), 1L)
+  # An estimand of more than one term has one truth per term, so no single truth
+  # describes the run.
+  expect_false("truth" %in% names(glanced))
+  expect_setequal(
+    names(glanced),
+    c(
+      "n",
+      "estimator",
+      "n_boot",
+      "n_terms",
+      "n_levels",
+      "bias_min",
+      "bias_max"
+    )
+  )
+
+  expect_identical(glanced$n_terms, 2L)
+  expect_identical(glanced$n_levels, 1L)
+  expect_equal(glanced$bias_min, min(res@results$bias))
+  expect_equal(glanced$bias_max, max(res@results$bias))
+})
+
+test_that("summary() follows the multi-term glance() shape", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 300, seed = 1)
+  res <- fit_eta(data, "ipw", exposure_type = "categorical", n_boot = 50)
+  summarized <- summary(res)
+
+  expect_identical(
+    summarized$statistic,
+    c("n_terms", "n_levels", "bias_min", "bias_max")
+  )
+  expect_identical(
+    summarized$value,
+    c(2, 1, min(res@results$bias), max(res@results$bias))
+  )
+  expect_true(all(is.na(summarized$threshold)))
 })
