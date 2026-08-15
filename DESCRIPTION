@@ -22,7 +22,7 @@ Imports:
     causalgenerics (>= 0.1.0.9000),
     cli,
     generics,
-    ggplot2,
+    ggplot2 (>= 3.5.0),
     purrr,
     rlang,
     rpart,

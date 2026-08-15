@@ -2638,9 +2638,33 @@ draws_per_panel <- function(built) {
   unname(vapply(split(counts$count, counts$PANEL), sum, numeric(1)))
 }
 
-# Every strip label a plot will draw, with the labeller already applied.
+# Every strip label a plot will draw, with the labeller already applied. The
+# labeller is applied to the built layout by hand rather than through
+# ggplot2::get_strip_labels(), which the declared ggplot2 floor of 3.5.0
+# predates. A grid renders its columns and then its rows, a wrap its one
+# dimension, which is the order and the content get_strip_labels() reports.
 strip_labels <- function(plot) {
-  as.character(unlist(ggplot2::get_strip_labels(plot)))
+  built <- ggplot2::ggplot_build(plot)
+  params <- built$layout$facet_params
+  keys <- facet_keys(built)
+  dimensions <- if (inherits(built$layout$facet, "FacetGrid")) {
+    list(cols = names(params$cols), rows = names(params$rows))
+  } else {
+    list(cols = names(params$facets))
+  }
+  labeller <- match.fun(params$labeller)
+  rendered <- lapply(names(dimensions), function(type) {
+    vars <- intersect(names(keys), dimensions[[type]])
+    if (length(vars) == 0) {
+      return(NULL)
+    }
+    # A labeller built with .rows or .cols reads the margin it is handed off
+    # this attribute, so a dimension is tagged before it is rendered.
+    margin <- unique(keys[vars])
+    attr(margin, "type") <- type
+    labeller(margin)
+  })
+  as.character(unlist(rendered))
 }
 
 test_that("the categorical bootstrap view holds one facet per term and level", {
