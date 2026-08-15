@@ -621,11 +621,14 @@ validate_truncation <- function(
 
 #' Validate a truncation sweep grid
 #'
-#' A truncation grid is a numeric vector of lower bounds, each in `[0, 0.5)`, so
-#' that the paired upper bound `1 - lower` always stays above `lower`. The sweep
-#' shares one set of bootstrap draws across every grid point.
+#' A truncation grid is a numeric vector of lower bounds, each in `[0, 1/k)` for
+#' an exposure with `k` levels, so that bounding every level from below leaves
+#' room on the simplex. Two levels give the familiar `[0, 0.5)`, where the paired
+#' upper bound `1 - lower` always stays above `lower`. The sweep shares one set
+#' of bootstrap draws across every grid point.
 #'
 #' @param grid A candidate grid of lower bounds.
+#' @param k The number of exposure levels.
 #' @param arg_name The argument name used in error messages.
 #' @param call The calling environment, used to build the error's call.
 #'
@@ -634,6 +637,7 @@ validate_truncation <- function(
 #' @noRd
 validate_truncation_grid <- function(
   grid,
+  k = 2L,
   arg_name = "truncation_grid",
   call = rlang::caller_env()
 ) {
@@ -659,11 +663,13 @@ validate_truncation_grid <- function(
       call = call
     )
   }
-  if (any(grid < 0 | grid >= 0.5)) {
-    bad <- grid[grid < 0 | grid >= 0.5]
+  ceiling <- 1 / k
+  if (any(grid < 0 | grid >= ceiling)) {
+    bad <- grid[grid < 0 | grid >= ceiling]
     abort(
       c(
-        "{.arg {arg_name}} lower bounds must lie in {.code [0, 0.5)}.",
+        "{.arg {arg_name}} lower bounds must lie in {.code [0, {signif(ceiling, 3)})}.",
+        i = "The ceiling is {.code 1/k} for an exposure with {k} level{?s}.",
         x = "Found {.val {bad}}."
       ),
       error_class = "positively_range_error",

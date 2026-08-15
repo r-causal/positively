@@ -170,6 +170,7 @@
     Condition
       Error in `check_eta_bias()`:
       ! `truncation_grid` lower bounds must lie in `[0, 0.5)`.
+      i The ceiling is `1/k` for an exposure with 2 levels.
       x Found 0.6.
 
 ---

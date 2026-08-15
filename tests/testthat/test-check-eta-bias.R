@@ -618,7 +618,7 @@ test_that("the rare-level gcomp bootstrap pins a reference bias, mc_se, and trut
   )
   expect_equal(res@results$bias[[1]], 0.014950150587088373, tolerance = 1e-12)
   expect_equal(res@results$mc_se[[1]], 0.026229325116211968, tolerance = 1e-12)
-  expect_equal(res@truth, 0.91311162635432241, tolerance = 1e-12)
+  expect_equal(unname(res@truth), 0.91311162635432241, tolerance = 1e-12)
 })
 
 test_that("a rare character level survives the bootstrap for every estimator", {
@@ -698,7 +698,7 @@ test_that("the numeric matrix path is unchanged under a fixed seed (regression)"
   # reproduces these values exactly.
   expect_equal(bias_of(res), 0.17472955288621894)
   expect_equal(mc_se_of(res), 0.05203235693919487)
-  expect_equal(res@truth, 1.0636370442788932)
+  expect_equal(unname(res@truth), 1.0636370442788932)
   expect_equal(res@results$boot_mean[[1]], 1.2383665971651121)
 })
 
@@ -758,11 +758,11 @@ test_that("a constant exposure aborts on both the auto and declared paths", {
   data$a <- factor(rep("a", nrow(data)))
 
   # A one-level factor is not two distinct values, yet detection reads it as
-  # binary, so detection alone can never reject it. binary_to_01() then maps the
-  # single level to 0, leaving a treatment mechanism with no treated arm and
-  # estimates that are degenerate rather than informative. Only the structural
-  # requirement of the resolved type rules this out, and it rules it out whether
-  # the type was declared or inferred.
+  # binary, so detection alone can never reject it. The factor coding in
+  # eta_spec() maps the single level to 0, leaving a treatment mechanism with no
+  # treated arm and estimates that are degenerate rather than informative. Only
+  # the structural requirement of the resolved type rules this out, and it rules
+  # it out whether the type was declared or inferred.
   expect_identical(detect_exposure_type(data$a), "binary")
 
   expect_error(
@@ -902,9 +902,28 @@ test_that("eta_bias_result has the fixed results columns", {
   expect_s3_class(res@results, "tbl_df")
   expect_setequal(
     names(res@results),
-    c("truncation_lower", "truncation_upper", "bias", "mc_se", "boot_mean")
+    c(
+      "term",
+      "truncation_lower",
+      "truncation_upper",
+      "bias",
+      "mc_se",
+      "boot_mean"
+    )
   )
   expect_false("low_support" %in% names(res@results))
+})
+
+test_that("the estimand term names the contrast and keys the truth", {
+  local_quiet()
+  data <- sim_eta_good(n = 300, seed = 1)
+  res <- fit_eta(data, "ipw", n_boot = 50)
+
+  # A binary exposure has one contrast, so the term names both levels and the
+  # truth carries that one name.
+  expect_identical(res@results$term, "1 - 0")
+  expect_identical(names(res@truth), "1 - 0")
+  expect_length(res@truth, 1L)
 })
 
 # ---- Results shape (single run versus truncation grid) --------------------
@@ -946,6 +965,37 @@ test_that("a truncation grid yields one row per lower bound with upper = 1 - low
   # One bootstrap-estimate vector per swept level.
   expect_length(res@boot_estimates, length(grid))
   expect_true(all(lengths(res@boot_estimates) == 100))
+})
+
+# ---- Probability truncation -----------------------------------------------
+
+test_that("truncation past two levels clamps below and renormalizes", {
+  gmat <- rbind(
+    c(0.05, 0.15, 0.80),
+    c(0.02, 0.03, 0.95)
+  )
+  # A missing upper bound is what a run past two levels supplies, so a finite
+  # result is itself the proof that the upper bound goes unused.
+  bounded <- truncate_probabilities(gmat, 0.1, NA_real_)
+
+  first <- c(0.1, 0.15, 0.80)
+  second <- c(0.1, 0.1, 0.95)
+  expect_equal(
+    bounded,
+    rbind(first / sum(first), second / sum(second))
+  )
+  expect_type(bounded, "double")
+  expect_equal(rowSums(bounded), c(1, 1))
+})
+
+test_that("a row already above the bound survives truncation unchanged", {
+  gmat <- rbind(
+    c(0.2, 0.3, 0.5),
+    c(0.1, 0.4, 0.5)
+  )
+  # Every entry is at or above the bound, so the clamp is inert and the row
+  # already sums to one, leaving the renormalization inert too.
+  expect_equal(truncate_probabilities(gmat, 0.1, NA_real_), gmat)
 })
 
 # ---- Statistical behavior -------------------------------------------------
@@ -1082,7 +1132,7 @@ test_that("truth is a scalar equal to the gcomp estimate near tau", {
   expect_length(swept@truth, 1)
 
   # A correctly specified linear outcome model with effect tau = 1 recovers it.
-  expect_equal(gcomp@truth, 1, tolerance = 0.15)
+  expect_equal(unname(gcomp@truth), 1, tolerance = 0.15)
 })
 
 test_that("normal and empirical error_dist models agree under violation", {
@@ -1122,13 +1172,13 @@ test_that("glance() reports the bias and its Monte Carlo error at one level", {
   expect_identical(glanced$n, 300L)
   expect_identical(glanced$estimator, "ipw")
   expect_identical(glanced$n_boot, 50L)
-  expect_identical(glanced$truth, res@truth)
+  expect_identical(glanced$truth, unname(res@truth))
 
   # ETA.Bias is the mean bootstrap estimate less the truth and its Monte Carlo
   # error is the standard error of those same draws, so both follow from the
   # retained draws on @boot_estimates without going through @results.
   draws <- res@boot_estimates[[1]]
-  expect_equal(glanced$bias, mean(draws) - res@truth)
+  expect_equal(glanced$bias, mean(draws) - unname(res@truth))
   expect_equal(glanced$mc_se, stats::sd(draws) / sqrt(length(draws)))
 })
 
@@ -1150,7 +1200,7 @@ test_that("glance() reports the bias range across a truncation sweep", {
   expect_false("mc_se" %in% names(glanced))
 
   expect_identical(glanced$n_levels, 3L)
-  expect_identical(glanced$truth, res@truth)
+  expect_identical(glanced$truth, unname(res@truth))
 
   per_level <- vapply(res@boot_estimates, mean, numeric(1)) - res@truth
   expect_equal(glanced$bias_min, min(per_level))
@@ -1168,7 +1218,10 @@ test_that("summary() reports the bias and its Monte Carlo error", {
   # rather than a setting the caller chose, so it does.
   expect_identical(summarized$statistic, c("truth", "bias", "mc_se"))
   expect_type(summarized$value, "double")
-  expect_identical(summarized$value, c(res@truth, bias_of(res), mc_se_of(res)))
+  expect_identical(
+    summarized$value,
+    c(unname(res@truth), bias_of(res), mc_se_of(res))
+  )
 
   # ETA.Bias is read against no cut. Its own reference point, the truth, is a
   # row of its own rather than a threshold beside the bias, because the bias is
@@ -1190,7 +1243,7 @@ test_that("summary() follows the sweep's glance() shape", {
   )
   expect_identical(
     summarized$value,
-    c(res@truth, 3, min(res@results$bias), max(res@results$bias))
+    c(unname(res@truth), 3, min(res@results$bias), max(res@results$bias))
   )
   expect_true(all(is.na(summarized$threshold)))
 })

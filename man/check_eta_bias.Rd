@@ -78,19 +78,23 @@ accepted so that every diagnostic takes the same argument.}
 }
 \value{
 An \code{eta_bias_result} object, an S7 subclass of
-\link{positivity_diagnostic}. Its \verb{@results} tibble has one row per truncation
-level with columns \code{truncation_lower}, \code{truncation_upper}, \code{bias}
-(ETA.Bias), \code{mc_se} (the Monte Carlo standard error), and \code{boot_mean} (the
-mean bootstrap estimate). It also carries the properties \verb{@estimator},
-\verb{@truth}, and \verb{@boot_estimates} (a list of bootstrap-estimate vectors, one
+\link{positivity_diagnostic}. Its \verb{@results} tibble has one row per estimand term
+and truncation level, with the columns \code{term}, \code{truncation_lower},
+\code{truncation_upper}, \code{bias} (ETA.Bias), \code{mc_se} (the Monte Carlo standard
+error), and \code{boot_mean} (the mean bootstrap estimate), in that order. \code{term}
+names the estimand contrast as \verb{<level> - <reference level>}, so a binary
+exposure has the single term \code{"1 - 0"}. The object also carries the
+properties \verb{@estimator}, \verb{@truth} (a named numeric vector holding one truth
+per term), and \verb{@boot_estimates} (a list of bootstrap-estimate vectors, one
 per row of \verb{@results}).
 
 \code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
-\code{estimator}, \code{n_boot}, and \code{truth}. A run at a single truncation level adds
-\code{bias} and \code{mc_se}. A run over more than one level reports one bias per
-level, so it replaces those two with \code{n_levels}, \code{bias_min}, and
-\code{bias_max}. The level count is what decides this, not the argument used, so
-a length-one \code{truncation_grid} takes the single-level form.
+\code{estimator}, and \code{n_boot}. A single-term estimand adds \code{truth}; an estimand
+of more than one term has no single truth, so it reports \code{n_terms} in its
+place. A one-row result then adds \code{bias} and \code{mc_se}, while a result of more
+rows replaces those two with \code{n_levels}, \code{bias_min}, and \code{bias_max}. The row
+count is what decides this, not the argument used, so a length-one
+\code{truncation_grid} takes the one-row form.
 }
 \description{
 \code{check_eta_bias()} implements the ETA.Bias parametric-bootstrap diagnostic of
