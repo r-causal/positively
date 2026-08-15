@@ -869,7 +869,13 @@ draw_bootstrap_exposure <- function(gmat_rows, spec) {
   if (spec$k == 2) {
     return(as.double(stats::rbinom(n, 1L, gmat_rows[, 2])))
   }
-  cumulative <- t(apply(gmat_rows, 1, cumsum))
+  # Accumulating column by column performs the same additions in the same
+  # left-to-right order as a per-row cumsum, so the result is bit-identical
+  # while avoiding n R-level cumsum calls and a transpose.
+  cumulative <- gmat_rows
+  for (j in seq_len(spec$k)[-1L]) {
+    cumulative[, j] <- cumulative[, j - 1L] + gmat_rows[, j]
+  }
   draws <- rowSums(matrix(stats::runif(n), n, spec$k) > cumulative)
   # Rounding can leave the last cumulative probability a hair below one, which
   # would otherwise index one past the final level.
