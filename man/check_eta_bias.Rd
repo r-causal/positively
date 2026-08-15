@@ -17,8 +17,9 @@ check_eta_bias(
   truncation_grid = NULL,
   n_boot = 500,
   error_dist = c("normal", "empirical"),
-  exposure_type = c("auto", "binary", "categorical"),
-  reference_level = NULL
+  exposure_type = c("auto", "binary", "categorical", "continuous"),
+  reference_level = NULL,
+  msm_formula = NULL
 )
 }
 \arguments{
@@ -27,7 +28,8 @@ check_eta_bias(
 \item{.exposure}{The exposure column, selected with data-masking. A binary
 exposure has exactly two distinct values; a categorical exposure has as
 many levels as it has distinct values, and every non-reference level is
-contrasted against the reference.}
+contrasted against the reference; a continuous exposure has no levels, and
+is summarized by the working model \code{msm_formula} sets.}
 
 \item{.outcome}{The outcome column, selected with data-masking.}
 
@@ -39,7 +41,9 @@ levels are preserved throughout.}
 
 \item{estimator}{The causal estimator to diagnose, one of \code{"ipw"} (inverse
 probability weighting, matching \code{\link[propensity:ipw]{propensity::ipw()}}), \code{"gcomp"}
-(G-computation), or \code{"aipw"} (augmented, doubly robust).}
+(G-computation), or \code{"aipw"} (augmented, doubly robust). The augmented
+estimator's correction is a sum over the exposure levels, so it is an error
+for a continuous exposure.}
 
 \item{exposure_formula}{An optional model formula for the treatment mechanism.
 \code{NULL} (the default) fits a main-effects logistic model of the exposure on
@@ -59,15 +63,18 @@ the exposure set to each of its levels in turn.}
 bounding the fitted propensity for a single run. \code{NULL} (the default)
 applies no truncation. A pair of bounds describes the one-dimensional
 simplex of a two-level exposure, so it applies to binary exposures only and
-is an error past two levels.}
+is an error past two levels or on a continuous exposure.}
 
-\item{truncation_grid}{An optional numeric vector of lower bounds, each in
-\verb{[0, 1/k)} for an exposure with \code{k} levels, which is \verb{[0, 0.5)} for a binary
-exposure. All levels share one set of bootstrap draws, and the grid
-overrides \code{truncation}. What a bound means depends on the number of levels:
-at two levels it becomes the swept truncation level \code{c(lower, 1 - lower)},
-and past two it raises every fitted probability below it and renormalizes
-each row, leaving no upper bound to apply or report.}
+\item{truncation_grid}{An optional numeric vector, each entry in \verb{[0, 1/k)}
+for an exposure with \code{k} levels, which is \verb{[0, 0.5)} for a binary exposure,
+and in \verb{[0, 1)} for a continuous one. All levels share one set of bootstrap
+draws, and the grid overrides \code{truncation}. What an entry means depends on
+the exposure type: at two levels it is a lower bound and becomes the swept
+truncation level \code{c(lower, 1 - lower)}; past two levels it raises every
+fitted probability below it and renormalizes each row, leaving no upper
+bound to apply or report; and for a continuous exposure it is a quantile
+level \code{g} that caps the stabilized weight at its \code{1 - g} quantile, read once
+from the observed fit and held fixed across the bootstrap draws.}
 
 \item{n_boot}{The number of bootstrap datasets. Defaults to \code{500}. Must be at
 least 2, since the Monte Carlo standard error needs two draws.}
@@ -78,16 +85,26 @@ the default) or \code{"empirical"} (resample residuals). Ignored for binary
 outcomes.}
 
 \item{exposure_type}{One of \code{"auto"} (detect from the data, the default),
-\code{"binary"}, or \code{"categorical"}. A supplied type is authoritative and
-detection is not consulted, so it is rejected only when the exposure column
-cannot carry it: \code{"binary"} needs exactly two distinct values, and
-\code{"categorical"} needs nothing beyond the two levels every run needs. What
-the run does with the type is decided by the number of levels, so declaring
+\code{"binary"}, \code{"categorical"}, or \code{"continuous"}. A supplied type is
+authoritative and detection is not consulted, so it is rejected only when
+the exposure column cannot carry it: \code{"binary"} needs exactly two distinct
+values, \code{"continuous"} needs a numeric column, and \code{"categorical"} needs
+nothing beyond the two levels every discrete run needs. Within the discrete
+types the run is decided by the number of levels, so declaring
 \code{"categorical"} on a two-level column returns the binary run unchanged.}
 
 \item{reference_level}{The exposure level every contrast is taken against.
 \code{NULL} (the default) takes the first level, which is the lower of the two
-values for a binary exposure and the first factor level otherwise.}
+values for a binary exposure and the first factor level otherwise. A
+continuous exposure has no levels to contrast, so supplying it there is an
+error.}
+
+\item{msm_formula}{An optional one-sided formula for the marginal structural
+model a continuous exposure is summarized by, for example \code{~ a + I(a^2)}.
+\code{NULL} (the default) fits a model linear in the exposure, whose one
+coefficient is named after the exposure column. A discrete estimand is a set
+of contrasts and imposes no working model, so supplying it there is an
+error.}
 }
 \value{
 An \code{eta_bias_result} object, an S7 subclass of
@@ -96,10 +113,13 @@ and truncation level, with the columns \code{term}, \code{truncation_lower},
 \code{truncation_upper}, \code{bias} (ETA.Bias), \code{mc_se} (the Monte Carlo standard
 error), and \code{boot_mean} (the mean bootstrap estimate), in that order. \code{term}
 names the estimand contrast as \verb{<level> - <reference level>}, so an exposure
-coded 0/1 has the single term \code{"1 - 0"}. The object also carries the
-properties \verb{@estimator}, \verb{@truth} (a named numeric vector holding one truth
-per term), and \verb{@boot_estimates} (a list of bootstrap-estimate vectors, one
-per row of \verb{@results}).
+coded 0/1 has the single term \code{"1 - 0"}; for a continuous exposure it names
+a working-model coefficient instead. A continuous run has no lower cap to
+place on a density ratio, so \code{truncation_lower} is \code{NA_real_} and
+\code{truncation_upper} holds the weight cap, which is \code{Inf} where no cap was
+applied. The object also carries the properties \verb{@estimator}, \verb{@truth} (a
+named numeric vector holding one truth per term), and \verb{@boot_estimates} (a
+list of bootstrap-estimate vectors, one per row of \verb{@results}).
 
 \code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
 \code{estimator}, and \code{n_boot}. A single-term estimand adds \code{truth}; an estimand

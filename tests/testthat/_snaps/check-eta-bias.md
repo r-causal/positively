@@ -26,6 +26,24 @@
       Dropped 2 of 50 bootstrap draws with a non-finite estimate.
       i Such draws arise when a bootstrap exposure lands in a single arm or a refit propensity reaches exactly 0 or 1.
 
+# the continuous truncation grid messages are stable
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), truncation_grid = c(0.1, 1.5), n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `truncation_grid` quantile levels must lie in `[0, 1)`.
+      i A level of 1 would cap every stabilized weight at the smallest one observed.
+      x Found 1.5.
+
+---
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), truncation_grid = numeric(0), n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `truncation_grid` must contain at least one quantile level.
+
 # the sweep view aborts on a single-run result
 
     Code
@@ -71,16 +89,6 @@
     Condition
       Error in `check_eta_bias()`:
       ! `.data` must be a data frame, not a <integer>.
-
----
-
-    Code
-      check_eta_bias(continuous, a, y, c(x1, x2), n_boot = 10)
-    Condition
-      Error in `check_eta_bias()`:
-      ! `check_eta_bias()` supports binary or categorical exposures only.
-      i `.exposure` was detected as "continuous".
-      i If `.exposure` is binary or categorical, set `exposure_type = "binary"` or `exposure_type = "categorical"`.
 
 ---
 
@@ -253,4 +261,46 @@
       Estimand terms: 2
       ETA.Bias (b - a): 0.093 (MC SE 0.066)
       ETA.Bias (c - a): 0.142 (MC SE 0.065)
+
+# the continuous print method is stable
+
+    Code
+      print(res)
+    Output
+      
+      -- ETA bias --------------------------------------------------------------------
+      Exposure: "a" (continuous)
+      Observations: 300
+      Estimator: ipw
+      Bootstrap draws: 30
+      Truth: 0.945
+      ETA.Bias: 0.213 (MC SE 0.034)
+
+# the continuous guard messages are stable
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), estimator = "aipw", n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `estimator` "aipw" is not available for a continuous exposure.
+      i The augmentation term integrates the outcome residual over the exposure grid, which this path does not compute.
+      i Use "ipw" or "gcomp".
+
+---
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), truncation = c(0.05, 0.95), n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `truncation` is a pair of probability bounds, and a continuous exposure weights by a density ratio rather than by a probability.
+      i Use `truncation_grid` to cap the stabilized weight at a quantile of its own distribution.
+
+---
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), reference_level = 0, n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `reference_level` names the level every contrast is taken against, which a continuous exposure does not have.
+      i A continuous estimand is the coefficient set of the working model set by `msm_formula`.
 

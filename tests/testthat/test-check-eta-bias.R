@@ -181,16 +181,6 @@ test_that("check_eta_bias() rejects non-data-frame input", {
   )
 })
 
-test_that("check_eta_bias() aborts on a continuous exposure", {
-  local_quiet()
-  data <- sim_eta_good(n = 100, seed = 1)
-  data$a <- stats::rnorm(nrow(data))
-  expect_error(
-    check_eta_bias(data, a, y, c(x1, x2), n_boot = 10),
-    class = "positively_error"
-  )
-})
-
 test_that("check_eta_bias() rejects an empty covariate selection", {
   local_quiet()
   data <- sim_eta_good(n = 100, seed = 1)
@@ -847,14 +837,14 @@ test_that("check_eta_bias() rejects a type outside its supported menu", {
       a,
       y,
       c(x1, x2),
-      exposure_type = "continuous",
+      exposure_type = "ordinal",
       n_boot = 10
     ),
     class = "positively_args_error"
   )
   expect_match(
     conditionMessage(err),
-    '`exposure_type` must be one of "auto", "binary", or "categorical", not "continuous".',
+    '`exposure_type` must be one of "auto", "binary", "categorical", or "continuous", not "ordinal".',
     fixed = TRUE
   )
 })
@@ -1071,6 +1061,64 @@ test_that("the truncation grid ceiling is 1 over the level count", {
     class = "positively_range_error"
   )
   expect_identical(validate_truncation_grid(c(0, 0.333), k = 3), c(0, 0.333))
+})
+
+test_that("the continuous truncation grid ceiling is one", {
+  # A continuous exposure has no simplex and no levels, so a grid point is the
+  # quantile level at which the stabilized weight is capped and the ceiling is
+  # one rather than 1/k. A level of 0.999 clears every discrete ceiling, so
+  # admitting it holds the ceiling to the exposure type rather than to `k`. The
+  # acceptance set is exact at the ceiling, so the ceiling itself is refused: a
+  # level of one would cap every weight at the smallest one observed.
+  expect_identical(
+    validate_truncation_grid(0.999, exposure_type = "continuous"),
+    0.999
+  )
+  expect_error(
+    validate_truncation_grid(1, exposure_type = "continuous"),
+    class = "positively_range_error"
+  )
+  expect_error(
+    validate_truncation_grid(1.5, exposure_type = "continuous"),
+    class = "positively_range_error"
+  )
+  # The floor is shared with the discrete branch, since a negative number names
+  # no quantile.
+  expect_error(
+    validate_truncation_grid(-0.1, exposure_type = "continuous"),
+    class = "positively_range_error"
+  )
+})
+
+test_that("the continuous truncation grid messages are stable", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 100, seed = 1)
+
+  # Both messages call a grid point a quantile level, where the discrete
+  # wording calls it a lower bound, so a message that drifts onto the other
+  # branch's phrasing shows up here.
+  expect_snapshot_abort(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      truncation_grid = c(0.1, 1.5),
+      n_boot = 10
+    ),
+    class = "positively_range_error"
+  )
+  expect_snapshot_abort(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      truncation_grid = numeric(0),
+      n_boot = 10
+    ),
+    class = "positively_empty_error"
+  )
 })
 
 # ---- Oracles against propensity -------------------------------------------
@@ -1511,11 +1559,9 @@ test_that("the input and exposure validation messages are stable", {
   local_quiet()
   good <- sim_eta_good(n = 100, seed = 1)
 
-  continuous <- good
-  continuous$a <- stats::rnorm(nrow(continuous))
-
-  # A three-level exposure is a run rather than a failure, so the exposure-shaped
-  # abort left to pin is the one level that no type can make an estimand out of.
+  # Every exposure type the diagnostic can detect is one it runs, so the
+  # exposure-shaped abort left to pin is the one level that no type can make an
+  # estimand out of.
   one_level <- good
   one_level$a <- factor(rep("a", nrow(one_level)))
 
@@ -1523,13 +1569,6 @@ test_that("the input and exposure validation messages are stable", {
   na_exposure$a[1] <- NA
 
   expect_snapshot_abort(check_eta_bias(1:10, a, y, c(x1, x2), n_boot = 10))
-  expect_snapshot_abort(check_eta_bias(
-    continuous,
-    a,
-    y,
-    c(x1, x2),
-    n_boot = 10
-  ))
   expect_snapshot_abort(check_eta_bias(
     one_level,
     a,
@@ -1673,13 +1712,6 @@ test_that("a fitted ETA bias run has nothing to report", {
 # reduction case: the machinery reads the level count rather than the declared
 # label, so declaring "categorical" on a two-level exposure returns the binary
 # run unchanged, down to the bootstrap draws.
-
-test_that("check_eta_bias() lists categorical among its supported types", {
-  expect_identical(
-    diagnostic_supported_types()[["eta_bias"]],
-    c("binary", "categorical")
-  )
-})
 
 test_that("a declared categorical type runs a three-level exposure", {
   local_quiet()
@@ -2474,6 +2506,20 @@ test_that("reference_level is rejected for a continuous exposure", {
     class = "positively_args_error"
   )
   expect_match(conditionMessage(err), "reference_level", fixed = TRUE)
+})
+
+test_that("msm_formula is rejected for a discrete exposure", {
+  local_quiet()
+  data <- sim_eta_good(n = 200, seed = 1)
+
+  # The mirror of the `reference_level` guard. A discrete estimand contrasts the
+  # levels against the reference and imposes no working model, so a working model
+  # supplied there would shape nothing and is refused rather than ignored.
+  err <- expect_error(
+    check_eta_bias(data, a, y, c(x1, x2), msm_formula = ~a, n_boot = 10),
+    class = "positively_args_error"
+  )
+  expect_match(conditionMessage(err), "msm_formula", fixed = TRUE)
 })
 
 test_that("the continuous guard messages are stable", {

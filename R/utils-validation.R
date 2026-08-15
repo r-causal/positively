@@ -621,26 +621,39 @@ validate_truncation <- function(
 
 #' Validate a truncation sweep grid
 #'
-#' A truncation grid is a numeric vector of lower bounds, each in `[0, 1/k)` for
-#' an exposure with `k` levels, so that bounding every level from below leaves
-#' room on the simplex. Two levels give the familiar `[0, 0.5)`, where the paired
-#' upper bound `1 - lower` always stays above `lower`. The sweep shares one set
-#' of bootstrap draws across every grid point.
+#' A truncation grid for a discrete exposure is a numeric vector of lower bounds,
+#' each in `[0, 1/k)` for an exposure with `k` levels, so that bounding every
+#' level from below leaves room on the simplex. Two levels give the familiar
+#' `[0, 0.5)`, where the paired upper bound `1 - lower` always stays above
+#' `lower`.
 #'
-#' @param grid A candidate grid of lower bounds.
-#' @param k The number of exposure levels.
+#' A continuous exposure has no simplex and no levels. Its estimator weights by a
+#' density ratio, so a grid point is the quantile level at which that weight is
+#' capped and the admissible range is `[0, 1)`: a level of one would cap every
+#' weight at the smallest one observed. The sweep shares one set of bootstrap
+#' draws across every grid point either way.
+#'
+#' @param grid A candidate grid of lower bounds, or of quantile levels for a
+#'   continuous exposure.
+#' @param k The number of exposure levels. Ignored for a continuous exposure,
+#'   which has none.
+#' @param exposure_type The resolved exposure type, which decides both the
+#'   ceiling and what a grid point is called.
 #' @param arg_name The argument name used in error messages.
 #' @param call The calling environment, used to build the error's call.
 #'
-#' @return `grid`, invisibly, when every lower bound is valid.
+#' @return `grid`, invisibly, when every entry is valid.
 #' @keywords internal
 #' @noRd
 validate_truncation_grid <- function(
   grid,
   k = 2L,
+  exposure_type = "binary",
   arg_name = "truncation_grid",
   call = rlang::caller_env()
 ) {
+  continuous <- exposure_type == "continuous"
+  entry <- if (continuous) "quantile level" else "lower bound"
   if (!is.numeric(grid)) {
     grid_class <- class(grid)[1]
     abort(
@@ -651,7 +664,7 @@ validate_truncation_grid <- function(
   }
   if (length(grid) == 0) {
     abort(
-      "{.arg {arg_name}} must contain at least one lower bound.",
+      "{.arg {arg_name}} must contain at least one {entry}.",
       error_class = "positively_empty_error",
       call = call
     )
@@ -663,13 +676,19 @@ validate_truncation_grid <- function(
       call = call
     )
   }
-  ceiling <- 1 / k
+  ceiling <- if (continuous) 1 else 1 / k
   if (any(grid < 0 | grid >= ceiling)) {
     bad <- grid[grid < 0 | grid >= ceiling]
+    reason <- if (continuous) {
+      "A level of {.val {1}} would cap every stabilized weight at the smallest
+       one observed."
+    } else {
+      "The ceiling is {.code 1/k} for an exposure with {k} level{?s}."
+    }
     abort(
       c(
-        "{.arg {arg_name}} lower bounds must lie in {.code [0, {signif(ceiling, 3)})}.",
-        i = "The ceiling is {.code 1/k} for an exposure with {k} level{?s}.",
+        "{.arg {arg_name}} {entry}s must lie in {.code [0, {signif(ceiling, 3)})}.",
+        i = reason,
         x = "Found {.val {bad}}."
       ),
       error_class = "positively_range_error",

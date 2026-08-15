@@ -97,7 +97,8 @@ eta_bias_result <- new_class(
 #' @param .exposure The exposure column, selected with data-masking. A binary
 #'   exposure has exactly two distinct values; a categorical exposure has as
 #'   many levels as it has distinct values, and every non-reference level is
-#'   contrasted against the reference.
+#'   contrasted against the reference; a continuous exposure has no levels, and
+#'   is summarized by the working model `msm_formula` sets.
 #' @param .outcome The outcome column, selected with data-masking.
 #' @param .covariates The covariate columns, selected with tidyselect. Numeric,
 #'   logical, factor, and character covariates are all supported. The fitted
@@ -106,7 +107,9 @@ eta_bias_result <- new_class(
 #'   levels are preserved throughout.
 #' @param estimator The causal estimator to diagnose, one of `"ipw"` (inverse
 #'   probability weighting, matching [propensity::ipw()]), `"gcomp"`
-#'   (G-computation), or `"aipw"` (augmented, doubly robust).
+#'   (G-computation), or `"aipw"` (augmented, doubly robust). The augmented
+#'   estimator's correction is a sum over the exposure levels, so it is an error
+#'   for a continuous exposure.
 #' @param exposure_formula An optional model formula for the treatment mechanism.
 #'   `NULL` (the default) fits a main-effects logistic model of the exposure on
 #'   the covariates.
@@ -122,14 +125,17 @@ eta_bias_result <- new_class(
 #'   bounding the fitted propensity for a single run. `NULL` (the default)
 #'   applies no truncation. A pair of bounds describes the one-dimensional
 #'   simplex of a two-level exposure, so it applies to binary exposures only and
-#'   is an error past two levels.
-#' @param truncation_grid An optional numeric vector of lower bounds, each in
-#'   `[0, 1/k)` for an exposure with `k` levels, which is `[0, 0.5)` for a binary
-#'   exposure. All levels share one set of bootstrap draws, and the grid
-#'   overrides `truncation`. What a bound means depends on the number of levels:
-#'   at two levels it becomes the swept truncation level `c(lower, 1 - lower)`,
-#'   and past two it raises every fitted probability below it and renormalizes
-#'   each row, leaving no upper bound to apply or report.
+#'   is an error past two levels or on a continuous exposure.
+#' @param truncation_grid An optional numeric vector, each entry in `[0, 1/k)`
+#'   for an exposure with `k` levels, which is `[0, 0.5)` for a binary exposure,
+#'   and in `[0, 1)` for a continuous one. All levels share one set of bootstrap
+#'   draws, and the grid overrides `truncation`. What an entry means depends on
+#'   the exposure type: at two levels it is a lower bound and becomes the swept
+#'   truncation level `c(lower, 1 - lower)`; past two levels it raises every
+#'   fitted probability below it and renormalizes each row, leaving no upper
+#'   bound to apply or report; and for a continuous exposure it is a quantile
+#'   level `g` that caps the stabilized weight at its `1 - g` quantile, read once
+#'   from the observed fit and held fixed across the bootstrap draws.
 #' @param n_boot The number of bootstrap datasets. Defaults to `500`. Must be at
 #'   least 2, since the Monte Carlo standard error needs two draws.
 #' @param error_dist The bootstrap error model for continuous outcomes, one of
@@ -137,15 +143,24 @@ eta_bias_result <- new_class(
 #'   the default) or `"empirical"` (resample residuals). Ignored for binary
 #'   outcomes.
 #' @param exposure_type One of `"auto"` (detect from the data, the default),
-#'   `"binary"`, or `"categorical"`. A supplied type is authoritative and
-#'   detection is not consulted, so it is rejected only when the exposure column
-#'   cannot carry it: `"binary"` needs exactly two distinct values, and
-#'   `"categorical"` needs nothing beyond the two levels every run needs. What
-#'   the run does with the type is decided by the number of levels, so declaring
+#'   `"binary"`, `"categorical"`, or `"continuous"`. A supplied type is
+#'   authoritative and detection is not consulted, so it is rejected only when
+#'   the exposure column cannot carry it: `"binary"` needs exactly two distinct
+#'   values, `"continuous"` needs a numeric column, and `"categorical"` needs
+#'   nothing beyond the two levels every discrete run needs. Within the discrete
+#'   types the run is decided by the number of levels, so declaring
 #'   `"categorical"` on a two-level column returns the binary run unchanged.
 #' @param reference_level The exposure level every contrast is taken against.
 #'   `NULL` (the default) takes the first level, which is the lower of the two
-#'   values for a binary exposure and the first factor level otherwise.
+#'   values for a binary exposure and the first factor level otherwise. A
+#'   continuous exposure has no levels to contrast, so supplying it there is an
+#'   error.
+#' @param msm_formula An optional one-sided formula for the marginal structural
+#'   model a continuous exposure is summarized by, for example `~ a + I(a^2)`.
+#'   `NULL` (the default) fits a model linear in the exposure, whose one
+#'   coefficient is named after the exposure column. A discrete estimand is a set
+#'   of contrasts and imposes no working model, so supplying it there is an
+#'   error.
 #'
 #' @return An `eta_bias_result` object, an S7 subclass of
 #'   [positivity_diagnostic]. Its `@results` tibble has one row per estimand term
@@ -153,10 +168,13 @@ eta_bias_result <- new_class(
 #'   `truncation_upper`, `bias` (ETA.Bias), `mc_se` (the Monte Carlo standard
 #'   error), and `boot_mean` (the mean bootstrap estimate), in that order. `term`
 #'   names the estimand contrast as `<level> - <reference level>`, so an exposure
-#'   coded 0/1 has the single term `"1 - 0"`. The object also carries the
-#'   properties `@estimator`, `@truth` (a named numeric vector holding one truth
-#'   per term), and `@boot_estimates` (a list of bootstrap-estimate vectors, one
-#'   per row of `@results`).
+#'   coded 0/1 has the single term `"1 - 0"`; for a continuous exposure it names
+#'   a working-model coefficient instead. A continuous run has no lower cap to
+#'   place on a density ratio, so `truncation_lower` is `NA_real_` and
+#'   `truncation_upper` holds the weight cap, which is `Inf` where no cap was
+#'   applied. The object also carries the properties `@estimator`, `@truth` (a
+#'   named numeric vector holding one truth per term), and `@boot_estimates` (a
+#'   list of bootstrap-estimate vectors, one per row of `@results`).
 #'
 #'   [generics::glance()] returns a one-row tibble with `n` (the sample size),
 #'   `estimator`, and `n_boot`. A single-term estimand adds `truth`; an estimand
@@ -197,8 +215,9 @@ check_eta_bias <- function(
   truncation_grid = NULL,
   n_boot = 500,
   error_dist = c("normal", "empirical"),
-  exposure_type = c("auto", "binary", "categorical"),
-  reference_level = NULL
+  exposure_type = c("auto", "binary", "categorical", "continuous"),
+  reference_level = NULL,
+  msm_formula = NULL
 ) {
   validate_data_frame(.data)
   estimator <- resolve_arg_match(rlang::arg_match(estimator))
@@ -263,17 +282,27 @@ check_eta_bias <- function(
     fn = "check_eta_bias"
   )
 
+  validate_eta_estimand_args(
+    exposure_type,
+    estimator = estimator,
+    reference_level = reference_level,
+    msm_formula = msm_formula
+  )
+
   spec <- eta_spec(
     exposure_vec,
     exposure_type,
-    reference_level = reference_level
+    reference_level = reference_level,
+    msm_formula = msm_formula,
+    exposure_name = exposure_name
   )
 
   # The multinomial treatment mechanism is the only part of the run that needs
   # nnet, and it is refit once per bootstrap draw, so availability is settled
   # here rather than inside the loop. Two levels take a logistic fit and never
-  # reach it.
-  if (spec$k > 2 && !rlang::is_installed("nnet")) {
+  # reach it, and a continuous exposure has no level to model.
+  needs_multinom <- spec$type != "continuous" && spec$k > 2
+  if (needs_multinom && !rlang::is_installed("nnet")) {
     abort(
       c(
         "A categorical exposure of more than two levels requires the {.pkg nnet} package.",
@@ -283,12 +312,12 @@ check_eta_bias <- function(
     )
   }
 
-  # The truncation bounds are resolved after the exposure type, because the
-  # largest usable lower bound depends on the number of levels.
+  # The truncation bounds are resolved after the exposure type, because what a
+  # grid point bounds, and how large it may be, both depend on the type.
   levels <- resolve_truncation_levels(
     truncation,
     truncation_grid,
-    spec$k,
+    spec,
     call = rlang::current_env()
   )
 
@@ -332,6 +361,10 @@ check_eta_bias <- function(
     call = rlang::current_env()
   )
 
+  # A continuous run resolves its weight cap from the observed fit, so the
+  # bounds the results report come back from the bootstrap rather than from the
+  # arguments alone.
+  levels <- run$levels
   results <- tibble::tibble(
     term = run$term,
     truncation_lower = levels$lower[run$level],
@@ -353,7 +386,8 @@ check_eta_bias <- function(
       n_boot = n_boot,
       truncation = truncation,
       truncation_grid = truncation_grid,
-      reference_level = reference_level
+      reference_level = reference_level,
+      msm_formula = msm_formula
     ),
     call = rlang::current_call(),
     estimator = estimator,
@@ -363,6 +397,76 @@ check_eta_bias <- function(
 }
 
 # ---- Argument resolution --------------------------------------------------
+
+#' Reject the estimand arguments the resolved exposure type leaves nothing for
+#'
+#' A discrete estimand is a set of contrasts against a reference level; a
+#' continuous one is the coefficient set of a working model. Each type therefore
+#' has one argument that shapes the estimand and one that says nothing on it, and
+#' the augmented estimator is defined for the discrete estimand alone. Each
+#' unusable argument is refused rather than ignored, because silently dropping any
+#' of them would report a number the caller did not ask for.
+#'
+#' @param exposure_type The resolved exposure type.
+#' @param estimator One of `"ipw"`, `"gcomp"`, or `"aipw"`.
+#' @param reference_level The supplied reference level, or `NULL`.
+#' @param msm_formula The supplied working-model formula, or `NULL`.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `NULL`, invisibly, when every supplied argument applies.
+#' @keywords internal
+#' @noRd
+validate_eta_estimand_args <- function(
+  exposure_type,
+  estimator,
+  reference_level,
+  msm_formula,
+  call = rlang::caller_env()
+) {
+  if (exposure_type != "continuous") {
+    if (!is.null(msm_formula)) {
+      abort(
+        c(
+          "{.arg msm_formula} sets the working model a continuous exposure is
+           summarized by.",
+          x = "{.arg .exposure} is {exposure_type}.",
+          i = "A discrete estimand contrasts each level against
+               {.arg reference_level}, which imposes no working model."
+        ),
+        error_class = "positively_args_error",
+        call = call
+      )
+    }
+    return(invisible(NULL))
+  }
+
+  if (estimator == "aipw") {
+    abort(
+      c(
+        "{.arg estimator} {.val aipw} is not available for a continuous
+         exposure.",
+        i = "The augmentation term integrates the outcome residual over the
+             exposure grid, which this path does not compute.",
+        i = "Use {.val ipw} or {.val gcomp}."
+      ),
+      error_class = "positively_args_error",
+      call = call
+    )
+  }
+  if (!is.null(reference_level)) {
+    abort(
+      c(
+        "{.arg reference_level} names the level every contrast is taken against,
+         which a continuous exposure does not have.",
+        i = "A continuous estimand is the coefficient set of the working model
+             set by {.arg msm_formula}."
+      ),
+      error_class = "positively_args_error",
+      call = call
+    )
+  }
+  invisible(NULL)
+}
 
 #' Resolve the truncation levels for a run or a sweep
 #'
@@ -376,20 +480,36 @@ check_eta_bias <- function(
 #' raises every level from below and renormalizes, which leaves no upper bound to
 #' apply and none to report, so the upper bound is `NA_real_` at every level.
 #'
-#' @param truncation A length-two bound or `NULL`.
-#' @param truncation_grid A vector of lower bounds or `NULL`.
-#' @param k The number of exposure levels, which caps each lower bound and
-#'   decides whether an upper bound means anything.
+#' A continuous exposure bounds a stabilized density ratio rather than a
+#' probability, so a grid point is the quantile level at which that weight is
+#' capped and the pair of probability bounds has nothing to bound. The cap itself
+#' depends on the observed fit, so it is filled in by the bootstrap; only the
+#' quantile levels are settled here.
 #'
-#' @return A list with numeric vectors `lower` and `upper`, one entry per level.
+#' @param truncation A length-two bound or `NULL`.
+#' @param truncation_grid A vector of lower bounds, or of quantile levels for a
+#'   continuous exposure, or `NULL`.
+#' @param spec The exposure specification from `eta_spec()`, whose type and level
+#'   count decide what a grid point bounds and how large it may be.
+#'
+#' @return A list with numeric vectors `lower` and `upper`, one entry per level,
+#'   and for a continuous exposure the `quantile` levels the caps come from.
 #' @keywords internal
 #' @noRd
 resolve_truncation_levels <- function(
   truncation,
   truncation_grid,
-  k = 2L,
+  spec,
   call = rlang::caller_env()
 ) {
+  if (spec$type == "continuous") {
+    return(resolve_weight_truncation_levels(
+      truncation,
+      truncation_grid,
+      call = call
+    ))
+  }
+  k <- spec$k
   two_sided <- k == 2
   if (!is.null(truncation_grid)) {
     validate_truncation_grid(truncation_grid, k = k, call = call)
@@ -417,6 +537,52 @@ resolve_truncation_levels <- function(
   } else {
     list(lower = 0, upper = if (two_sided) 1 else NA_real_)
   }
+}
+
+#' Resolve the quantile levels a continuous run caps its weights at
+#'
+#' The estimator's weight is the stabilized density ratio, so there is no lower
+#' cap to place on it and the reported lower bound is missing at every level. The
+#' upper bound is the cap, which the bootstrap resolves from the observed fit and
+#' writes back over the placeholder left here.
+#'
+#' @inheritParams resolve_truncation_levels
+#'
+#' @return A list of `lower`, `upper`, and `quantile`, one entry per level.
+#' @keywords internal
+#' @noRd
+resolve_weight_truncation_levels <- function(
+  truncation,
+  truncation_grid,
+  call = rlang::caller_env()
+) {
+  if (!is.null(truncation)) {
+    abort(
+      c(
+        "{.arg truncation} is a pair of probability bounds, and a continuous
+         exposure weights by a density ratio rather than by a probability.",
+        i = "Use {.arg truncation_grid} to cap the stabilized weight at a
+             quantile of its own distribution."
+      ),
+      error_class = "positively_args_error",
+      call = call
+    )
+  }
+  quantile_levels <- if (is.null(truncation_grid)) {
+    0
+  } else {
+    validate_truncation_grid(
+      truncation_grid,
+      exposure_type = "continuous",
+      call = call
+    )
+  }
+  n_levels <- length(quantile_levels)
+  list(
+    lower = rep(NA_real_, n_levels),
+    upper = rep(NA_real_, n_levels),
+    quantile = quantile_levels
+  )
 }
 
 #' Validate the covariate columns for the ETA.Bias bootstrap
@@ -552,23 +718,37 @@ resolve_eta_formulas <- function(
 #' For a discrete exposure the marginal structural model is the saturated factor
 #' model, so summarizing its counterfactual means is a contrast against the
 #' reference level and imposes nothing. A binary exposure is the two-level case.
+#' A continuous exposure has no levels to saturate, so the working model is a
+#' genuine restriction and the grid is the exposure's own deciles.
 #'
 #' @param exposure_vec The exposure column, before coding.
-#' @param exposure_type `"binary"` or `"categorical"`.
+#' @param exposure_type `"binary"`, `"categorical"`, or `"continuous"`.
 #' @param reference_level The level contrasts are taken against, or `NULL` for
 #'   the first level.
+#' @param msm_formula The one-sided working-model formula for a continuous
+#'   exposure, or `NULL` for a model linear in the exposure.
+#' @param exposure_name The exposure column name, which names the variable the
+#'   working model is written in.
 #' @param call The calling environment, used to build the error's call.
 #'
-#' @return A list with the coded exposure `a`, the `grid` of exposure codes, the
-#'   level `labels`, the coefficient `terms`, and the `reference` index.
+#' @return A list with the coded exposure `a`, the `grid` of exposure values, and
+#'   the coefficient `terms`. A discrete specification adds the level `labels`,
+#'   their count `k`, and the `reference` index; a continuous one adds the
+#'   working-model `design()` closure, the `grid_design` it builds over the grid,
+#'   and the `estimand` columns of that design.
 #' @keywords internal
 #' @noRd
 eta_spec <- function(
   exposure_vec,
   exposure_type,
   reference_level = NULL,
+  msm_formula = NULL,
+  exposure_name = NULL,
   call = rlang::caller_env()
 ) {
+  if (exposure_type == "continuous") {
+    return(eta_spec_continuous(exposure_vec, msm_formula, exposure_name))
+  }
   exposure_factor <- factor(exposure_vec)
   labels <- levels(exposure_factor)
   # A declared categorical type imposes no structure of its own, so a one-level
@@ -596,6 +776,58 @@ eta_spec <- function(
     labels = labels,
     reference = reference,
     terms = paste0(labels[-reference], " - ", labels[[reference]])
+  )
+}
+
+#' Describe the grid and working model of a continuous exposure
+#'
+#' The grid is the exposure's own deciles, deduplicated, so equal weights over it
+#' weight the working model by the marginal density of the exposure, the standard
+#' choice. The estimand is the working model's coefficients other than the
+#' intercept, which is what the counterfactual surface over that grid is projected
+#' onto. `k`, `labels`, and `reference` are the vocabulary of levels, which a
+#' continuous exposure has none of, so `k` is missing rather than one and any
+#' branch that reads it without checking the type fails loudly.
+#'
+#' @inheritParams eta_spec
+#'
+#' @return The continuous exposure specification.
+#' @keywords internal
+#' @noRd
+eta_spec_continuous <- function(exposure_vec, msm_formula, exposure_name) {
+  a <- as.double(exposure_vec)
+  grid <- unique(stats::quantile(
+    a,
+    probs = seq(0.1, 0.9, by = 0.1),
+    names = FALSE,
+    type = 7
+  ))
+  msm_formula <- msm_formula %||%
+    stats::as.formula(paste0("~ `", exposure_name, "`"))
+
+  design <- function(values) {
+    frame <- stats::model.frame(
+      msm_formula,
+      data = stats::setNames(list(values), exposure_name)
+    )
+    stats::model.matrix(attr(frame, "terms"), frame)
+  }
+  grid_design <- design(grid)
+  # A working model written without an intercept contributes every column to the
+  # estimand, so the columns are chosen by name rather than by dropping the first.
+  estimand <- which(colnames(grid_design) != "(Intercept)")
+
+  list(
+    type = "continuous",
+    a = a,
+    grid = grid,
+    k = NA_integer_,
+    labels = NULL,
+    reference = NA_integer_,
+    terms = colnames(grid_design)[estimand],
+    design = design,
+    grid_design = grid_design,
+    estimand = estimand
   )
 }
 
@@ -669,15 +901,74 @@ eta_exposure_indicator <- function(a, spec) {
 #' Drops the first level's indicator, leaving the `K - 1` columns a saturated
 #' factor contributes to a design that already carries an intercept. A two-level
 #' exposure is coded 0 and 1, so its one remaining indicator is the exposure
-#' itself and the design is the one the binary path has always built.
+#' itself and the design is the one the binary path has always built. A
+#' continuous exposure enters the outcome regression as itself, one column.
 #'
 #' @inheritParams eta_exposure_indicator
 #'
-#' @return An `n` by `K - 1` numeric matrix.
+#' @return An `n` by `K - 1` numeric matrix, or an `n` by one matrix for a
+#'   continuous exposure.
 #' @keywords internal
 #' @noRd
 eta_exposure_design <- function(a, spec) {
+  if (spec$type == "continuous") {
+    return(matrix(a, ncol = 1L))
+  }
   eta_exposure_indicator(a, spec)[, -1L, drop = FALSE]
+}
+
+#' The stabilized density ratio a continuous exposure weights by
+#'
+#' `f(A) / f(A | W)` under normal treatment mechanisms, mirroring
+#' `propensity:::ate_continuous()` exactly: both densities carry the
+#' maximum-likelihood variance rather than the `n - 1` estimate, the numerator's
+#' marginal fit as much as the denominator's conditional one.
+#'
+#' @param a The exposure vector.
+#' @param fitted The fitted conditional mean of the exposure.
+#' @param sigma The pooled residual standard deviation of the treatment model.
+#'
+#' @return A numeric vector of stabilized weights.
+#' @keywords internal
+#' @noRd
+eta_stabilized_weights <- function(a, fitted, sigma) {
+  centre <- mean(a)
+  stats::dnorm(a, centre, sqrt(mean((a - centre)^2))) /
+    stats::dnorm(a, fitted, sigma)
+}
+
+#' Resolve the weight caps a continuous truncation sweep applies
+#'
+#' A quantile level `g` caps the stabilized weight at its `1 - g` quantile. The
+#' cap is read once from the observed fit and then held fixed across bootstrap
+#' draws, which is what leaves one number per level to report and what keeps a
+#' sweep isolating the bound rather than mixing per-draw quantile noise into it.
+#' The binary path's probability bounds are fixed across draws for the same
+#' reason.
+#'
+#' A level of zero is no truncation, so its cap is infinite rather than the
+#' observed maximum: the observed maximum is a no-op on the observed weights but
+#' would still clip a bootstrap refit, whose heaviest weights run an order of
+#' magnitude above it.
+#'
+#' @param weights The stabilized weights under the observed fit.
+#' @param quantile_levels The quantile levels swept over.
+#'
+#' @return A numeric vector of caps, one per level.
+#' @keywords internal
+#' @noRd
+eta_resolve_weight_caps <- function(weights, quantile_levels) {
+  vapply(
+    quantile_levels,
+    function(level) {
+      if (level == 0) {
+        Inf
+      } else {
+        unname(stats::quantile(weights, 1 - level, type = 7))
+      }
+    },
+    numeric(1)
+  )
 }
 
 #' Bound a probability matrix away from zero
@@ -737,6 +1028,8 @@ truncate_probabilities <- function(gmat, lower, upper) {
 #'   slowest. `boot_estimates` holds one estimate vector per cell, with the
 #'   non-finite draws removed, and `boot_mean`, `boot_sd`, and `n_valid` hold
 #'   that vector's mean, standard deviation, and length, one entry per cell.
+#'   `levels` is the truncation specification the run applied, which for a
+#'   continuous exposure carries the weight caps read off the observed fit.
 #' @keywords internal
 #' @noRd
 eta_bias_bootstrap <- function(
@@ -767,17 +1060,37 @@ eta_bias_bootstrap <- function(
     formulas = formulas,
     spec = spec
   )
+  continuous <- spec$type == "continuous"
   observed <- fitters$observed(a, y)
   # The truth is G-computation under the observed fit, which is exact because
   # that fit is the truth of the bootstrap data-generating mechanism.
-  truth <- eta_estimate(
-    estimator = "gcomp",
-    a = a,
-    y = y,
-    gmat = observed$gmat,
-    qmat = observed$qmat,
-    spec = spec
-  )
+  truth <- if (continuous) {
+    eta_estimate_continuous(
+      estimator = "gcomp",
+      y = y,
+      qmat = observed$qmat,
+      design = NULL,
+      weights = NULL,
+      spec = spec
+    )
+  } else {
+    eta_estimate(
+      estimator = "gcomp",
+      a = a,
+      y = y,
+      gmat = observed$gmat,
+      qmat = observed$qmat,
+      spec = spec
+    )
+  }
+  # The cap is read from the observed fit's weights once, so every draw is
+  # truncated by the same rule and the sweep isolates the bound.
+  if (continuous) {
+    levels$upper <- eta_resolve_weight_caps(
+      eta_stabilized_weights(a, observed$ps_fitted, observed$ps_sigma),
+      levels$quantile
+    )
+  }
 
   n <- length(a)
   n_levels <- length(levels$lower)
@@ -793,8 +1106,19 @@ eta_bias_bootstrap <- function(
 
   for (b in seq_len(n_boot)) {
     idx <- index_matrix[, b]
-    a_star <- draw_bootstrap_exposure(observed$gmat[idx, , drop = FALSE], spec)
-    mu <- observed$qmat[cbind(idx, match(a_star, spec$grid))]
+    # A discrete counterfactual mean is a lookup on the grid the outcome model
+    # was already evaluated over. A continuous draw lands between grid points, so
+    # its mean is evaluated at the drawn value itself.
+    if (continuous) {
+      a_star <- stats::rnorm(n, observed$ps_fitted[idx], observed$ps_sigma)
+      mu <- observed$predict_at(idx, a_star)
+    } else {
+      a_star <- draw_bootstrap_exposure(
+        observed$gmat[idx, , drop = FALSE],
+        spec
+      )
+      mu <- observed$qmat[cbind(idx, match(a_star, spec$grid))]
+    }
     y_star <- draw_bootstrap_outcome(
       mu = mu,
       outcome_type = outcome_type,
@@ -803,20 +1127,38 @@ eta_bias_bootstrap <- function(
       sigma = observed$sigma
     )
     refit <- fitters$refit(idx, a_star, y_star)
+    if (continuous) {
+      weights <- eta_stabilized_weights(
+        a_star,
+        refit$ps_fitted,
+        refit$ps_sigma
+      )
+      design_star <- spec$design(a_star)
+    }
     for (level in seq_len(n_levels)) {
-      gmat_level <- truncate_probabilities(
-        refit$gmat,
-        levels$lower[[level]],
-        levels$upper[[level]]
-      )
-      estimates[b, level, ] <- eta_estimate(
-        estimator = estimator,
-        a = a_star,
-        y = y_star,
-        gmat = gmat_level,
-        qmat = refit$qmat,
-        spec = spec
-      )
+      estimates[b, level, ] <- if (continuous) {
+        eta_estimate_continuous(
+          estimator = estimator,
+          y = y_star,
+          qmat = refit$qmat,
+          design = design_star,
+          weights = pmin(weights, levels$upper[[level]]),
+          spec = spec
+        )
+      } else {
+        eta_estimate(
+          estimator = estimator,
+          a = a_star,
+          y = y_star,
+          gmat = truncate_probabilities(
+            refit$gmat,
+            levels$lower[[level]],
+            levels$upper[[level]]
+          ),
+          qmat = refit$qmat,
+          spec = spec
+        )
+      }
     }
   }
 
@@ -845,6 +1187,7 @@ eta_bias_bootstrap <- function(
     truth = truth,
     term = spec$terms[cells$term],
     level = cells$level,
+    levels = levels,
     boot_mean = vapply(boot_estimates, mean, numeric(1)),
     boot_sd = vapply(boot_estimates, stats::sd, numeric(1)),
     boot_estimates = boot_estimates,
@@ -977,7 +1320,21 @@ eta_fitters <- function(
 #' @noRd
 eta_multinom_probs <- function(formula, frame, n, k) {
   fit <- nnet::multinom(formula, data = frame, trace = FALSE)
-  matrix(stats::fitted(fit), nrow = n, ncol = k)
+  fitted <- stats::fitted(fit)
+  # Reshaping to the expected dimensions would recycle silently if a future
+  # nnet returned a different shape, and a recycled probability matrix is a
+  # plausible-looking wrong answer rather than a failure.
+  if (!is.matrix(fitted) || nrow(fitted) != n || ncol(fitted) != k) {
+    shape <- paste(dim(as.matrix(fitted)), collapse = " by ")
+    abort(
+      c(
+        "The fitted multinomial probabilities must be {n} by {k}.",
+        x = "{.fn nnet::multinom} returned {shape}."
+      ),
+      error_class = "positively_size_error"
+    )
+  }
+  matrix(fitted, nrow = n, ncol = k)
 }
 
 #' Fast matrix fitters for the default main-effects models
@@ -986,7 +1343,8 @@ eta_multinom_probs <- function(formula, frame, n, k) {
 #' avoiding the per-draw cost of building a data frame and parsing a formula.
 #' This is the path a default run with numeric covariates takes. The outcome
 #' model is a [stats::glm.fit()] throughout; the treatment model is a two-level
-#' [stats::glm.fit()] or the multinomial logit of `eta_multinom_probs()`.
+#' [stats::glm.fit()], the multinomial logit of `eta_multinom_probs()`, or a
+#' linear model with a pooled residual standard deviation.
 #'
 #' @param x_cov The observed covariate matrix, `n` by `q`.
 #' @param q_family The outcome-model family.
@@ -1000,27 +1358,39 @@ eta_fitters_matrix <- function(x_cov, q_family, spec) {
   n <- nrow(x_cov)
   intercept <- rep.int(1, n)
   binomial_family <- stats::binomial()
+  gaussian_family <- stats::gaussian()
 
   # glm.fit warns on separation and near-degenerate fits, which are expected
   # under positivity violations, the very condition the diagnostic measures.
   # glm.fit returns NA coefficients for aliased (constant or collinear) columns.
   # Zeroing them reproduces the aliased-column predictions that stats::glm()
   # makes on the formula path, so the two paths agree on rank-deficient designs.
-  fit_ps <- if (spec$k == 2) {
+  fit_ps <- if (spec$type == "continuous") {
+    function(design, exposure) {
+      coef <- suppressWarnings(
+        stats::glm.fit(design, exposure, family = gaussian_family)$coefficients
+      )
+      coef[is.na(coef)] <- 0
+      fitted <- drop(design %*% coef)
+      eta_normal_mechanism(exposure, fitted)
+    }
+  } else if (spec$k == 2) {
     function(design, exposure) {
       coef <- suppressWarnings(
         stats::glm.fit(design, exposure, family = binomial_family)$coefficients
       )
       coef[is.na(coef)] <- 0
       positive <- binomial_family$linkinv(drop(design %*% coef))
-      cbind(1 - positive, positive)
+      list(gmat = cbind(1 - positive, positive))
     }
   } else {
     function(design, exposure) {
       # The response and the covariates enter as whole matrices, so the model
       # frame holds two variables and no covariate name can collide with them.
       frame <- list(.a = eta_exposure_indicator(exposure, spec), .x = design)
-      eta_multinom_probs(.a ~ .x - 1, frame, nrow(design), spec$k)
+      list(
+        gmat = eta_multinom_probs(.a ~ .x - 1, frame, nrow(design), spec$k)
+      )
     }
   }
   fit_q <- function(x_cov_rows, exposure, response) {
@@ -1046,7 +1416,7 @@ eta_fitters_matrix <- function(x_cov, q_family, spec) {
   }
 
   observed <- function(a, y) {
-    gmat <- fit_ps(cbind(intercept, x_cov), a)
+    fit <- fit_ps(cbind(intercept, x_cov), a)
     q <- fit_q(x_cov, a, y)
     design <- cbind(intercept, eta_exposure_design(a, spec), x_cov)
     fitted_y <- q_family$linkinv(drop(design %*% q$coef))
@@ -1055,20 +1425,25 @@ eta_fitters_matrix <- function(x_cov, q_family, spec) {
     # column contributes no estimated parameter, so it does not deflate sigma,
     # matching the residual standard deviation on the formula path.
     df_residual <- n - q$rank
-    list(
-      gmat = gmat,
-      qmat = q$qmat,
-      residuals = residuals,
-      sigma = sqrt(sum(residuals^2) / df_residual)
-    )
+    fit$qmat <- q$qmat
+    fit$residuals <- residuals
+    fit$sigma <- sqrt(sum(residuals^2) / df_residual)
+    fit$predict_at <- function(idx, values) {
+      at_values <- cbind(
+        intercept,
+        eta_exposure_design(values, spec),
+        x_cov[idx, , drop = FALSE]
+      )
+      q_family$linkinv(drop(at_values %*% q$coef))
+    }
+    fit
   }
 
   refit <- function(idx, a_star, y_star) {
     x_rows <- x_cov[idx, , drop = FALSE]
-    list(
-      gmat = fit_ps(cbind(intercept, x_rows), a_star),
-      qmat = fit_q(x_rows, a_star, y_star)$qmat
-    )
+    fit <- fit_ps(cbind(intercept, x_rows), a_star)
+    fit$qmat <- fit_q(x_rows, a_star, y_star)$qmat
+    fit
   }
 
   list(observed = observed, refit = refit)
@@ -1099,6 +1474,7 @@ eta_fitters_formula <- function(
   spec
 ) {
   binomial_family <- stats::binomial()
+  gaussian_family <- stats::gaussian()
   # A bootstrap resample can drop every row that holds a rare character level,
   # re-factoring the covariate to a single level and aborting the contrasts.
   # Fixing character covariates to factors once on the observed data keeps their
@@ -1110,9 +1486,13 @@ eta_fitters_formula <- function(
   # Past two levels the outcome model needs the exposure expanded into level
   # indicators, which stats::model.matrix() does for a factor and not for the
   # numeric codes. Two levels keep the numeric coding, whose one indicator is
-  # the code itself.
+  # the code itself, and a continuous exposure enters as itself.
   exposure_column <- function(values) {
-    if (spec$k == 2) values else factor(values, levels = spec$grid)
+    if (spec$type == "continuous" || spec$k == 2) {
+      values
+    } else {
+      factor(values, levels = spec$grid)
+    }
   }
 
   assemble <- function(exposure, response) {
@@ -1160,29 +1540,36 @@ eta_fitters_formula <- function(
   # The treatment model's response is the exposure itself, so the multinomial
   # fit reads the level indicators from a frame of its own rather than the shared
   # one, whose exposure column is coded for the outcome model.
-  fit_ps <- if (spec$k == 2) {
+  fit_ps <- if (spec$type == "continuous") {
+    function(frame, exposure) {
+      ps_fit <- fit_glm(formulas$exposure, frame, gaussian_family)
+      eta_normal_mechanism(exposure, predict_fit(ps_fit, frame))
+    }
+  } else if (spec$k == 2) {
     function(frame, exposure) {
       ps_fit <- fit_glm(formulas$exposure, frame, binomial_family)
       positive <- predict_fit(ps_fit, frame)
-      cbind(1 - positive, positive)
+      list(gmat = cbind(1 - positive, positive))
     }
   } else {
     function(frame, exposure) {
       ps_frame <- as.list(frame)
       ps_frame[[exposure_name]] <- eta_exposure_indicator(exposure, spec)
-      eta_multinom_probs(
-        formulas$exposure,
-        ps_frame,
-        nrow(frame),
-        spec$k
+      list(
+        gmat = eta_multinom_probs(
+          formulas$exposure,
+          ps_frame,
+          nrow(frame),
+          spec$k
+        )
       )
     }
   }
 
   fit_pair <- function(frame, exposure) {
-    gmat <- fit_ps(frame, exposure)
+    fit <- fit_ps(frame, exposure)
     q_fit <- fit_glm(formulas$outcome, frame, q_family)
-    counterfactual <- vapply(
+    fit$qmat <- vapply(
       spec$grid,
       function(value) {
         counterfactual_frame <- frame
@@ -1193,33 +1580,53 @@ eta_fitters_formula <- function(
       },
       numeric(nrow(frame))
     )
-    list(
-      gmat = gmat,
-      qmat = counterfactual,
-      q_fit = q_fit
-    )
+    fit$q_fit <- q_fit
+    fit
   }
 
   observed <- function(a, y) {
     frame <- assemble(a, y)
     fit <- fit_pair(frame, a)
-    residuals <- y - predict_fit(fit$q_fit, frame)
-    list(
-      gmat = fit$gmat,
-      qmat = fit$qmat,
-      residuals = residuals,
-      sigma = sqrt(sum(residuals^2) / fit$q_fit$df_residual)
-    )
+    # Bound outside `fit` so the prediction closure keeps the outcome fit after
+    # it is dropped from the returned list.
+    q_fit <- fit$q_fit
+    fit$q_fit <- NULL
+    residuals <- y - predict_fit(q_fit, frame)
+    fit$residuals <- residuals
+    fit$sigma <- sqrt(sum(residuals^2) / q_fit$df_residual)
+    fit$predict_at <- function(idx, values) {
+      at_values <- assemble(values, y)
+      at_values[seq_along(covariates)] <- covariates[idx, , drop = FALSE]
+      predict_fit(q_fit, at_values)
+    }
+    fit
   }
 
   refit <- function(idx, a_star, y_star) {
     frame <- assemble(a_star, y_star)
     frame[seq_along(covariates)] <- covariates[idx, , drop = FALSE]
     fit <- fit_pair(frame, a_star)
-    list(gmat = fit$gmat, qmat = fit$qmat)
+    fit$q_fit <- NULL
+    fit
   }
 
   list(observed = observed, refit = refit)
+}
+
+#' Summarize a normal treatment mechanism for a continuous exposure
+#'
+#' The mechanism is the fitted conditional mean paired with the pooled
+#' maximum-likelihood residual standard deviation, which is the spread
+#' `propensity` derives for itself when it is handed no sigma.
+#'
+#' @param exposure The exposure vector.
+#' @param fitted The fitted conditional mean.
+#'
+#' @return A list of `ps_fitted` and `ps_sigma`.
+#' @keywords internal
+#' @noRd
+eta_normal_mechanism <- function(exposure, fitted) {
+  list(ps_fitted = fitted, ps_sigma = sqrt(mean((exposure - fitted)^2)))
 }
 
 #' Apply a causal estimator to a bootstrap dataset
@@ -1285,7 +1692,72 @@ eta_estimate <- function(estimator, a, y, gmat, qmat, spec) {
   estimates
 }
 
+#' Apply a causal estimator to a bootstrap dataset with a continuous exposure
+#'
+#' A continuous estimand is the working model's coefficients rather than a set of
+#' contrasts, so both estimators are a least-squares projection onto that model.
+#' G-computation projects the counterfactual surface, the mean outcome prediction
+#' at each grid value, with equal weight on every grid point; because the grid is
+#' a quantile grid, that weights by the marginal density of the exposure.
+#' Inverse probability weighting projects the observed outcomes at the exposure
+#' values actually drawn, weighted by the truncated stabilized density ratio.
+#'
+#' @param estimator One of `"ipw"` or `"gcomp"`.
+#' @param y The bootstrap outcome.
+#' @param qmat The outcome predictions at each grid value, `n` by the grid size.
+#' @param design The working-model design at the drawn exposure, used by inverse
+#'   probability weighting alone.
+#' @param weights The truncated stabilized weights, used by inverse probability
+#'   weighting alone.
+#' @param spec The exposure specification from `eta_spec()`.
+#'
+#' @return A named numeric vector, one entry per coefficient.
+#' @keywords internal
+#' @noRd
+eta_estimate_continuous <- function(estimator, y, qmat, design, weights, spec) {
+  coefficients <- if (estimator == "gcomp") {
+    eta_msm_coefficients(spec$grid_design, colMeans(qmat))
+  } else {
+    eta_msm_coefficients(design, y, weights)
+  }
+  estimates <- coefficients[spec$estimand]
+  names(estimates) <- spec$terms
+  estimates
+}
+
+#' Fit a working model by weighted least squares
+#'
+#' @param design The working-model design matrix.
+#' @param response The values the model is fitted to.
+#' @param weights The observation weights. Defaults to equal weights.
+#'
+#' @return The coefficient vector, including the intercept where the design
+#'   carries one.
+#' @keywords internal
+#' @noRd
+eta_msm_coefficients <- function(design, response, weights = 1) {
+  weighted <- design * weights
+  drop(solve(crossprod(design, weighted), crossprod(weighted, response)))
+}
+
 # ---- Methods --------------------------------------------------------------
+
+#' Count the truncation levels a result was read over
+#'
+#' The results tibble holds one row per term and truncation level, so the level
+#' count is the row count divided by the term count. Counting the distinct lower
+#' bounds instead would read one level for a continuous run, whose lower bound is
+#' missing at every level because there is no lower cap on a density ratio.
+#'
+#' @param results The results tibble.
+#' @param n_terms The number of estimand terms.
+#'
+#' @return A single integer.
+#' @keywords internal
+#' @noRd
+eta_bias_n_levels <- function(results, n_terms) {
+  nrow(results) %/% n_terms
+}
 
 method(glance, eta_bias_result) <- function(x, ...) {
   results <- x@results
@@ -1309,7 +1781,7 @@ method(glance, eta_bias_result) <- function(x, ...) {
   } else {
     # A sweep has one bias per truncation level, so no single bias and no single
     # Monte Carlo error beside it describe the run.
-    columns$n_levels <- length(unique(results$truncation_lower))
+    columns$n_levels <- eta_bias_n_levels(results, n_terms)
     columns$bias_min <- min(results$bias)
     columns$bias_max <- max(results$bias)
   }
@@ -1325,7 +1797,7 @@ method(diagnostic_label, eta_bias_result) <- function(x) {
 method(diagnostic_headline, eta_bias_result) <- function(x) {
   results <- x@results
   n_terms <- length(x@truth)
-  n_levels <- length(unique(results$truncation_lower))
+  n_levels <- eta_bias_n_levels(results, n_terms)
   estimand <- if (n_terms == 1) {
     cli::format_inline("against a truth of {round(unname(x@truth), 3)}")
   } else {
@@ -1353,8 +1825,8 @@ method(diagnostic_headline, eta_bias_result) <- function(x) {
 
 method(print, eta_bias_result) <- function(x, ...) {
   results <- x@results
-  n_levels <- length(unique(results$truncation_lower))
   n_terms <- length(x@truth)
+  n_levels <- eta_bias_n_levels(results, n_terms)
 
   # A sweep reports the span of the bias over its levels; a single level reports
   # the one bias it read, beside the Monte Carlo error of that reading.
