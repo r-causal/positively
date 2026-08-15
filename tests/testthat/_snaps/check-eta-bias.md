@@ -78,19 +78,19 @@
       check_eta_bias(continuous, a, y, c(x1, x2), n_boot = 10)
     Condition
       Error in `check_eta_bias()`:
-      ! `check_eta_bias()` supports binary exposures only.
+      ! `check_eta_bias()` supports binary or categorical exposures only.
       i `.exposure` was detected as "continuous".
-      i If `.exposure` is binary, set `exposure_type = "binary"`.
+      i If `.exposure` is binary or categorical, set `exposure_type = "binary"` or `exposure_type = "categorical"`.
 
 ---
 
     Code
-      check_eta_bias(categorical, a, y, c(x1, x2), n_boot = 10)
+      check_eta_bias(one_level, a, y, c(x1, x2), exposure_type = "categorical",
+      n_boot = 10)
     Condition
       Error in `check_eta_bias()`:
-      ! `check_eta_bias()` supports binary exposures only.
-      i `.exposure` was detected as "categorical".
-      i If `.exposure` is binary, set `exposure_type = "binary"`.
+      ! `.exposure` must have at least two levels.
+      x It has 1 level.
 
 ---
 
@@ -200,4 +200,48 @@
       writeLines(diagnostic_headline(res))
     Output
       ipw estimator against a truth of 0.623; ETA.Bias -0.003 (MC SE 0.022) from 50 bootstrap draws
+
+# reference_level rejects an unknown or non-scalar level
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), exposure_type = "categorical",
+      reference_level = "zzz", n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `reference_level` must be one of the exposure's levels.
+      x "zzz" is not among "a", "b", and "c".
+
+---
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), exposure_type = "categorical",
+      reference_level = c("a", "b"), n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `reference_level` must be a single value.
+
+# the two-sided truncation bound is rejected past two levels
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), truncation = c(0.05, 0.95), n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `truncation` bounds a fitted probability from both sides, which describes a two-level exposure only.
+      x `.exposure` has 3 levels.
+      i Use `truncation_grid` to raise every level from below.
+
+# a multi-term run prints one reading per term
+
+    Code
+      print(res)
+    Output
+      
+      -- ETA bias --------------------------------------------------------------------
+      Exposure: "a" (categorical)
+      Observations: 300
+      Estimator: ipw
+      Bootstrap draws: 50
+      Estimand terms: 2
+      ETA.Bias (b - a): 0.093 (MC SE 0.066)
+      ETA.Bias (c - a): 0.142 (MC SE 0.065)
 

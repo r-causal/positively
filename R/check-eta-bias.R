@@ -34,7 +34,7 @@ eta_bias_result <- new_class(
 #' Diagnose positivity bias with the parametric bootstrap (ETA.Bias)
 #'
 #' `check_eta_bias()` implements the ETA.Bias parametric-bootstrap diagnostic of
-#' Petersen et al. (2012) for binary point exposures. It estimates the bias that
+#' Petersen et al. (2012) for point exposures. It estimates the bias that
 #' a chosen causal estimator would incur under the data's own fitted treatment
 #' and outcome mechanisms, isolating the component of bias that stems from
 #' positivity violations, weight truncation, and finite-sample sparsity.
@@ -92,9 +92,10 @@ eta_bias_result <- new_class(
 #' flag for a fitted mechanism, not a bias correction.
 #'
 #' @param .data A data frame.
-#' @param .exposure The binary exposure column, selected with data-masking.
-#'   `check_eta_bias()` aborts unless the exposure has exactly two distinct
-#'   values, whether that type is detected or declared through `exposure_type`.
+#' @param .exposure The exposure column, selected with data-masking. A binary
+#'   exposure has exactly two distinct values; a categorical exposure has as
+#'   many levels as it has distinct values, and every non-reference level is
+#'   contrasted against the reference.
 #' @param .outcome The outcome column, selected with data-masking.
 #' @param .covariates The covariate columns, selected with tidyselect. Numeric,
 #'   logical, factor, and character covariates are all supported. The fitted
@@ -112,35 +113,45 @@ eta_bias_result <- new_class(
 #'   exposure and covariates. Terms that recompute a data-dependent basis from
 #'   the exposure column (for example `poly()` of the exposure) are not
 #'   supported, because the counterfactual predictions rebuild the design with
-#'   the exposure set to 0 or 1.
+#'   the exposure set to each of its levels in turn.
 #' @param outcome_type One of `"auto"` (detect from the outcome, the default),
 #'   `"continuous"`, or `"binary"`.
 #' @param truncation An optional length-two numeric vector `c(lower, upper)`
 #'   bounding the fitted propensity for a single run. `NULL` (the default)
-#'   applies no truncation.
+#'   applies no truncation. A pair of bounds describes the one-dimensional
+#'   simplex of a two-level exposure, so it applies to binary exposures only and
+#'   is an error past two levels.
 #' @param truncation_grid An optional numeric vector of lower bounds, each in
-#'   `[0, 0.5)`. Each becomes a swept truncation level `c(lower, 1 - lower)`, and
-#'   all levels share one set of bootstrap draws. Overrides `truncation`.
+#'   `[0, 1/k)` for an exposure with `k` levels, which is `[0, 0.5)` for a binary
+#'   exposure. All levels share one set of bootstrap draws, and the grid
+#'   overrides `truncation`. What a bound means depends on the number of levels:
+#'   at two levels it becomes the swept truncation level `c(lower, 1 - lower)`,
+#'   and past two it raises every fitted probability below it and renormalizes
+#'   each row, leaving no upper bound to apply or report.
 #' @param n_boot The number of bootstrap datasets. Defaults to `500`. Must be at
 #'   least 2, since the Monte Carlo standard error needs two draws.
 #' @param error_dist The bootstrap error model for continuous outcomes, one of
 #'   `"normal"` (add Gaussian noise matched to the residual standard deviation,
 #'   the default) or `"empirical"` (resample residuals). Ignored for binary
 #'   outcomes.
-#' @param exposure_type One of `"auto"` (detect from the data, the default) or
-#'   `"binary"`. A supplied type is authoritative and detection is not consulted,
-#'   so `"binary"` is rejected only when the exposure column does not have
-#'   exactly two distinct values. Declaring it unlocks no call that `"auto"`
-#'   would refuse, since detection reads any two-valued column as binary; it is
-#'   accepted so that every diagnostic takes the same argument.
+#' @param exposure_type One of `"auto"` (detect from the data, the default),
+#'   `"binary"`, or `"categorical"`. A supplied type is authoritative and
+#'   detection is not consulted, so it is rejected only when the exposure column
+#'   cannot carry it: `"binary"` needs exactly two distinct values, and
+#'   `"categorical"` needs nothing beyond the two levels every run needs. What
+#'   the run does with the type is decided by the number of levels, so declaring
+#'   `"categorical"` on a two-level column returns the binary run unchanged.
+#' @param reference_level The exposure level every contrast is taken against.
+#'   `NULL` (the default) takes the first level, which is the lower of the two
+#'   values for a binary exposure and the first factor level otherwise.
 #'
 #' @return An `eta_bias_result` object, an S7 subclass of
 #'   [positivity_diagnostic]. Its `@results` tibble has one row per estimand term
 #'   and truncation level, with the columns `term`, `truncation_lower`,
 #'   `truncation_upper`, `bias` (ETA.Bias), `mc_se` (the Monte Carlo standard
 #'   error), and `boot_mean` (the mean bootstrap estimate), in that order. `term`
-#'   names the estimand contrast as `<level> - <reference level>`, so a binary
-#'   exposure has the single term `"1 - 0"`. The object also carries the
+#'   names the estimand contrast as `<level> - <reference level>`, so an exposure
+#'   coded 0/1 has the single term `"1 - 0"`. The object also carries the
 #'   properties `@estimator`, `@truth` (a named numeric vector holding one truth
 #'   per term), and `@boot_estimates` (a list of bootstrap-estimate vectors, one
 #'   per row of `@results`).
@@ -184,7 +195,8 @@ check_eta_bias <- function(
   truncation_grid = NULL,
   n_boot = 500,
   error_dist = c("normal", "empirical"),
-  exposure_type = c("auto", "binary")
+  exposure_type = c("auto", "binary", "categorical"),
+  reference_level = NULL
 ) {
   validate_data_frame(.data)
   estimator <- resolve_arg_match(rlang::arg_match(estimator))
@@ -227,9 +239,9 @@ check_eta_bias <- function(
   validate_eta_covariates(.data, covariate_names)
   validate_numeric_columns(.data, outcome_name, ".outcome")
 
-  # The exposure is not required to be numeric: a two-level factor, character,
-  # or logical column is a valid binary exposure, matching check_extrapolation().
-  # Only missingness and a binary type are enforced here.
+  # The exposure is not required to be numeric: a factor, character, or logical
+  # column is a valid discrete exposure, matching check_extrapolation(). Only
+  # missingness and the resolved type are enforced here.
   exposure_vec <- .data[[exposure_pos]]
   if (anyNA(exposure_vec)) {
     abort(
@@ -238,13 +250,10 @@ check_eta_bias <- function(
     )
   }
 
-  # exposure_type grants no new capability here: detect_exposure_type() reads any
-  # two-valued column as binary, so declaring "binary" can never unlock a call
-  # that "auto" rejects. It is accepted so that every diagnostic takes the same
-  # argument. Resolving through resolve_exposure_type() is not inert, though: the
-  # resolved type is checked against the column on both paths, and a one-level
-  # factor, which detection also calls binary, would otherwise take eta_spec()'s
-  # factor coding to all zeros and yield a finite, unwarned, meaningless bias.
+  # The resolved type is checked against the column on both paths, which is what
+  # rules out a one-level factor: detection reads it as binary, and eta_spec()
+  # would otherwise code its single level to 0, leaving a treatment mechanism
+  # with no second arm and a finite, unwarned, meaningless bias.
   exposure_type <- resolve_exposure_type(
     exposure_type,
     exposure_vec,
@@ -252,7 +261,11 @@ check_eta_bias <- function(
     fn = "check_eta_bias"
   )
 
-  spec <- eta_spec(exposure_vec, exposure_type)
+  spec <- eta_spec(
+    exposure_vec,
+    exposure_type,
+    reference_level = reference_level
+  )
 
   # The truncation bounds are resolved after the exposure type, because the
   # largest usable lower bound depends on the number of levels.
@@ -323,7 +336,8 @@ check_eta_bias <- function(
       error_dist = error_dist,
       n_boot = n_boot,
       truncation = truncation,
-      truncation_grid = truncation_grid
+      truncation_grid = truncation_grid,
+      reference_level = reference_level
     ),
     call = rlang::current_call(),
     estimator = estimator,
@@ -336,14 +350,20 @@ check_eta_bias <- function(
 
 #' Resolve the truncation levels for a run or a sweep
 #'
-#' Returns the per-level lower and upper propensity bounds. A `truncation_grid`
-#' takes precedence and expands each lower bound to `c(lower, 1 - lower)`. A
-#' single `truncation` bound is honoured verbatim. When both are `NULL` the run
-#' spans the whole unit interval, `c(0, 1)`.
+#' Returns the per-level lower and upper probability bounds. A `truncation_grid`
+#' takes precedence, a single `truncation` bound is honoured verbatim, and when
+#' both are `NULL` the run applies no truncation.
+#'
+#' The upper bound belongs to two levels alone. There the simplex is
+#' one-dimensional, so a lower bound on one level is an upper bound on the other
+#' and a grid point expands to `c(lower, 1 - lower)`. Past two levels truncation
+#' raises every level from below and renormalizes, which leaves no upper bound to
+#' apply and none to report, so the upper bound is `NA_real_` at every level.
 #'
 #' @param truncation A length-two bound or `NULL`.
 #' @param truncation_grid A vector of lower bounds or `NULL`.
-#' @param k The number of exposure levels, which caps each lower bound.
+#' @param k The number of exposure levels, which caps each lower bound and
+#'   decides whether an upper bound means anything.
 #'
 #' @return A list with numeric vectors `lower` and `upper`, one entry per level.
 #' @keywords internal
@@ -354,14 +374,32 @@ resolve_truncation_levels <- function(
   k = 2L,
   call = rlang::caller_env()
 ) {
+  two_sided <- k == 2
   if (!is.null(truncation_grid)) {
     validate_truncation_grid(truncation_grid, k = k, call = call)
-    list(lower = truncation_grid, upper = 1 - truncation_grid)
+    upper <- if (two_sided) {
+      1 - truncation_grid
+    } else {
+      rep(NA_real_, length(truncation_grid))
+    }
+    list(lower = truncation_grid, upper = upper)
   } else if (!is.null(truncation)) {
+    if (!two_sided) {
+      abort(
+        c(
+          "{.arg truncation} bounds a fitted probability from both sides, which
+           describes a two-level exposure only.",
+          x = "{.arg .exposure} has {k} levels.",
+          i = "Use {.arg truncation_grid} to raise every level from below."
+        ),
+        error_class = "positively_args_error",
+        call = call
+      )
+    }
     validate_truncation(truncation, call = call)
     list(lower = truncation[[1]], upper = truncation[[2]])
   } else {
-    list(lower = 0, upper = 1)
+    list(lower = 0, upper = if (two_sided) 1 else NA_real_)
   }
 }
 
@@ -517,6 +555,19 @@ eta_spec <- function(
 ) {
   exposure_factor <- factor(exposure_vec)
   labels <- levels(exposure_factor)
+  # A declared categorical type imposes no structure of its own, so a one-level
+  # column reaches here whenever it was declared rather than detected. There is
+  # no contrast to take against the only level there is.
+  if (length(labels) < 2) {
+    abort(
+      c(
+        "{.arg .exposure} must have at least two levels.",
+        x = "It has {length(labels)} level{?s}."
+      ),
+      error_class = "positively_exposure_type_error",
+      call = call
+    )
+  }
   reference <- resolve_reference_level(reference_level, labels, call = call)
 
   # Codes run 0 to K-1 in level order, so a binary exposure keeps the 0/1 coding
@@ -568,6 +619,49 @@ resolve_reference_level <- function(
     )
   }
   index
+}
+
+#' Code an exposure as level indicators
+#'
+#' The `n` by `K` matrix of indicators for the levels of `spec$grid`, in that
+#' order. The treatment mechanism takes the whole matrix as its multinomial
+#' response, and `eta_exposure_design()` takes every column but the first as the
+#' saturated coding of the exposure in the outcome regression.
+#'
+#' Which column the design drops is a choice of parameterization and not of
+#' estimand: any full-rank coding of a saturated factor gives the same fit and
+#' the same counterfactual predictions, so `reference_level` bears on the
+#' contrasts alone.
+#'
+#' @param a The exposure codes.
+#' @param spec The exposure specification from `eta_spec()`.
+#'
+#' @return An `n` by `K` numeric matrix of zeros and ones.
+#' @keywords internal
+#' @noRd
+eta_exposure_indicator <- function(a, spec) {
+  indicators <- vapply(
+    spec$grid,
+    function(value) as.double(a == value),
+    numeric(length(a))
+  )
+  matrix(indicators, nrow = length(a), ncol = spec$k)
+}
+
+#' Code an exposure for the outcome regression's design matrix
+#'
+#' Drops the first level's indicator, leaving the `K - 1` columns a saturated
+#' factor contributes to a design that already carries an intercept. A two-level
+#' exposure is coded 0 and 1, so its one remaining indicator is the exposure
+#' itself and the design is the one the binary path has always built.
+#'
+#' @inheritParams eta_exposure_indicator
+#'
+#' @return An `n` by `K - 1` numeric matrix.
+#' @keywords internal
+#' @noRd
+eta_exposure_design <- function(a, spec) {
+  eta_exposure_indicator(a, spec)[, -1L, drop = FALSE]
 }
 
 #' Bound a probability matrix away from zero
@@ -837,12 +931,40 @@ eta_fitters <- function(
   }
 }
 
+#' Fit a multinomial logit treatment mechanism
+#'
+#' The treatment mechanism past two levels, wrapped so that it returns the same
+#' `n` by `K` matrix of fitted probabilities the two-level path returns, in
+#' `spec$grid` order. [nnet::multinom()] writes an iteration trace to the console
+#' unless `trace` is off, and this runs once per bootstrap draw.
+#'
+#' The response is an indicator matrix rather than a factor because
+#' [nnet::multinom()] drops a level no row holds, which a bootstrap resample of a
+#' sparse arm can produce, and returns one column too few for the caller to read.
+#' An indicator response keeps every column, and a level no row holds takes a
+#' fitted probability near zero, which is the reading that draw has earned.
+#'
+#' @param formula The treatment-model formula, whose response is the indicator
+#'   matrix of exposure levels.
+#' @param frame A list or data frame holding the response and the predictors.
+#' @param n The number of rows.
+#' @param k The number of exposure levels.
+#'
+#' @return An `n` by `k` matrix of fitted probabilities.
+#' @keywords internal
+#' @noRd
+eta_multinom_probs <- function(formula, frame, n, k) {
+  fit <- nnet::multinom(formula, data = frame, trace = FALSE)
+  matrix(stats::fitted(fit), nrow = n, ncol = k)
+}
+
 #' Fast matrix fitters for the default main-effects models
 #'
-#' Fits the logistic treatment model and the outcome model by [stats::glm.fit()]
-#' on prebuilt design matrices, avoiding the per-draw cost of building a data
-#' frame and parsing a formula. This is the path a default run with numeric
-#' covariates takes.
+#' Fits the treatment model and the outcome model on prebuilt design matrices,
+#' avoiding the per-draw cost of building a data frame and parsing a formula.
+#' This is the path a default run with numeric covariates takes. The outcome
+#' model is a [stats::glm.fit()] throughout; the treatment model is a two-level
+#' [stats::glm.fit()] or the multinomial logit of `eta_multinom_probs()`.
 #'
 #' @param x_cov The observed covariate matrix, `n` by `q`.
 #' @param q_family The outcome-model family.
@@ -862,16 +984,25 @@ eta_fitters_matrix <- function(x_cov, q_family, spec) {
   # glm.fit returns NA coefficients for aliased (constant or collinear) columns.
   # Zeroing them reproduces the aliased-column predictions that stats::glm()
   # makes on the formula path, so the two paths agree on rank-deficient designs.
-  fit_ps <- function(design, response) {
-    coef <- suppressWarnings(
-      stats::glm.fit(design, response, family = binomial_family)$coefficients
-    )
-    coef[is.na(coef)] <- 0
-    positive <- binomial_family$linkinv(drop(design %*% coef))
-    cbind(1 - positive, positive)
+  fit_ps <- if (spec$k == 2) {
+    function(design, exposure) {
+      coef <- suppressWarnings(
+        stats::glm.fit(design, exposure, family = binomial_family)$coefficients
+      )
+      coef[is.na(coef)] <- 0
+      positive <- binomial_family$linkinv(drop(design %*% coef))
+      cbind(1 - positive, positive)
+    }
+  } else {
+    function(design, exposure) {
+      # The response and the covariates enter as whole matrices, so the model
+      # frame holds two variables and no covariate name can collide with them.
+      frame <- list(.a = eta_exposure_indicator(exposure, spec), .x = design)
+      eta_multinom_probs(.a ~ .x - 1, frame, nrow(design), spec$k)
+    }
   }
   fit_q <- function(x_cov_rows, exposure, response) {
-    design <- cbind(intercept, exposure, x_cov_rows)
+    design <- cbind(intercept, eta_exposure_design(exposure, spec), x_cov_rows)
     fit <- suppressWarnings(
       stats::glm.fit(design, response, family = q_family)
     )
@@ -880,7 +1011,12 @@ eta_fitters_matrix <- function(x_cov, q_family, spec) {
     counterfactual <- vapply(
       spec$grid,
       function(value) {
-        q_family$linkinv(drop(cbind(intercept, value, x_cov_rows) %*% coef))
+        at_value <- cbind(
+          intercept,
+          eta_exposure_design(rep_len(value, n), spec),
+          x_cov_rows
+        )
+        q_family$linkinv(drop(at_value %*% coef))
       },
       numeric(nrow(x_cov_rows))
     )
@@ -890,7 +1026,8 @@ eta_fitters_matrix <- function(x_cov, q_family, spec) {
   observed <- function(a, y) {
     gmat <- fit_ps(cbind(intercept, x_cov), a)
     q <- fit_q(x_cov, a, y)
-    fitted_y <- q_family$linkinv(drop(cbind(intercept, a, x_cov) %*% q$coef))
+    design <- cbind(intercept, eta_exposure_design(a, spec), x_cov)
+    fitted_y <- q_family$linkinv(drop(design %*% q$coef))
     residuals <- y - fitted_y
     # Residual degrees of freedom count estimated parameters only. An aliased
     # column contributes no estimated parameter, so it does not deflate sigma,
@@ -921,8 +1058,10 @@ eta_fitters_matrix <- function(x_cov, q_family, spec) {
 #' design matrix with [stats::glm.fit()], rebuilding the model frame on each
 #' bootstrap dataset. Fitting the design directly, rather than through
 #' [stats::glm()], avoids dropping unused factor levels, so a resample missing a
-#' rare level keeps its design column instead of aborting. Used only when the
-#' user overrides a model formula or supplies a non-numeric covariate.
+#' rare level keeps its design column instead of aborting. [nnet::multinom()],
+#' which the treatment model takes past two levels, leaves them undropped
+#' already. Used only when the user overrides a model formula or supplies a
+#' non-numeric covariate.
 #'
 #' @inheritParams eta_bias_bootstrap
 #'
@@ -946,9 +1085,17 @@ eta_fitters_formula <- function(
     if (is.character(column)) factor(column) else column
   })
 
+  # Past two levels the outcome model needs the exposure expanded into level
+  # indicators, which stats::model.matrix() does for a factor and not for the
+  # numeric codes. Two levels keep the numeric coding, whose one indicator is
+  # the code itself.
+  exposure_column <- function(values) {
+    if (spec$k == 2) values else factor(values, levels = spec$grid)
+  }
+
   assemble <- function(exposure, response) {
     frame <- covariates
-    frame[[exposure_name]] <- exposure
+    frame[[exposure_name]] <- exposure_column(exposure)
     frame[[outcome_name]] <- response
     frame
   }
@@ -988,21 +1135,44 @@ eta_fitters_formula <- function(
     as.double(fit$family$linkinv(eta))
   }
 
-  fit_pair <- function(frame) {
-    ps_fit <- fit_glm(formulas$exposure, frame, binomial_family)
+  # The treatment model's response is the exposure itself, so the multinomial
+  # fit reads the level indicators from a frame of its own rather than the shared
+  # one, whose exposure column is coded for the outcome model.
+  fit_ps <- if (spec$k == 2) {
+    function(frame, exposure) {
+      ps_fit <- fit_glm(formulas$exposure, frame, binomial_family)
+      positive <- predict_fit(ps_fit, frame)
+      cbind(1 - positive, positive)
+    }
+  } else {
+    function(frame, exposure) {
+      ps_frame <- as.list(frame)
+      ps_frame[[exposure_name]] <- eta_exposure_indicator(exposure, spec)
+      eta_multinom_probs(
+        formulas$exposure,
+        ps_frame,
+        nrow(frame),
+        spec$k
+      )
+    }
+  }
+
+  fit_pair <- function(frame, exposure) {
+    gmat <- fit_ps(frame, exposure)
     q_fit <- fit_glm(formulas$outcome, frame, q_family)
-    positive <- predict_fit(ps_fit, frame)
     counterfactual <- vapply(
       spec$grid,
       function(value) {
         counterfactual_frame <- frame
-        counterfactual_frame[[exposure_name]] <- value
+        counterfactual_frame[[exposure_name]] <- exposure_column(
+          rep_len(value, nrow(frame))
+        )
         predict_fit(q_fit, counterfactual_frame)
       },
       numeric(nrow(frame))
     )
     list(
-      gmat = cbind(1 - positive, positive),
+      gmat = gmat,
       qmat = counterfactual,
       q_fit = q_fit
     )
@@ -1010,7 +1180,7 @@ eta_fitters_formula <- function(
 
   observed <- function(a, y) {
     frame <- assemble(a, y)
-    fit <- fit_pair(frame)
+    fit <- fit_pair(frame, a)
     residuals <- y - predict_fit(fit$q_fit, frame)
     list(
       gmat = fit$gmat,
@@ -1023,7 +1193,7 @@ eta_fitters_formula <- function(
   refit <- function(idx, a_star, y_star) {
     frame <- assemble(a_star, y_star)
     frame[seq_along(covariates)] <- covariates[idx, , drop = FALSE]
-    fit <- fit_pair(frame)
+    fit <- fit_pair(frame, a_star)
     list(gmat = fit$gmat, qmat = fit$qmat)
   }
 
@@ -1133,20 +1303,26 @@ method(diagnostic_label, eta_bias_result) <- function(x) {
 method(diagnostic_headline, eta_bias_result) <- function(x) {
   results <- x@results
   n_terms <- length(x@truth)
+  n_levels <- length(unique(results$truncation_lower))
   estimand <- if (n_terms == 1) {
     cli::format_inline("against a truth of {round(unname(x@truth), 3)}")
   } else {
     cli::format_inline("across {n_terms} estimand term{?s}")
   }
+  span <- round(range(results$bias), 3)
   # The bias belongs to an estimator under a truncation rule rather than to the
   # data, so the estimator is named alongside it.
   if (nrow(results) == 1) {
     cli::format_inline(
       "{x@estimator} estimator {estimand}; ETA.Bias {round(results$bias, 3)} (MC SE {round(results$mc_se, 3)}) from {x@params$n_boot} bootstrap draw{?s}"
     )
+  } else if (n_levels == 1) {
+    # More than one row over one truncation level is a range across terms, and
+    # naming the one level it was read at would report a sweep that never ran.
+    cli::format_inline(
+      "{x@estimator} estimator {estimand}; ETA.Bias {span[[1]]} to {span[[2]]}"
+    )
   } else {
-    span <- round(range(results$bias), 3)
-    n_levels <- length(unique(results$truncation_lower))
     cli::format_inline(
       "{x@estimator} estimator {estimand}; ETA.Bias {span[[1]]} to {span[[2]]} over {n_levels} truncation level{?s}"
     )
@@ -1157,6 +1333,21 @@ method(print, eta_bias_result) <- function(x, ...) {
   results <- x@results
   n_levels <- length(unique(results$truncation_lower))
   n_terms <- length(x@truth)
+
+  # A sweep reports the span of the bias over its levels; a single level reports
+  # the one bias it read, beside the Monte Carlo error of that reading.
+  reading <- function(rows) {
+    if (n_levels == 1) {
+      cli::format_inline(
+        "{round(rows$bias, 3)} (MC SE {round(rows$mc_se, 3)})"
+      )
+    } else {
+      cli::format_inline(
+        "{round(min(rows$bias), 3)} to {round(max(rows$bias), 3)}"
+      )
+    }
+  }
+
   cat_cli({
     cli::cli_h1("{diagnostic_label(x)}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")
@@ -1168,15 +1359,18 @@ method(print, eta_bias_result) <- function(x, ...) {
     } else {
       cli::cli_text("Estimand terms: {n_terms}")
     }
-    if (nrow(results) == 1) {
-      cli::cli_text(
-        "ETA.Bias: {round(results$bias, 3)} (MC SE {round(results$mc_se, 3)})"
-      )
-    } else {
+    if (n_levels > 1) {
       cli::cli_text("Truncation levels: {n_levels}")
-      cli::cli_text(
-        "ETA.Bias: {round(min(results$bias), 3)} to {round(max(results$bias), 3)}"
-      )
+    }
+    # Each term is its own estimand with its own truth, so a run of several
+    # states each one rather than a span over quantities that are not comparable.
+    if (n_terms == 1) {
+      cli::cli_text("ETA.Bias: {reading(results)}")
+    } else {
+      for (term in unique(results$term)) {
+        term_reading <- reading(results[results$term == term, ])
+        cli::cli_text("ETA.Bias ({term}): {term_reading}")
+      }
     }
   })
   invisible(x)

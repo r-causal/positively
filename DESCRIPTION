@@ -23,6 +23,7 @@ Imports:
     cli,
     generics,
     ggplot2,
+    nnet,
     purrr,
     rlang,
     rpart,

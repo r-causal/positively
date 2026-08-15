@@ -17,15 +17,17 @@ check_eta_bias(
   truncation_grid = NULL,
   n_boot = 500,
   error_dist = c("normal", "empirical"),
-  exposure_type = c("auto", "binary")
+  exposure_type = c("auto", "binary", "categorical"),
+  reference_level = NULL
 )
 }
 \arguments{
 \item{.data}{A data frame.}
 
-\item{.exposure}{The binary exposure column, selected with data-masking.
-\code{check_eta_bias()} aborts unless the exposure has exactly two distinct
-values, whether that type is detected or declared through \code{exposure_type}.}
+\item{.exposure}{The exposure column, selected with data-masking. A binary
+exposure has exactly two distinct values; a categorical exposure has as
+many levels as it has distinct values, and every non-reference level is
+contrasted against the reference.}
 
 \item{.outcome}{The outcome column, selected with data-masking.}
 
@@ -48,18 +50,24 @@ the covariates.}
 exposure and covariates. Terms that recompute a data-dependent basis from
 the exposure column (for example \code{poly()} of the exposure) are not
 supported, because the counterfactual predictions rebuild the design with
-the exposure set to 0 or 1.}
+the exposure set to each of its levels in turn.}
 
 \item{outcome_type}{One of \code{"auto"} (detect from the outcome, the default),
 \code{"continuous"}, or \code{"binary"}.}
 
 \item{truncation}{An optional length-two numeric vector \code{c(lower, upper)}
 bounding the fitted propensity for a single run. \code{NULL} (the default)
-applies no truncation.}
+applies no truncation. A pair of bounds describes the one-dimensional
+simplex of a two-level exposure, so it applies to binary exposures only and
+is an error past two levels.}
 
 \item{truncation_grid}{An optional numeric vector of lower bounds, each in
-\verb{[0, 0.5)}. Each becomes a swept truncation level \code{c(lower, 1 - lower)}, and
-all levels share one set of bootstrap draws. Overrides \code{truncation}.}
+\verb{[0, 1/k)} for an exposure with \code{k} levels, which is \verb{[0, 0.5)} for a binary
+exposure. All levels share one set of bootstrap draws, and the grid
+overrides \code{truncation}. What a bound means depends on the number of levels:
+at two levels it becomes the swept truncation level \code{c(lower, 1 - lower)},
+and past two it raises every fitted probability below it and renormalizes
+each row, leaving no upper bound to apply or report.}
 
 \item{n_boot}{The number of bootstrap datasets. Defaults to \code{500}. Must be at
 least 2, since the Monte Carlo standard error needs two draws.}
@@ -69,12 +77,17 @@ least 2, since the Monte Carlo standard error needs two draws.}
 the default) or \code{"empirical"} (resample residuals). Ignored for binary
 outcomes.}
 
-\item{exposure_type}{One of \code{"auto"} (detect from the data, the default) or
-\code{"binary"}. A supplied type is authoritative and detection is not consulted,
-so \code{"binary"} is rejected only when the exposure column does not have
-exactly two distinct values. Declaring it unlocks no call that \code{"auto"}
-would refuse, since detection reads any two-valued column as binary; it is
-accepted so that every diagnostic takes the same argument.}
+\item{exposure_type}{One of \code{"auto"} (detect from the data, the default),
+\code{"binary"}, or \code{"categorical"}. A supplied type is authoritative and
+detection is not consulted, so it is rejected only when the exposure column
+cannot carry it: \code{"binary"} needs exactly two distinct values, and
+\code{"categorical"} needs nothing beyond the two levels every run needs. What
+the run does with the type is decided by the number of levels, so declaring
+\code{"categorical"} on a two-level column returns the binary run unchanged.}
+
+\item{reference_level}{The exposure level every contrast is taken against.
+\code{NULL} (the default) takes the first level, which is the lower of the two
+values for a binary exposure and the first factor level otherwise.}
 }
 \value{
 An \code{eta_bias_result} object, an S7 subclass of
@@ -82,8 +95,8 @@ An \code{eta_bias_result} object, an S7 subclass of
 and truncation level, with the columns \code{term}, \code{truncation_lower},
 \code{truncation_upper}, \code{bias} (ETA.Bias), \code{mc_se} (the Monte Carlo standard
 error), and \code{boot_mean} (the mean bootstrap estimate), in that order. \code{term}
-names the estimand contrast as \verb{<level> - <reference level>}, so a binary
-exposure has the single term \code{"1 - 0"}. The object also carries the
+names the estimand contrast as \verb{<level> - <reference level>}, so an exposure
+coded 0/1 has the single term \code{"1 - 0"}. The object also carries the
 properties \verb{@estimator}, \verb{@truth} (a named numeric vector holding one truth
 per term), and \verb{@boot_estimates} (a list of bootstrap-estimate vectors, one
 per row of \verb{@results}).
@@ -98,7 +111,7 @@ count is what decides this, not the argument used, so a length-one
 }
 \description{
 \code{check_eta_bias()} implements the ETA.Bias parametric-bootstrap diagnostic of
-Petersen et al. (2012) for binary point exposures. It estimates the bias that
+Petersen et al. (2012) for point exposures. It estimates the bias that
 a chosen causal estimator would incur under the data's own fitted treatment
 and outcome mechanisms, isolating the component of bias that stems from
 positivity violations, weight truncation, and finite-sample sparsity.

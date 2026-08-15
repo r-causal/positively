@@ -167,16 +167,6 @@ test_that("check_eta_bias() aborts on a continuous exposure", {
   )
 })
 
-test_that("check_eta_bias() aborts on a categorical exposure", {
-  local_quiet()
-  data <- sim_eta_good(n = 120, seed = 1)
-  data$a <- factor(sample(c("a", "b", "c"), nrow(data), replace = TRUE))
-  expect_error(
-    check_eta_bias(data, a, y, c(x1, x2), n_boot = 10),
-    class = "positively_error"
-  )
-})
-
 test_that("check_eta_bias() rejects an empty covariate selection", {
   local_quiet()
   data <- sim_eta_good(n = 100, seed = 1)
@@ -746,17 +736,19 @@ test_that("a declared binary type reproduces the auto path exactly", {
   expect_identical(declared@boot_estimates, auto@boot_estimates)
 })
 
-test_that("check_eta_bias() announces nothing on either exposure_type path", {
+test_that("check_eta_bias() announces the detected type and no declared one", {
   withr::local_options(positively.quiet = FALSE)
   data <- sim_eta_good(n = 300, seed = 1)
 
-  # check_eta_bias() supports one exposure type, so a returning call took the
-  # only path there is and the announcement would restate what the function
-  # already promises. A declared type does not announce, so both paths must be
-  # silent.
-  expect_no_message(fit_eta(data, "gcomp", n_boot = 10))
+  # Two supported types make the reading worth reporting: the announcement names
+  # which of the two branches detection sent the call down. A declared type is
+  # the caller's own statement read back, so it is not announced.
+  expect_message(fit_eta(data, "gcomp", n_boot = 10), "as binary")
   expect_no_message(
     fit_eta(data, "gcomp", exposure_type = "binary", n_boot = 10)
+  )
+  expect_no_message(
+    fit_eta(data, "gcomp", exposure_type = "categorical", n_boot = 10)
   )
 })
 
@@ -789,7 +781,9 @@ test_that("a constant exposure aborts on both the auto and declared paths", {
   # eta_spec() maps the single level to 0, leaving a treatment mechanism with no
   # treated arm and estimates that are degenerate rather than informative. Only
   # the structural requirement of the resolved type rules this out, and it rules
-  # it out whether the type was declared or inferred.
+  # it out whether the type was declared or inferred. A categorical exposure
+  # requires nothing structurally, so it is the level count that rejects it
+  # there.
   expect_identical(detect_exposure_type(data$a), "binary")
 
   expect_error(
@@ -803,6 +797,17 @@ test_that("a constant exposure aborts on both the auto and declared paths", {
       y,
       c(x1, x2),
       exposure_type = "binary",
+      n_boot = 10
+    ),
+    class = "positively_exposure_type_error"
+  )
+  expect_error(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      exposure_type = "categorical",
       n_boot = 10
     ),
     class = "positively_exposure_type_error"
@@ -825,7 +830,7 @@ test_that("check_eta_bias() rejects a type outside its supported menu", {
   )
   expect_match(
     conditionMessage(err),
-    '`exposure_type` must be one of "auto" or "binary", not "continuous".',
+    '`exposure_type` must be one of "auto", "binary", or "categorical", not "continuous".',
     fixed = TRUE
   )
 })
@@ -927,7 +932,9 @@ test_that("eta_bias_result has the fixed results columns", {
   res <- fit_eta(data, "ipw", n_boot = 50)
 
   expect_s3_class(res@results, "tbl_df")
-  expect_setequal(
+  # The order is pinned, not the set: the dimension column leads whatever the
+  # exposure type, so a binary run reads the same way a categorical one does.
+  expect_identical(
     names(res@results),
     c(
       "term",
@@ -1483,8 +1490,10 @@ test_that("the input and exposure validation messages are stable", {
   continuous <- good
   continuous$a <- stats::rnorm(nrow(continuous))
 
-  categorical <- good
-  categorical$a <- factor(sample(c("a", "b", "c"), nrow(categorical), TRUE))
+  # A three-level exposure is a run rather than a failure, so the exposure-shaped
+  # abort left to pin is the one level that no type can make an estimand out of.
+  one_level <- good
+  one_level$a <- factor(rep("a", nrow(one_level)))
 
   na_exposure <- good
   na_exposure$a[1] <- NA
@@ -1498,10 +1507,11 @@ test_that("the input and exposure validation messages are stable", {
     n_boot = 10
   ))
   expect_snapshot_abort(check_eta_bias(
-    categorical,
+    one_level,
     a,
     y,
     c(x1, x2),
+    exposure_type = "categorical",
     n_boot = 10
   ))
   expect_snapshot_abort(check_eta_bias(
@@ -1770,6 +1780,49 @@ test_that("every estimator returns finite categorical estimates", {
     expect_true(all(is.finite(res@results$mc_se)))
     expect_true(all(is.finite(res@truth)))
   }
+})
+
+test_that("the formula path serves a categorical exposure", {
+  local_quiet()
+  data <- sim_eta_categorical(n = 300, seed = 1)
+  matrix_path <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "categorical",
+    n_boot = 30
+  )
+  formula_path <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "categorical",
+    exposure_formula = a ~ x1 + x2,
+    outcome_formula = y ~ a + x1 + x2,
+    n_boot = 30
+  )
+
+  # Both paths hand the multinomial treatment model the same level indicators
+  # and the outcome model the same saturated coding of the exposure, so they fit
+  # the same two models on the same designs and agree exactly rather than
+  # closely.
+  expect_identical(formula_path@results, matrix_path@results)
+  expect_identical(formula_path@truth, matrix_path@truth)
+
+  # A factor covariate takes the formula path with no override to send it there.
+  data$region <- factor(rep(c("north", "south"), length.out = nrow(data)))
+  with_factor <- withr::with_seed(
+    2024,
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2, region),
+      estimator = "aipw",
+      exposure_type = "categorical",
+      n_boot = 30
+    )
+  )
+  expect_identical(unique(with_factor@results$term), c("b - a", "c - a"))
+  expect_true(all(is.finite(with_factor@results$bias)))
 })
 
 test_that("reference_level defaults to the first level and can be reset", {
