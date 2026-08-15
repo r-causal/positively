@@ -2599,3 +2599,313 @@ test_that("a sharp treatment mechanism inflates ipw and leaves gcomp flat", {
   # trade the binary truncation sweep reports.
   expect_gt(abs(bias_capped - bias_uncapped), 0.05)
 })
+
+# ---- Multi-term and continuous views ---------------------------------------
+# Two things about a multi-term or continuous run reach the figures. The
+# estimand gains a term dimension, so the views have to keep the terms apart
+# rather than overlay them, and a continuous run reports no probability bound,
+# so a truncation level is identified by the grid point that produced it rather
+# than by a lower bound that is missing at every level. The blocks below read
+# the built plot rather than the recorded image, so what they pin is the
+# structure the figures are drawn from.
+
+# The facet keys a built plot carries. ggplot2 spells its own layout bookkeeping
+# columns in upper case, so dropping those leaves the variables the faceting was
+# built on, whatever they are named.
+facet_keys <- function(built) {
+  layout <- built$layout$layout
+  layout[!grepl("^[A-Z_]+$", names(layout))]
+}
+
+# Built layers are read by what draws them rather than by the order they were
+# added in: points carry a shape, reference lines carry an intercept, and a
+# histogram carries a count.
+point_layer <- function(built) {
+  Filter(function(layer) "shape" %in% names(layer), built$data)[[1]]
+}
+
+xintercept_layer <- function(built) {
+  Filter(function(layer) "xintercept" %in% names(layer), built$data)[[1]]
+}
+
+histogram_layer <- function(built) {
+  Filter(function(layer) "count" %in% names(layer), built$data)[[1]]
+}
+
+# The bootstrap draws each panel of a built plot holds.
+draws_per_panel <- function(built) {
+  counts <- histogram_layer(built)
+  unname(vapply(split(counts$count, counts$PANEL), sum, numeric(1)))
+}
+
+# Every strip label a plot will draw, with the labeller already applied.
+strip_labels <- function(plot) {
+  as.character(unlist(ggplot2::get_strip_labels(plot)))
+}
+
+test_that("the categorical bootstrap view holds one facet per term and level", {
+  local_quiet()
+  skip_if_not_installed("nnet")
+  data <- sim_eta_categorical(n = 200, seed = 1)
+  res <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "categorical",
+    truncation_grid = c(0, 0.05, 0.1),
+    n_boot = 20
+  )
+
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(res, type = "bootstrap"))
+  keys <- facet_keys(built)
+
+  # Two terms across three levels is six cells, and each cell is a panel of its
+  # own: pooling a level's terms into one panel puts the bootstrap
+  # distributions of two different estimands in one histogram.
+  expect_identical(nrow(keys), 6L)
+  expect_identical(nrow(unique(keys)), 6L)
+  expect_true("term" %in% names(keys))
+  expect_setequal(as.character(keys$term), c("b - a", "c - a"))
+
+  # Every panel holds one cell's draws, so no panel counts a draw twice.
+  expect_identical(draws_per_panel(built), rep(20, 6L))
+})
+
+test_that("each categorical bootstrap facet marks its own term's truth", {
+  local_quiet()
+  skip_if_not_installed("nnet")
+  data <- sim_eta_categorical(n = 200, seed = 1)
+  res <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "categorical",
+    truncation_grid = c(0, 0.05, 0.1),
+    n_boot = 20
+  )
+
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(res, type = "bootstrap"))
+  layout <- built$layout$layout
+  truths <- xintercept_layer(built)
+
+  # The truth is per term, so one line per panel. A truth drawn from the whole
+  # named vector puts every term's line in every panel, which reads as a second
+  # target the panel's estimator was never aimed at.
+  expect_identical(nrow(truths), nrow(layout))
+  expect_true("term" %in% names(layout))
+
+  terms <- as.character(layout[["term"]])
+  for (panel in seq_along(terms)) {
+    drawn <- truths$xintercept[truths$PANEL == layout$PANEL[[panel]]]
+    expect_equal(drawn, res@truth[[terms[[panel]]]])
+  }
+})
+
+test_that("the categorical sweep view draws one line per term", {
+  local_quiet()
+  skip_if_not_installed("nnet")
+  data <- sim_eta_categorical(n = 200, seed = 1)
+  res <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "categorical",
+    truncation_grid = c(0, 0.05, 0.1),
+    n_boot = 20
+  )
+
+  plot <- ggplot2::autoplot(res, type = "sweep")
+  built <- ggplot2::ggplot_build(plot)
+  points <- point_layer(built)
+
+  # A categorical run sweeps a probability bound, so the axis is the one the
+  # binary sweep reads.
+  expect_identical(built$plot$labels$x, "Truncation lower bound")
+
+  # Terms are told apart by color, with a key that names them, rather than
+  # joined into one line that walks the grid once per term.
+  guide <- ggplot2::get_guide_data(plot, "colour")
+  expect_setequal(as.character(guide$.label), c("b - a", "c - a"))
+  expect_length(unique(points$colour), 2L)
+  expect_length(unique(points$group), 2L)
+
+  # Each term's line carries that term's bias across the grid.
+  for (term in unique(res@results$term)) {
+    rows <- res@results[res@results$term == term, ]
+    rows <- rows[order(rows$truncation_lower), ]
+    drawn <- points[points$colour %in% guide$colour[guide$.label == term], ]
+    drawn <- drawn[order(drawn$x), ]
+    expect_equal(drawn$x, rows$truncation_lower)
+    expect_equal(drawn$y, rows$bias)
+  }
+})
+
+test_that("a one-term binary sweep keeps its axis and draws no key", {
+  local_quiet()
+  data <- sim_eta_good(n = 200, seed = 1)
+  res <- fit_eta(
+    data,
+    "ipw",
+    truncation_grid = c(0, 0.05, 0.1),
+    n_boot = 20
+  )
+
+  plot <- ggplot2::autoplot(res, type = "sweep")
+  built <- ggplot2::ggplot_build(plot)
+
+  # A binary run sweeps a probability bound and holds one term, which needs no
+  # key to tell terms apart, so the term dimension leaves this figure as it is.
+  expect_identical(built$plot$labels$x, "Truncation lower bound")
+  expect_null(ggplot2::get_guide_data(plot, "colour"))
+  expect_equal(point_layer(built)$x, c(0, 0.05, 0.1))
+})
+
+test_that("the continuous sweep reads its axis from the truncation grid", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 200, seed = 1)
+  grid <- c(0, 0.05, 0.1)
+  res <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "continuous",
+    truncation_grid = grid,
+    n_boot = 20
+  )
+
+  plot <- ggplot2::autoplot(res, type = "sweep")
+  built <- ggplot2::ggplot_build(plot)
+  points <- point_layer(built)
+
+  # A continuous run caps a weight rather than bounding a probability, so the
+  # lower bound is missing at every level and the sweep is drawn against the
+  # grid points the caller swept. Reading the missing column leaves the panel
+  # empty.
+  expect_identical(res@params$truncation_grid, grid)
+  expect_false(anyNA(points$x))
+  expect_equal(points$x, grid)
+  expect_equal(points$y, res@results$bias)
+
+  # The axis names what it carries, which is a quantile of the weights rather
+  # than a probability bound.
+  expect_no_match(built$plot$labels$x, "Truncation lower bound", fixed = TRUE)
+  expect_match(built$plot$labels$x, "quantile", ignore.case = TRUE)
+})
+
+test_that("the continuous bootstrap view holds one facet per level", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 200, seed = 1)
+  res <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "continuous",
+    truncation_grid = c(0, 0.05, 0.1),
+    n_boot = 20
+  )
+
+  plot <- ggplot2::autoplot(res, type = "bootstrap")
+  built <- ggplot2::ggplot_build(plot)
+
+  # Three levels are three panels. Keying the facet on a bound a continuous run
+  # never reports collapses the three bootstrap distributions into one panel
+  # labeled for a missing value, which hides that the levels differ at all.
+  expect_identical(nrow(built$layout$layout), 3L)
+  expect_false(anyNA(unlist(facet_keys(built))))
+  expect_false(any(grepl("NA", strip_labels(plot), fixed = TRUE)))
+  expect_identical(draws_per_panel(built), rep(20, 3L))
+})
+
+test_that("the sweep view refuses a single-level multi-term or continuous run", {
+  local_quiet()
+  skip_if_not_installed("nnet")
+  categorical <- fit_eta(
+    sim_eta_categorical(n = 200, seed = 1),
+    "ipw",
+    exposure_type = "categorical",
+    n_boot = 20
+  )
+  continuous <- fit_eta(
+    sim_eta_continuous(n = 200, seed = 1),
+    "ipw",
+    exposure_type = "continuous",
+    n_boot = 20
+  )
+
+  # A multi-term run at one truncation level has one row per term and still no
+  # sweep to draw, so the refusal reads the level count rather than the row
+  # count, and it says what the binary refusal says.
+  expect_error(
+    ggplot2::autoplot(categorical, type = "sweep"),
+    "more than one level",
+    class = "positively_sweep_absent_error"
+  )
+  expect_error(
+    ggplot2::autoplot(continuous, type = "sweep"),
+    "more than one level",
+    class = "positively_sweep_absent_error"
+  )
+})
+
+test_that("plot() draws the multi-term and continuous views", {
+  local_quiet()
+  local_null_device()
+  skip_if_not_installed("nnet")
+  categorical <- fit_eta(
+    sim_eta_categorical(n = 200, seed = 1),
+    "ipw",
+    exposure_type = "categorical",
+    truncation_grid = c(0, 0.05, 0.1),
+    n_boot = 20
+  )
+  continuous <- fit_eta(
+    sim_eta_continuous(n = 200, seed = 1),
+    "ipw",
+    exposure_type = "continuous",
+    truncation_grid = c(0, 0.05, 0.1),
+    n_boot = 20
+  )
+
+  # Both entry points draw the same views, so the type argument reaches the
+  # multi-term and continuous shapes through the dots as it does the binary one.
+  expect_identical(plot(categorical, type = "bootstrap"), categorical)
+  expect_identical(plot(categorical, type = "sweep"), categorical)
+  expect_identical(plot(continuous, type = "bootstrap"), continuous)
+  expect_identical(plot(continuous, type = "sweep"), continuous)
+})
+
+test_that("the categorical ETA bias views render as expected", {
+  local_quiet()
+  announce_doppelganger(
+    "ETA bias categorical bootstrap grid",
+    "ETA bias categorical truncation sweep"
+  )
+  skip_if_not_installed("nnet")
+  res <- fit_eta(
+    sim_eta_categorical(n = 200, seed = 1),
+    "ipw",
+    exposure_type = "categorical",
+    truncation_grid = c(0, 0.05, 0.1),
+    n_boot = 20
+  )
+
+  expect_doppelganger(
+    "ETA bias categorical bootstrap grid",
+    ggplot2::autoplot(res, type = "bootstrap")
+  )
+  expect_doppelganger(
+    "ETA bias categorical truncation sweep",
+    ggplot2::autoplot(res, type = "sweep")
+  )
+})
+
+test_that("the continuous ETA bias sweep renders as expected", {
+  local_quiet()
+  res <- fit_eta(
+    sim_eta_continuous(n = 200, seed = 1),
+    "ipw",
+    exposure_type = "continuous",
+    truncation_grid = c(0, 0.05, 0.1),
+    n_boot = 20
+  )
+
+  expect_doppelganger(
+    "ETA bias continuous truncation sweep",
+    ggplot2::autoplot(res, type = "sweep")
+  )
+})
