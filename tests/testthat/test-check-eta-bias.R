@@ -2204,7 +2204,33 @@ test_that("a numeric exposure is detected and announced as continuous", {
   expect_identical(res@exposure_type, "continuous")
 })
 
+test_that("the stabilized weights are the ratio of two normal densities", {
+  data <- sim_eta_continuous(n = 200, seed = 1)
+  a <- data$a
+  design <- cbind(1, data$x1, data$x2)
+  fitted <- stats::glm.fit(design, a, family = stats::gaussian())$fitted.values
+  sigma <- sqrt(mean((a - fitted)^2))
+
+  internal <- eta_stabilized_weights(a, fitted, sigma)
+
+  # Both densities carry the maximum-likelihood variance rather than the n - 1
+  # estimate, on the numerator's marginal fit as much as the denominator's
+  # conditional one.
+  centre <- mean(a)
+  expect_equal(
+    internal,
+    stats::dnorm(a, centre, sqrt(mean((a - centre)^2))) /
+      stats::dnorm(a, fitted, sigma)
+  )
+})
+
 test_that("the stabilized weights match propensity::wt_ate()", {
+  # DESCRIPTION floors propensity at 0.1.0.9000 because 0.1.0 standardizes the
+  # stabilized ratio to Z-scores, dropping the 1/sigma constant from both
+  # densities, and agreement starts where they become normal densities in the
+  # exposure's own units. The constant cancels in every estimate the diagnostic
+  # reports, since the Hajek and weighted least squares forms are invariant to
+  # scaling the weights.
   skip_if_not_installed("propensity")
   data <- sim_eta_continuous(n = 200, seed = 1)
   a <- data$a
@@ -2228,16 +2254,6 @@ test_that("the stabilized weights match propensity::wt_ate()", {
       exposure_type = "continuous",
       stabilize = TRUE
     ))
-  )
-
-  # Both densities carry the maximum-likelihood variance rather than the n - 1
-  # estimate, on the numerator's marginal fit as much as the denominator's
-  # conditional one.
-  centre <- mean(a)
-  expect_equal(
-    internal,
-    stats::dnorm(a, centre, sqrt(mean((a - centre)^2))) /
-      stats::dnorm(a, fitted, sigma)
   )
 })
 
