@@ -2933,3 +2933,474 @@ test_that("the continuous ETA bias sweep renders as expected", {
     ggplot2::autoplot(res, type = "sweep")
   )
 })
+
+# ---- Function-valued estimators ---------------------------------------------
+# `estimator` also takes an estimator of the caller's own: a bare function, or a
+# named length-one list whose name labels it. The function is handed one
+# bootstrap dataset per draw, in the terms the caller supplied the data in, and
+# returns one number per estimand term. Nothing else about the run changes: the
+# truth is still G-computation under the observed fit, and the draws are
+# generated before any estimate is formed, so a function that spells a built-in
+# estimator out sees the same datasets that built-in sees and has to reproduce
+# it.
+
+# The three replicas below are those spellings. Each mirrors the arithmetic of
+# one built-in path in terms of the data frame the function receives, so a
+# disagreement with the built-in is a disagreement about the datasets, the
+# truth, or the summaries rather than about the estimator.
+
+# The stabilized-weight working-model slope, which is continuous `ipw`: a normal
+# treatment mechanism with the pooled maximum-likelihood residual spread, the
+# density ratio f(A) / f(A | W) under it, and the weighted least-squares fit of
+# the outcome on the working model linear in the exposure.
+replica_continuous_ipw <- function(.data) {
+  ps <- stats::lm(a ~ x1 + x2, data = .data)
+  fitted <- stats::fitted(ps)
+  sigma <- sqrt(mean(stats::residuals(ps)^2))
+  centre <- mean(.data$a)
+  weights <- stats::dnorm(.data$a, centre, sqrt(mean((.data$a - centre)^2))) /
+    stats::dnorm(.data$a, fitted, sigma)
+  design <- cbind(1, .data$a)
+  stats::lm.wfit(design, .data$y, weights)$coefficients[[2]]
+}
+
+# The per-level Hajek contrasts against the reference level, which is
+# categorical `ipw`, over a multinomial-logit treatment mechanism. The return is
+# unnamed, so it is read in term order.
+replica_categorical_ipw <- function(.data) {
+  fit <- nnet::multinom(a ~ x1 + x2, data = .data, trace = FALSE)
+  probabilities <- stats::fitted(fit)
+  mean_at <- function(label) {
+    weights <- (.data$a == label) / probabilities[, label]
+    sum(weights * .data$y) / sum(weights)
+  }
+  reference <- mean_at("a")
+  c(mean_at("b") - reference, mean_at("c") - reference)
+}
+
+# The G-computation contrast at two levels: an outcome regression, counterfactual
+# predictions with the exposure set to each level in turn, and the mean
+# difference. Reading the levels off the delivered column is what makes this a
+# statement about the exposure arriving as its own levels.
+replica_binary_gcomp <- function(.data) {
+  fit <- stats::lm(y ~ a + x1 + x2, data = .data)
+  labels <- levels(.data$a)
+  mean_at <- function(label) {
+    frame <- .data
+    frame$a <- factor(label, levels = labels)
+    mean(stats::predict(fit, newdata = frame))
+  }
+  mean_at(labels[[2]]) - mean_at(labels[[1]])
+}
+
+test_that("a bare function is accepted and labeled custom", {
+  local_quiet()
+  data <- sim_eta_good(n = 200, seed = 1)
+  # A constant estimator fixes every bootstrap estimate, so the summaries are
+  # determined and each one pins the arithmetic it is formed by rather than a
+  # realization of it.
+  res <- fit_eta(data, function(.data) 0.25, n_boot = 10)
+
+  expect_identical(res@estimator, "custom")
+  expect_identical(res@params$estimator, "custom")
+  expect_identical(generics::glance(res)$estimator, "custom")
+
+  expect_equal(res@boot_estimates[[1]], rep(0.25, 10))
+  expect_equal(res@results$boot_mean, 0.25)
+  expect_equal(res@results$mc_se, 0)
+  expect_equal(res@results$bias, 0.25 - unname(res@truth))
+
+  # The truth is G-computation under the observed fit, which no estimator has a
+  # say in, so it is the same number the built-in run reports.
+  expect_identical(res@truth, fit_eta(data, "gcomp", n_boot = 10)@truth)
+})
+
+test_that("a named list labels the estimator by its list name", {
+  local_quiet()
+  data <- sim_eta_good(n = 200, seed = 1)
+  res <- fit_eta(data, list(cbps = function(.data) 0.25), n_boot = 10)
+
+  expect_identical(res@estimator, "cbps")
+  expect_identical(res@params$estimator, "cbps")
+  expect_identical(generics::glance(res)$estimator, "cbps")
+  expect_match(printed_text(res), "Estimator: cbps", fixed = TRUE)
+
+  # The label is what the result carries. Holding the function would keep the
+  # caller's whole calling environment alive inside a result they saved for its
+  # numbers.
+  expect_false(any(vapply(res@params, is.function, logical(1))))
+})
+
+test_that("the estimator argument rejects every other shape", {
+  local_quiet()
+  data <- sim_eta_good(n = 80, seed = 1)
+  estimate <- function(.data) 0.25
+  # Every refusal below shares its condition class with the refusal the argument
+  # gives today for naming a function at all, so the message is what separates
+  # them. An argument that takes a function may not say it takes a character
+  # vector, and each refusal has to describe the form it was looking for.
+  refusal <- function(estimator) {
+    err <- expect_error(
+      check_eta_bias(
+        data,
+        a,
+        y,
+        c(x1, x2),
+        estimator = estimator,
+        n_boot = 10
+      ),
+      class = "positively_args_error"
+    )
+    message <- conditionMessage(err)
+    expect_no_match(message, "character vector", fixed = TRUE)
+    expect_match(message, "function", fixed = TRUE)
+    message
+  }
+
+  # A list carries the label, so a list without one names nothing. The message
+  # is bound before it is matched, because `expect_match()` evaluates its first
+  # argument twice and a second refusal would double every expectation above.
+  unnamed <- refusal(list(estimate))
+  expect_match(unnamed, "name", fixed = TRUE)
+  # One run diagnoses one estimator, so a list of two describes two runs.
+  refusal(list(cbps = estimate, tmle = estimate))
+  # A named list is a labeled function and not a labeled anything else.
+  refusal(list(cbps = "ipw"))
+  refusal(1)
+})
+
+test_that("the estimator function is called once per bootstrap draw", {
+  local_quiet()
+  data <- sim_eta_good(n = 200, seed = 1)
+  calls <- 0L
+  seen <- NULL
+  capture <- function(.data) {
+    calls <<- calls + 1L
+    if (is.null(seen)) {
+      seen <<- .data
+    }
+    0.25
+  }
+  fit_eta(data, capture, n_boot = 12)
+
+  expect_identical(calls, 12L)
+  expect_true(is.data.frame(seen))
+  expect_identical(nrow(seen), 200L)
+  # The covariates, the exposure, and the outcome, under the names the caller
+  # supplied them under and with nothing else alongside them.
+  expect_setequal(names(seen), c("a", "y", "x1", "x2"))
+
+  # The covariate rows are a resample of the observed ones, and the exposure and
+  # outcome are drawn from the fitted mechanisms rather than carried over.
+  expect_true(all(seen$x1 %in% data$x1))
+  expect_true(all(seen$x2 %in% data$x2))
+  expect_false(identical(as.character(seen$a), as.character(data$a)))
+  expect_false(identical(seen$y, data$y))
+
+  # A two-level exposure arrives as its own levels, which is a factor of the two
+  # observed values rather than the codes the treatment mechanism is fitted on.
+  expect_s3_class(seen$a, "factor")
+  expect_identical(levels(seen$a), c("0", "1"))
+})
+
+test_that("a categorical exposure reaches the function as its original levels", {
+  local_quiet()
+  skip_if_not_installed("nnet")
+  data <- sim_eta_categorical(n = 200, seed = 1)
+  seen <- NULL
+  capture <- function(.data) {
+    if (is.null(seen)) {
+      seen <<- .data
+    }
+    c(0.25, 0.5)
+  }
+  fit_eta(data, capture, exposure_type = "categorical", n_boot = 5)
+
+  # The labels, not the 0-based codes the multinomial mechanism is fitted on,
+  # and every level the observed exposure holds even where a draw missed one.
+  expect_s3_class(seen$a, "factor")
+  expect_identical(levels(seen$a), c("a", "b", "c"))
+  expect_true(all(as.character(seen$a) %in% c("a", "b", "c")))
+})
+
+test_that("a continuous exposure reaches the function as the drawn values", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 200, seed = 1)
+  seen <- NULL
+  capture <- function(.data) {
+    if (is.null(seen)) {
+      seen <<- .data
+    }
+    0.25
+  }
+  fit_eta(data, capture, exposure_type = "continuous", n_boot = 5)
+
+  expect_type(seen$a, "double")
+  expect_length(seen$a, 200L)
+  # A continuous draw lands wherever the normal mechanism puts it, so it is
+  # neither the observed column nor a resample of its values.
+  expect_false(identical(seen$a, data$a))
+  expect_false(all(seen$a %in% data$a))
+})
+
+test_that("the estimator function's return value is checked on the first draw", {
+  local_quiet()
+  data <- sim_eta_good(n = 150, seed = 1)
+  # A binary run has one estimand term, so one number is what the estimator owes
+  # it. A return that cannot be read is a fault in the estimator rather than a
+  # property of the data, so it is refused at the first draw rather than after
+  # the whole bootstrap has run on it.
+  refusal <- function(estimate) {
+    calls <- 0L
+    counted <- function(.data) {
+      calls <<- calls + 1L
+      estimate
+    }
+    expect_error(
+      fit_eta(data, counted, n_boot = 10),
+      class = "positively_estimator_error"
+    )
+    expect_identical(calls, 1L)
+  }
+
+  # Too many values, too few, names that are not the terms, and a return that is
+  # not numeric at all.
+  refusal(c(0.25, 0.5))
+  refusal(numeric(0))
+  refusal(c(zzz = 0.25))
+  refusal("0.25")
+})
+
+test_that("a named return is read by name and an unnamed one in term order", {
+  local_quiet()
+  skip_if_not_installed("nnet")
+  data <- sim_eta_categorical(n = 200, seed = 1)
+
+  named <- fit_eta(
+    data,
+    function(.data) c("b - a" = 0.25, "c - a" = 0.5),
+    exposure_type = "categorical",
+    n_boot = 5
+  )
+  positional <- fit_eta(
+    data,
+    function(.data) c(0.25, 0.5),
+    exposure_type = "categorical",
+    n_boot = 5
+  )
+
+  expect_identical(named@results$term, c("b - a", "c - a"))
+  expect_equal(named@results$boot_mean, c(0.25, 0.5))
+  expect_equal(positional@results$boot_mean, c(0.25, 0.5))
+  expect_equal(named@results$bias, positional@results$bias)
+})
+
+test_that("truncation and truncation_grid are refused with a function estimator", {
+  local_quiet()
+  data <- sim_eta_good(n = 150, seed = 1)
+  estimate <- function(.data) 0.25
+  # Both arguments bound an internal nuisance the estimator never receives, so
+  # honouring them would leave the caller a sweep whose every level reports the
+  # same untruncated number, and a flat sweep is itself a finding.
+  bounded <- expect_error(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      estimator = estimate,
+      truncation = c(0.05, 0.95),
+      n_boot = 10
+    ),
+    class = "positively_args_error"
+  )
+  expect_match(conditionMessage(bounded), "truncation", fixed = TRUE)
+  expect_no_match(conditionMessage(bounded), "character vector", fixed = TRUE)
+
+  swept <- expect_error(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      estimator = estimate,
+      truncation_grid = c(0, 0.05),
+      n_boot = 10
+    ),
+    class = "positively_args_error"
+  )
+  expect_match(conditionMessage(swept), "truncation_grid", fixed = TRUE)
+  expect_no_match(conditionMessage(swept), "character vector", fixed = TRUE)
+})
+
+test_that("a function estimator reproduces the built-in continuous ipw run", {
+  local_quiet()
+  data <- sim_eta_continuous(n = 300, seed = 1)
+  builtin <- fit_eta(data, "ipw", exposure_type = "continuous", n_boot = 20)
+  # The augmented estimator is refused for a continuous exposure because the
+  # built-in augmentation term is not defined over the grid. That is a statement
+  # about the built-in and not about what a caller's own estimator may compute
+  # here, so a function runs.
+  custom <- fit_eta(
+    data,
+    list(wls = replica_continuous_ipw),
+    exposure_type = "continuous",
+    n_boot = 20
+  )
+
+  # Not identical: the internal path fits the treatment mechanism with
+  # `glm.fit()` and the replica with `lm()`, which agree to the last few bits
+  # rather than to all of them.
+  expect_equal(custom@boot_estimates, builtin@boot_estimates)
+  expect_equal(custom@results, builtin@results)
+  expect_identical(custom@truth, builtin@truth)
+  expect_identical(custom@estimator, "wls")
+})
+
+test_that("a function estimator reproduces the built-in categorical ipw run", {
+  local_quiet()
+  skip_if_not_installed("nnet")
+  data <- sim_eta_categorical(n = 300, seed = 1)
+  builtin <- fit_eta(data, "ipw", exposure_type = "categorical", n_boot = 20)
+  custom <- fit_eta(
+    data,
+    list(hajek = replica_categorical_ipw),
+    exposure_type = "categorical",
+    n_boot = 20
+  )
+
+  expect_equal(custom@boot_estimates, builtin@boot_estimates)
+  expect_equal(custom@results, builtin@results)
+  expect_identical(custom@truth, builtin@truth)
+})
+
+test_that("a function estimator reproduces the built-in binary gcomp run", {
+  local_quiet()
+  data <- sim_eta_good(n = 300, seed = 1)
+  builtin <- fit_eta(data, "gcomp", n_boot = 20)
+  custom <- fit_eta(data, list(gformula = replica_binary_gcomp), n_boot = 20)
+
+  expect_equal(custom@boot_estimates, builtin@boot_estimates)
+  expect_equal(custom@results, builtin@results)
+  expect_identical(custom@truth, builtin@truth)
+})
+
+test_that("a draw the estimator function fails on is dropped", {
+  local_quiet()
+  data <- sim_eta_good(n = 150, seed = 1)
+  calls <- 0L
+  flaky <- function(.data) {
+    calls <<- calls + 1L
+    if (calls %% 5L == 0L) {
+      stop("no estimate on this draw")
+    }
+    0.25
+  }
+  # A draw the estimator failed on carries no more information than a draw whose
+  # built-in estimate came back non-finite, so it is dropped the same way and
+  # reported by the same warning.
+  expect_warning(
+    res <- fit_eta(data, flaky, n_boot = 20),
+    class = "positively_degenerate_boot_warning"
+  )
+
+  # Every draw is still offered to the estimator; a failure on one says nothing
+  # about the next.
+  expect_identical(calls, 20L)
+  expect_length(res@boot_estimates[[1]], 16L)
+  expect_equal(res@results$boot_mean, 0.25)
+  expect_identical(generics::glance(res)[["n_boot_used"]], 16L)
+  expect_match(printed_text(res), "(4 dropped)", fixed = TRUE)
+})
+
+test_that("a run whose every draw fails aborts", {
+  local_quiet()
+  data <- sim_eta_good(n = 150, seed = 1)
+  err <- expect_error(
+    fit_eta(data, function(.data) stop("no estimate here"), n_boot = 5),
+    class = "positively_error"
+  )
+  # There is no bias to report and no draw to report it from, so the run has to
+  # say so rather than return a summary of nothing.
+  expect_no_match(conditionMessage(err), "character vector", fixed = TRUE)
+  expect_match(conditionMessage(err), "draw", fixed = TRUE)
+})
+
+# Dropped draws are reported the same way whatever dropped them, so the two
+# blocks below state the reporting on a built-in run, where a severe practical
+# violation is what leaves an estimate non-finite.
+
+test_that("dropped draws are reported by print and glance", {
+  local_quiet()
+  data <- withr::with_seed(4, {
+    n <- 25
+    x1 <- stats::rnorm(n)
+    a <- stats::rbinom(n, 1L, stats::plogis(2 + 2 * x1))
+    y <- a + x1 + stats::rnorm(n)
+    tibble::tibble(a = a, y = y, x1 = x1)
+  })
+  expect_warning(
+    res <- withr::with_seed(
+      1,
+      check_eta_bias(data, a, y, x1, estimator = "ipw", n_boot = 50)
+    ),
+    class = "positively_degenerate_boot_warning"
+  )
+  printed <- printed_text(res)
+
+  # The draw count asked for is still what the line reports, since the count
+  # retained is a reading about the run rather than an argument to it.
+  expect_match(printed, "Bootstrap draws: 50", fixed = TRUE)
+  expect_match(printed, "(2 dropped)", fixed = TRUE)
+
+  glanced <- generics::glance(res)
+  expect_true("n_boot_used" %in% names(glanced))
+  expect_identical(glanced[["n_boot_used"]], 48L)
+  # The minimum across the cells, so that no cell is described by a count of
+  # draws it did not have.
+  expect_identical(glanced[["n_boot_used"]], min(lengths(res@boot_estimates)))
+
+  expect_warning(
+    swept <- withr::with_seed(
+      1,
+      check_eta_bias(
+        data,
+        a,
+        y,
+        x1,
+        estimator = "ipw",
+        truncation_grid = c(0, 0.05, 0.1),
+        n_boot = 50
+      )
+    ),
+    class = "positively_degenerate_boot_warning"
+  )
+  retained <- min(lengths(swept@boot_estimates))
+  expect_identical(generics::glance(swept)[["n_boot_used"]], retained)
+  expect_match(
+    printed_text(swept),
+    paste0("(", 50L - retained, " dropped)"),
+    fixed = TRUE
+  )
+})
+
+test_that("a run that dropped nothing reports no count", {
+  local_quiet()
+  data <- sim_eta_good(n = 300, seed = 1)
+  res <- fit_eta(data, "ipw", n_boot = 50)
+
+  # The reading is conditional on there being something to report, so the shapes
+  # every other run takes are the shapes they already took.
+  expect_length(res@boot_estimates[[1]], 50L)
+  expect_no_match(printed_text(res), "dropped", fixed = TRUE)
+  expect_false("n_boot_used" %in% names(generics::glance(res)))
+})
+
+test_that("the custom estimator print method is stable", {
+  local_quiet()
+  data <- sim_eta_good(n = 120, seed = 1)
+  res <- fit_eta(data, list(cbps = function(.data) 0.25), n_boot = 10)
+
+  expect_match(printed_text(res), "cbps", fixed = TRUE)
+  expect_snapshot(print(res))
+})
