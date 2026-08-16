@@ -304,3 +304,84 @@
       ! `reference_level` names the level every contrast is taken against, which a continuous exposure does not have.
       i A continuous estimand is the coefficient set of the working model set by `msm_formula`.
 
+# the function-estimator argument messages are stable
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), estimator = list(estimate), n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `estimator` must be the name of a built-in estimator, a function, or a length-one list whose name labels the function it holds.
+      i The built-in estimators are "ipw", "gcomp", and "aipw".
+      i A bare function is labeled "custom".
+      x Found a <list>.
+
+---
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), estimator = estimate, truncation = c(0.05,
+        0.95), n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `truncation` bounds a fitted nuisance model, which an estimator of your own never receives.
+      x `estimator` is the function labeled "custom".
+      i Truncate inside the function, or diagnose a built-in estimator to sweep the bound.
+
+---
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), estimator = estimate, truncation_grid = c(
+        0, 0.05), n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `truncation_grid` bounds a fitted nuisance model, which an estimator of your own never receives.
+      x `estimator` is the function labeled "custom".
+      i Truncate inside the function, or diagnose a built-in estimator to sweep the bound.
+
+# the estimator return messages are stable
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), estimator = function(.data) c(0.25, 0.5),
+      n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! The `estimator` function must return 1 numeric value, one per estimand term.
+      x It returned 2 values of type <numeric>.
+      i The estimand term is "1 - 0".
+
+---
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), estimator = function(.data) c(zzz = 0.25),
+      n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! The `estimator` function's return must be named by the estimand term or not named at all.
+      x It returned "zzz".
+      i The estimand term is "1 - 0".
+      i An unnamed return is read in term order.
+
+---
+
+    Code
+      check_eta_bias(data, a, y, c(x1, x2), estimator = function(.data) stop(
+        "no estimate here"), n_boot = 5)
+    Condition
+      Error in `check_eta_bias()`:
+      ! Every bootstrap draw was dropped, leaving no estimate to compare against the truth.
+      i A draw is dropped when its estimate is not finite, or when an estimator supplied as a function raises an error on it.
+      i A non-finite estimate arises when a bootstrap exposure leaves a level empty, when a fitted probability is exactly 0 or 1, or when a weight is degenerate.
+
+# the custom estimator print method is stable
+
+    Code
+      print(res)
+    Output
+      
+      -- ETA bias --------------------------------------------------------------------
+      Exposure: "a" (binary)
+      Observations: 120
+      Estimator: cbps
+      Bootstrap draws: 10
+      Truth: 0.581
+      ETA.Bias: -0.331 (MC SE 0)
+

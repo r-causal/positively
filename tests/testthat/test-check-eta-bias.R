@@ -3195,6 +3195,131 @@ test_that("a named return is read by name and an unnamed one in term order", {
   expect_equal(named@results$bias, positional@results$bias)
 })
 
+test_that("a named return is read by name whatever order it arrives in", {
+  local_quiet()
+  skip_if_not_installed("nnet")
+  data <- sim_eta_categorical(n = 200, seed = 1)
+  # Reading by name is what spares the caller the term order, so a return that
+  # states the terms in the other order has to report the same two numbers
+  # against the same two terms.
+  permuted <- fit_eta(
+    data,
+    function(.data) c("c - a" = 0.5, "b - a" = 0.25),
+    exposure_type = "categorical",
+    n_boot = 5
+  )
+
+  expect_identical(permuted@results$term, c("b - a", "c - a"))
+  expect_equal(permuted@results$boot_mean, c(0.25, 0.5))
+})
+
+# The three blocks below state that the reading is per draw. Each pins a named
+# return against a control run returning the same numbers unnamed in term order
+# under the same seed, so a reading that carried an order across draws would
+# report the two terms' numbers swapped rather than merely differ in summary.
+
+# An estimator that fails its first draw and returns `values` on every draw
+# after it.
+fails_first_draw <- function(values) {
+  calls <- 0L
+  function(.data) {
+    calls <<- calls + 1L
+    if (calls == 1L) {
+      stop("no estimate on this draw")
+    }
+    values
+  }
+}
+
+test_that("a failed first draw leaves later names read by name", {
+  local_quiet()
+  skip_if_not_installed("nnet")
+  data <- sim_eta_categorical(n = 200, seed = 1)
+
+  expect_warning(
+    permuted <- fit_eta(
+      data,
+      fails_first_draw(c("c - a" = 0.5, "b - a" = 0.25)),
+      exposure_type = "categorical",
+      n_boot = 6
+    ),
+    class = "positively_degenerate_boot_warning"
+  )
+  expect_warning(
+    control <- fit_eta(
+      data,
+      fails_first_draw(c(0.25, 0.5)),
+      exposure_type = "categorical",
+      n_boot = 6
+    ),
+    class = "positively_degenerate_boot_warning"
+  )
+
+  expect_identical(permuted@results$term, c("b - a", "c - a"))
+  expect_equal(permuted@results$boot_mean, c(0.25, 0.5))
+  expect_equal(permuted@results, control@results)
+  expect_equal(permuted@boot_estimates, control@boot_estimates)
+})
+
+test_that("names that are not the terms are refused on whatever draw carries them", {
+  local_quiet()
+  skip_if_not_installed("nnet")
+  data <- sim_eta_categorical(n = 200, seed = 1)
+  # The names are the estimator's own claim about which term each value belongs
+  # to, so a claim on a term the estimand does not hold is refused rather than
+  # read positionally, whether it arrives on the first draw or a later one.
+  calls <- 0L
+  drifting <- function(.data) {
+    calls <<- calls + 1L
+    if (calls < 3L) {
+      c("b - a" = 0.25, "c - a" = 0.5)
+    } else {
+      c(zzz = 0.25, "c - a" = 0.5)
+    }
+  }
+  expect_error(
+    fit_eta(data, drifting, exposure_type = "categorical", n_boot = 6),
+    class = "positively_estimator_error"
+  )
+
+  # Refused where it appeared, so the draws behind it were never offered.
+  expect_identical(calls, 3L)
+})
+
+test_that("named and unnamed returns may alternate across draws", {
+  local_quiet()
+  skip_if_not_installed("nnet")
+  data <- sim_eta_categorical(n = 200, seed = 1)
+  # Neither form settles anything for the draws behind it, so an estimator that
+  # states the terms on some draws and leaves them to term order on the rest is
+  # read correctly throughout.
+  calls <- 0L
+  alternating <- function(.data) {
+    calls <<- calls + 1L
+    if (calls %% 2L == 0L) {
+      c("c - a" = 0.5, "b - a" = 0.25)
+    } else {
+      c(0.25, 0.5)
+    }
+  }
+  mixed <- fit_eta(
+    data,
+    alternating,
+    exposure_type = "categorical",
+    n_boot = 6
+  )
+  control <- fit_eta(
+    data,
+    function(.data) c(0.25, 0.5),
+    exposure_type = "categorical",
+    n_boot = 6
+  )
+
+  expect_identical(calls, 6L)
+  expect_equal(mixed@results, control@results)
+  expect_equal(mixed@boot_estimates, control@boot_estimates)
+})
+
 test_that("truncation and truncation_grid are refused with a function estimator", {
   local_quiet()
   data <- sim_eta_good(n = 150, seed = 1)
@@ -3394,6 +3519,87 @@ test_that("a run that dropped nothing reports no count", {
   expect_length(res@boot_estimates[[1]], 50L)
   expect_no_match(printed_text(res), "dropped", fixed = TRUE)
   expect_false("n_boot_used" %in% names(generics::glance(res)))
+})
+
+test_that("the function-estimator argument messages are stable", {
+  local_quiet()
+  data <- sim_eta_good(n = 80, seed = 1)
+  estimate <- function(.data) 0.25
+
+  expect_snapshot_abort(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      estimator = list(estimate),
+      n_boot = 10
+    ),
+    class = "positively_args_error"
+  )
+  expect_snapshot_abort(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      estimator = estimate,
+      truncation = c(0.05, 0.95),
+      n_boot = 10
+    ),
+    class = "positively_args_error"
+  )
+  expect_snapshot_abort(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      estimator = estimate,
+      truncation_grid = c(0, 0.05),
+      n_boot = 10
+    ),
+    class = "positively_args_error"
+  )
+})
+
+test_that("the estimator return messages are stable", {
+  local_quiet()
+  data <- sim_eta_good(n = 80, seed = 1)
+
+  expect_snapshot_abort(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      estimator = function(.data) c(0.25, 0.5),
+      n_boot = 10
+    ),
+    class = "positively_estimator_error"
+  )
+  expect_snapshot_abort(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      estimator = function(.data) c(zzz = 0.25),
+      n_boot = 10
+    ),
+    class = "positively_estimator_error"
+  )
+  expect_snapshot_abort(
+    check_eta_bias(
+      data,
+      a,
+      y,
+      c(x1, x2),
+      estimator = function(.data) stop("no estimate here"),
+      n_boot = 5
+    ),
+    class = "positively_degenerate_boot_error"
+  )
 })
 
 test_that("the custom estimator print method is stable", {

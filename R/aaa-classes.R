@@ -207,7 +207,8 @@ method(glance, positivity_diagnostic) <- function(x, ...) {
 
 # The glance() columns that get no summary() row. `n` is sample-size metadata,
 # which a container states once rather than once per child. alpha through n_boot
-# are settings the caller chose rather than findings the run produced.
+# are settings the caller chose rather than findings the run produced, and
+# n_boot_used is how much of one of those settings the run could use.
 # null_quantile and geometric_variability are neither: each is derived from the
 # data, and each is dropped because another statistic already reports it as its
 # threshold, so a row of its own would state the same number twice. The list is
@@ -222,6 +223,7 @@ non_statistic_columns <- function() {
     "nearby",
     "mass",
     "n_boot",
+    "n_boot_used",
     "null_quantile",
     "geometric_variability"
   )

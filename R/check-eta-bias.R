@@ -147,11 +147,41 @@ eta_bias_result <- new_class(
 #'   treatment and outcome models expand factor and character covariates into
 #'   indicator terms, and the bootstrap resamples covariate rows, so factor
 #'   levels are preserved throughout.
-#' @param estimator The causal estimator to diagnose, one of `"ipw"` (inverse
-#'   probability weighting, matching [propensity::ipw()]), `"gcomp"`
-#'   (G-computation), or `"aipw"` (augmented, doubly robust). The augmented
-#'   estimator's correction is a sum over the exposure levels, so it is an error
-#'   for a continuous exposure.
+#' @param estimator The causal estimator to diagnose, either one of the built-in
+#'   estimators or one of your own.
+#'
+#'   The built-in estimators are named by a string: `"ipw"` (inverse probability
+#'   weighting, matching [propensity::ipw()]), `"gcomp"` (G-computation), or
+#'   `"aipw"` (augmented, doubly robust). The augmented estimator's correction is
+#'   a sum over the exposure levels, so it is an error for a continuous exposure.
+#'
+#'   An estimator of your own is a function, or a length-one list whose name
+#'   labels that function. A bare function is labeled `"custom"`. The label is
+#'   what `@estimator`, `@params`, and [generics::glance()] report; the function
+#'   itself is not kept on the result.
+#'
+#'   The function is called once per bootstrap draw and receives one argument,
+#'   the data frame of that draw: the resampled covariate rows, the exposure
+#'   drawn from the fitted treatment mechanism, and the outcome drawn from the
+#'   fitted outcome regression, under the column names they were selected by. A
+#'   discrete exposure arrives as a factor over the levels the observed exposure
+#'   holds, and a continuous one as the drawn numeric vector. The function must
+#'   return one number per estimand term: named by the terms, in which case the
+#'   values are read by name, or unnamed, in which case they are read in term
+#'   order. Every draw's return is read on its own, so the two forms may be mixed
+#'   from one draw to the next, and names that are anything other than the
+#'   estimand terms are an error wherever they appear.
+#'
+#'   The function has to aim at the estimand the run's terms define, which is the
+#'   set of contrasts against `reference_level` for a discrete exposure and the
+#'   coefficients of `msm_formula` for a continuous one. The truth is the same
+#'   G-computation target whichever estimator is diagnosed, so an estimator aimed
+#'   at anything else reports an estimand mismatch as part of its bias.
+#'
+#'   `truncation` and `truncation_grid` bound a fitted nuisance model the function
+#'   never receives, so supplying either alongside one is an error. A draw the
+#'   function raises an error on is dropped exactly as a non-finite estimate is,
+#'   and a run whose every draw was dropped is an error.
 #' @param exposure_formula An optional model formula for the treatment mechanism.
 #'   `NULL` (the default) fits a main-effects model of the exposure on the
 #'   covariates, logistic at two levels, a multinomial logit past two, and a
@@ -220,12 +250,15 @@ eta_bias_result <- new_class(
 #'   list of bootstrap-estimate vectors, one per row of `@results`).
 #'
 #'   [generics::glance()] returns a one-row tibble with `n` (the sample size),
-#'   `estimator`, and `n_boot`. A single-term estimand adds `truth`; an estimand
-#'   of more than one term has no single truth, so it reports `n_terms` in its
-#'   place. A one-row result then adds `bias` and `mc_se`, while a result of more
-#'   rows replaces those two with `n_levels`, `bias_min`, and `bias_max`. The row
-#'   count is what decides this, not the argument used, so a length-one
-#'   `truncation_grid` takes the one-row form.
+#'   `estimator`, and `n_boot`. A run that dropped a bootstrap draw adds
+#'   `n_boot_used`, the number of draws retained, counted as the smallest number
+#'   any reported row was formed from; a run that dropped none omits the column.
+#'   A single-term estimand adds `truth`; an estimand of more than one term has
+#'   no single truth, so it reports `n_terms` in its place. A one-row result then
+#'   adds `bias` and `mc_se`, while a result of more rows replaces those two with
+#'   `n_levels`, `bias_min`, and `bias_max`. The row count is what decides this,
+#'   not the argument used, so a length-one `truncation_grid` takes the one-row
+#'   form.
 #'
 #' @references
 #' Petersen ML, Porter KE, Gruber S, Wang Y, van der Laan MJ (2012). Diagnosing
@@ -243,6 +276,21 @@ eta_bias_result <- new_class(
 #'
 #' # n_boot is small here to keep the example fast.
 #' check_eta_bias(df, a, y, c(x1, x2), estimator = "ipw", n_boot = 25)
+#'
+#' # An estimator of your own reads one bootstrap dataset per draw. The exposure
+#' # arrives as a factor of its own levels, so the fitted coefficient is named
+#' # for the level it contrasts.
+#' by_hand <- function(.data) {
+#'   coef(lm(y ~ a + x1 + x2, data = .data))[["a1"]]
+#' }
+#' check_eta_bias(
+#'   df,
+#'   a,
+#'   y,
+#'   c(x1, x2),
+#'   estimator = list(gformula = by_hand),
+#'   n_boot = 25
+#' )
 #'
 #' @export
 check_eta_bias <- function(
@@ -263,7 +311,13 @@ check_eta_bias <- function(
   msm_formula = NULL
 ) {
   validate_data_frame(.data)
-  estimator <- resolve_arg_match(rlang::arg_match(estimator))
+  custom <- resolve_custom_estimator(estimator)
+  if (is.null(custom)) {
+    estimator <- resolve_arg_match(rlang::arg_match(estimator))
+  } else {
+    estimator <- custom$label
+    validate_custom_estimator_args(truncation, truncation_grid, estimator)
+  }
   outcome_type <- resolve_arg_match(rlang::arg_match(outcome_type))
   error_dist <- resolve_arg_match(rlang::arg_match(error_dist))
   validate_count(n_boot, arg_name = "n_boot", min = 2)
@@ -328,6 +382,7 @@ check_eta_bias <- function(
   validate_eta_estimand_args(
     exposure_type,
     estimator = estimator,
+    builtin = is.null(custom),
     reference_level = reference_level,
     msm_formula = msm_formula
   )
@@ -395,6 +450,7 @@ check_eta_bias <- function(
     exposure_name = exposure_name,
     outcome_name = outcome_name,
     estimator = estimator,
+    estimator_fn = custom$fn,
     outcome_type = outcome_type,
     error_dist = error_dist,
     levels = levels,
@@ -441,6 +497,93 @@ check_eta_bias <- function(
 
 # ---- Argument resolution --------------------------------------------------
 
+#' Resolve an estimator supplied as a function
+#'
+#' `estimator` names one of the built-in estimators or supplies one, so the
+#' string form is left to [rlang::arg_match()] and the two function forms are
+#' read here. A bare function has no name of its own that survives being passed
+#' as an argument, so it takes the label `"custom"`; a length-one list labels the
+#' function it holds by its name.
+#'
+#' @param estimator The `estimator` argument as supplied.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `NULL` when `estimator` is a string, leaving it to be matched against
+#'   the built-in menu, and otherwise a list of the `label` and the function
+#'   `fn`.
+#' @keywords internal
+#' @noRd
+resolve_custom_estimator <- function(estimator, call = rlang::caller_env()) {
+  if (is.character(estimator)) {
+    return(NULL)
+  }
+  if (is.function(estimator)) {
+    return(list(label = "custom", fn = estimator))
+  }
+  if (is.list(estimator) && length(estimator) == 1) {
+    label <- names(estimator)
+    labeled <- !is.null(label) && !is.na(label) && nzchar(label)
+    if (labeled && is.function(estimator[[1]])) {
+      return(list(label = label, fn = estimator[[1]]))
+    }
+  }
+  abort(
+    c(
+      "{.arg estimator} must be the name of a built-in estimator, a function, or
+       a length-one list whose name labels the function it holds.",
+      i = "The built-in estimators are {.val ipw}, {.val gcomp}, and
+           {.val aipw}.",
+      i = "A bare function is labeled {.val custom}.",
+      x = "Found a {.cls {class(estimator)[[1]]}}."
+    ),
+    error_class = "positively_args_error",
+    call = call
+  )
+}
+
+#' Reject the truncation arguments an estimator of the caller's own cannot use
+#'
+#' Both arguments bound a fitted nuisance model inside the estimator, and an
+#' estimator supplied as a function receives the bootstrap dataset rather than
+#' any nuisance fit of ours. Honoring either would leave the caller a sweep
+#' whose every level reported the same untruncated number, and a flat sweep is
+#' itself a finding.
+#'
+#' @param truncation The supplied probability bounds, or `NULL`.
+#' @param truncation_grid The supplied grid, or `NULL`.
+#' @param label The estimator's label, used to name what the arguments were
+#'   supplied alongside.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `NULL`, invisibly, when neither argument was supplied.
+#' @keywords internal
+#' @noRd
+validate_custom_estimator_args <- function(
+  truncation,
+  truncation_grid,
+  label,
+  call = rlang::caller_env()
+) {
+  supplied <- c(
+    if (!is.null(truncation)) "truncation",
+    if (!is.null(truncation_grid)) "truncation_grid"
+  )
+  if (length(supplied) == 0) {
+    return(invisible(NULL))
+  }
+  abort(
+    c(
+      "{.arg {supplied}} {?bounds/bound} a fitted nuisance model, which an
+       estimator of your own never receives.",
+      x = "{.arg estimator} is the function labeled {.val {label}}.",
+      i = "Truncate inside the function, or diagnose a built-in estimator to
+           sweep the bound."
+    ),
+    error_class = "positively_args_error",
+    call = call
+  )
+}
+
 #' Reject the estimand arguments the resolved exposure type leaves nothing for
 #'
 #' A discrete estimand is a set of contrasts against a reference level; a
@@ -451,7 +594,11 @@ check_eta_bias <- function(
 #' of them would report a number the caller did not ask for.
 #'
 #' @param exposure_type The resolved exposure type.
-#' @param estimator One of `"ipw"`, `"gcomp"`, or `"aipw"`.
+#' @param estimator The estimator's label.
+#' @param builtin Whether `estimator` names one of the built-in estimators. The
+#'   augmented estimator's restriction describes what the built-in path computes,
+#'   so it says nothing about an estimator the caller supplied, whatever that one
+#'   is labeled.
 #' @param reference_level The supplied reference level, or `NULL`.
 #' @param msm_formula The supplied working-model formula, or `NULL`.
 #' @param call The calling environment, used to build the error's call.
@@ -462,6 +609,7 @@ check_eta_bias <- function(
 validate_eta_estimand_args <- function(
   exposure_type,
   estimator,
+  builtin,
   reference_level,
   msm_formula,
   call = rlang::caller_env()
@@ -483,7 +631,7 @@ validate_eta_estimand_args <- function(
     return(invisible(NULL))
   }
 
-  if (estimator == "aipw") {
+  if (builtin && estimator == "aipw") {
     abort(
       c(
         "{.arg estimator} {.val aipw} is not available for a continuous
@@ -1057,7 +1205,12 @@ truncate_probabilities <- function(gmat, lower, upper) {
 #' @param y The outcome vector.
 #' @param covariates A data frame of covariates.
 #' @param exposure_name,outcome_name The exposure and outcome column names.
-#' @param estimator One of `"ipw"`, `"gcomp"`, or `"aipw"`.
+#' @param estimator One of `"ipw"`, `"gcomp"`, or `"aipw"`, or the label of an
+#'   estimator supplied as a function.
+#' @param estimator_fn The estimator the caller supplied, or `NULL` for a
+#'   built-in one. A supplied estimator reads the bootstrap dataset itself, so
+#'   the draw is assembled into a data frame for it and neither nuisance model is
+#'   refit.
 #' @param outcome_type `"continuous"` or `"binary"`.
 #' @param error_dist `"normal"` or `"empirical"`; used for continuous outcomes.
 #' @param levels A list of `lower` and `upper` truncation vectors.
@@ -1082,6 +1235,7 @@ eta_bias_bootstrap <- function(
   exposure_name,
   outcome_name,
   estimator,
+  estimator_fn,
   outcome_type,
   error_dist,
   levels,
@@ -1138,6 +1292,19 @@ eta_bias_bootstrap <- function(
   n <- length(a)
   n_levels <- length(levels$lower)
   n_terms <- length(spec$terms)
+  # An estimator of the caller's own reads the bootstrap dataset rather than a
+  # nuisance fit, so it is handed the draw itself and no truncation level is
+  # swept beside it.
+  custom <- !is.null(estimator_fn)
+  if (custom) {
+    assemble_draw <- eta_draw_frame(
+      covariates,
+      exposure_name,
+      outcome_name,
+      spec
+    )
+    estimate_draw <- eta_custom_estimate(estimator_fn, spec$terms, call = call)
+  }
   # One row per bootstrap draw, then one slice per truncation level and term.
   estimates <- array(NA_real_, dim = c(n_boot, n_levels, n_terms))
   # All covariate-row resamples are drawn together, one column per draw.
@@ -1169,6 +1336,10 @@ eta_bias_bootstrap <- function(
       residuals = observed$residuals,
       sigma = observed$sigma
     )
+    if (custom) {
+      estimates[b, 1L, ] <- estimate_draw(assemble_draw(idx, a_star, y_star))
+      next
+    }
     refit <- fitters$refit(idx, a_star, y_star)
     if (continuous) {
       weights <- eta_stabilized_weights(
@@ -1215,6 +1386,20 @@ eta_bias_bootstrap <- function(
     column[is.finite(column)]
   })
   n_valid <- lengths(boot_estimates)
+  # A mean of nothing is not a bias, so a run left with no estimate to compare
+  # against the truth says so rather than reporting the summary of an empty
+  # vector.
+  if (all(n_valid == 0)) {
+    abort(
+      c(
+        "Every bootstrap draw was dropped, leaving no estimate to compare against the truth.",
+        i = "A draw is dropped when its estimate is not finite, or when an estimator supplied as a function raises an error on it.",
+        i = "A non-finite estimate arises when a bootstrap exposure leaves a level empty, when a fitted probability is exactly 0 or 1, or when a weight is degenerate."
+      ),
+      error_class = "positively_degenerate_boot_error",
+      call = call
+    )
+  }
   n_dropped <- max(n_boot - n_valid)
   if (n_dropped > 0) {
     warn(
@@ -1298,6 +1483,130 @@ draw_bootstrap_outcome <- function(
     stats::rnorm(n, mean = 0, sd = sigma)
   }
   mu + error
+}
+
+#' Assemble one bootstrap dataset for an estimator of the caller's own
+#'
+#' The dataset is the draw as the caller would have collected it: the resampled
+#' covariate rows, the drawn exposure, and the drawn outcome, under the column
+#' names they were selected by. The exposure is delivered in the terms it was
+#' given in rather than in the codes the treatment mechanism is fitted on, so a
+#' discrete draw is mapped back through the level labels and a continuous one is
+#' the drawn numeric vector. Every level the observed exposure holds stays a
+#' level of the factor, so a draw that missed one keeps its coding rather than
+#' silently narrowing the estimand.
+#'
+#' @inheritParams eta_bias_bootstrap
+#'
+#' @return A function of `(idx, a_star, y_star)` returning a data frame of the
+#'   draw.
+#' @keywords internal
+#' @noRd
+eta_draw_frame <- function(covariates, exposure_name, outcome_name, spec) {
+  covariates <- as.data.frame(covariates)
+  continuous <- spec$type == "continuous"
+  function(idx, a_star, y_star) {
+    frame <- covariates[idx, , drop = FALSE]
+    frame[[exposure_name]] <- if (continuous) {
+      a_star
+    } else {
+      factor(spec$labels[match(a_star, spec$grid)], levels = spec$labels)
+    }
+    frame[[outcome_name]] <- y_star
+    # Resampling with replacement leaves repeated row names behind, which are an
+    # artifact of the resample rather than anything the draw holds.
+    rownames(frame) <- NULL
+    frame
+  }
+}
+
+#' Call an estimator of the caller's own and read what it returns
+#'
+#' The estimator owes one number per estimand term. A named return is read by
+#' name so the caller need not know the term order, and an unnamed one is read in
+#' term order. Each draw's return is read on its own, so names that are not the
+#' estimand terms are an error wherever they appear and the two forms may be
+#' mixed across draws. Reading every draw rather than settling the order once
+#' costs a `match()` on a short character vector, which is nothing beside the
+#' estimate formed in the same iteration, and it leaves no draw read under an
+#' order some earlier draw established.
+#'
+#' A draw the estimator raises an error on is reported as missing rather than
+#' propagated. Such a draw carries no more information than one whose built-in
+#' estimate came back non-finite, so it flows into the same drop.
+#'
+#' @param estimator_fn The estimator the caller supplied.
+#' @param terms The estimand terms, in the order the results report them.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return A function of `(frame)` returning one double per term.
+#' @keywords internal
+#' @noRd
+eta_custom_estimate <- function(
+  estimator_fn,
+  terms,
+  call = rlang::caller_env()
+) {
+  n_terms <- length(terms)
+  function(frame) {
+    # Wrapping the value in a list separates a failed call from a call that
+    # returned NULL, which is a return the estimator is answerable for.
+    value <- rlang::try_fetch(
+      list(estimator_fn(frame)),
+      error = function(cnd) NULL
+    )
+    if (is.null(value)) {
+      return(rep(NA_real_, n_terms))
+    }
+    value <- value[[1]]
+    if (!is.numeric(value) || length(value) != n_terms) {
+      abort(
+        c(
+          "The {.arg estimator} function must return {n_terms} numeric value{?s}, one per estimand term.",
+          x = "It returned {length(value)} value{?s} of type {.cls {class(value)[[1]]}}.",
+          i = "The estimand {cli::qty(terms)}term{?s} {?is/are} {.val {terms}}."
+        ),
+        error_class = "positively_estimator_error",
+        call = call
+      )
+    }
+    term_order <- eta_estimate_order(value, terms, call = call)
+    if (!is.null(term_order)) {
+      value <- value[term_order]
+    }
+    as.double(value)
+  }
+}
+
+#' Read a named return against the estimand terms
+#'
+#' @param value The estimator's return value, already known to hold one value per
+#'   term.
+#' @param terms The estimand terms, in the order the results report them.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `NULL` for an unnamed return, which is read in term order, and
+#'   otherwise the index vector that puts a named return into term order.
+#' @keywords internal
+#' @noRd
+eta_estimate_order <- function(value, terms, call = rlang::caller_env()) {
+  labels <- names(value)
+  if (is.null(labels)) {
+    return(NULL)
+  }
+  if (!identical(sort(labels), sort(terms))) {
+    abort(
+      c(
+        "The {.arg estimator} function's return must be named by the {cli::qty(terms)}estimand term{?s} or not named at all.",
+        x = "It returned {.val {labels}}.",
+        i = "The estimand {cli::qty(terms)}term{?s} {?is/are} {.val {terms}}.",
+        i = "An unnamed return is read in term order."
+      ),
+      error_class = "positively_estimator_error",
+      call = call
+    )
+  }
+  match(terms, labels)
 }
 
 #' Build the observed-fit and bootstrap-refit closures
@@ -1804,15 +2113,37 @@ eta_bias_n_levels <- function(results, n_terms) {
   nrow(results) %/% n_terms
 }
 
+#' Count the bootstrap draws every reported reading was formed from
+#'
+#' A draw is dropped per reported row, so the rows of one result can rest on
+#' different numbers of draws. The smallest of those numbers is what describes
+#' the run, since a larger one would state a count some row did not have.
+#'
+#' @param x An `eta_bias_result`.
+#'
+#' @return A single integer.
+#' @keywords internal
+#' @noRd
+eta_bias_n_retained <- function(x) {
+  min(lengths(x@boot_estimates))
+}
+
 method(glance, eta_bias_result) <- function(x, ...) {
   results <- x@results
   n_terms <- length(x@truth)
+  # @params holds n_boot as supplied, which is a double.
+  n_boot <- as.integer(x@params$n_boot)
   columns <- list(
     n = x@n,
     estimator = x@estimator,
-    # @params holds n_boot as supplied, which is a double.
-    n_boot = as.integer(x@params$n_boot)
+    n_boot = n_boot
   )
+  # The count retained is a reading about the run rather than an argument to it,
+  # so it is reported only where it differs from the count asked for.
+  retained <- eta_bias_n_retained(x)
+  if (retained < n_boot) {
+    columns$n_boot_used <- retained
+  }
   # An estimand of more than one term has one truth per term, so no single truth
   # describes the run and the term count stands in its place.
   if (n_terms == 1) {
@@ -1887,12 +2218,21 @@ method(print, eta_bias_result) <- function(x, ...) {
     }
   }
 
+  # The count asked for stays what the line reports, and a run that lost draws
+  # states how many beside it.
+  dropped <- x@params$n_boot - eta_bias_n_retained(x)
+  dropped_note <- if (dropped > 0) {
+    cli::format_inline(" ({dropped} dropped)")
+  } else {
+    ""
+  }
+
   cat_cli({
     cli::cli_h1("{diagnostic_label(x)}")
     cli::cli_text("Exposure: {.val {x@exposure}} ({x@exposure_type})")
     cli::cli_text("Observations: {x@n}")
     cli::cli_text("Estimator: {x@estimator}")
-    cli::cli_text("Bootstrap draws: {x@params$n_boot}")
+    cli::cli_text("Bootstrap draws: {x@params$n_boot}{dropped_note}")
     if (n_terms == 1) {
       cli::cli_text("Truth: {round(unname(x@truth), 3)}")
     } else {

@@ -39,11 +39,41 @@ treatment and outcome models expand factor and character covariates into
 indicator terms, and the bootstrap resamples covariate rows, so factor
 levels are preserved throughout.}
 
-\item{estimator}{The causal estimator to diagnose, one of \code{"ipw"} (inverse
-probability weighting, matching \code{\link[propensity:ipw]{propensity::ipw()}}), \code{"gcomp"}
-(G-computation), or \code{"aipw"} (augmented, doubly robust). The augmented
-estimator's correction is a sum over the exposure levels, so it is an error
-for a continuous exposure.}
+\item{estimator}{The causal estimator to diagnose, either one of the built-in
+estimators or one of your own.
+
+The built-in estimators are named by a string: \code{"ipw"} (inverse probability
+weighting, matching \code{\link[propensity:ipw]{propensity::ipw()}}), \code{"gcomp"} (G-computation), or
+\code{"aipw"} (augmented, doubly robust). The augmented estimator's correction is
+a sum over the exposure levels, so it is an error for a continuous exposure.
+
+An estimator of your own is a function, or a length-one list whose name
+labels that function. A bare function is labeled \code{"custom"}. The label is
+what \verb{@estimator}, \verb{@params}, and \code{\link[generics:glance]{generics::glance()}} report; the function
+itself is not kept on the result.
+
+The function is called once per bootstrap draw and receives one argument,
+the data frame of that draw: the resampled covariate rows, the exposure
+drawn from the fitted treatment mechanism, and the outcome drawn from the
+fitted outcome regression, under the column names they were selected by. A
+discrete exposure arrives as a factor over the levels the observed exposure
+holds, and a continuous one as the drawn numeric vector. The function must
+return one number per estimand term: named by the terms, in which case the
+values are read by name, or unnamed, in which case they are read in term
+order. Every draw's return is read on its own, so the two forms may be mixed
+from one draw to the next, and names that are anything other than the
+estimand terms are an error wherever they appear.
+
+The function has to aim at the estimand the run's terms define, which is the
+set of contrasts against \code{reference_level} for a discrete exposure and the
+coefficients of \code{msm_formula} for a continuous one. The truth is the same
+G-computation target whichever estimator is diagnosed, so an estimator aimed
+at anything else reports an estimand mismatch as part of its bias.
+
+\code{truncation} and \code{truncation_grid} bound a fitted nuisance model the function
+never receives, so supplying either alongside one is an error. A draw the
+function raises an error on is dropped exactly as a non-finite estimate is,
+and a run whose every draw was dropped is an error.}
 
 \item{exposure_formula}{An optional model formula for the treatment mechanism.
 \code{NULL} (the default) fits a main-effects model of the exposure on the
@@ -123,12 +153,15 @@ named numeric vector holding one truth per term), and \verb{@boot_estimates} (a
 list of bootstrap-estimate vectors, one per row of \verb{@results}).
 
 \code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
-\code{estimator}, and \code{n_boot}. A single-term estimand adds \code{truth}; an estimand
-of more than one term has no single truth, so it reports \code{n_terms} in its
-place. A one-row result then adds \code{bias} and \code{mc_se}, while a result of more
-rows replaces those two with \code{n_levels}, \code{bias_min}, and \code{bias_max}. The row
-count is what decides this, not the argument used, so a length-one
-\code{truncation_grid} takes the one-row form.
+\code{estimator}, and \code{n_boot}. A run that dropped a bootstrap draw adds
+\code{n_boot_used}, the number of draws retained, counted as the smallest number
+any reported row was formed from; a run that dropped none omits the column.
+A single-term estimand adds \code{truth}; an estimand of more than one term has
+no single truth, so it reports \code{n_terms} in its place. A one-row result then
+adds \code{bias} and \code{mc_se}, while a result of more rows replaces those two with
+\code{n_levels}, \code{bias_min}, and \code{bias_max}. The row count is what decides this,
+not the argument used, so a length-one \code{truncation_grid} takes the one-row
+form.
 }
 \description{
 \code{check_eta_bias()} implements the ETA.Bias parametric-bootstrap diagnostic of
@@ -244,6 +277,21 @@ df <- data.frame(a = a, y = y, x1 = x1, x2 = x2)
 
 # n_boot is small here to keep the example fast.
 check_eta_bias(df, a, y, c(x1, x2), estimator = "ipw", n_boot = 25)
+
+# An estimator of your own reads one bootstrap dataset per draw. The exposure
+# arrives as a factor of its own levels, so the fitted coefficient is named
+# for the level it contrasts.
+by_hand <- function(.data) {
+  coef(lm(y ~ a + x1 + x2, data = .data))[["a1"]]
+}
+check_eta_bias(
+  df,
+  a,
+  y,
+  c(x1, x2),
+  estimator = list(gformula = by_hand),
+  n_boot = 25
+)
 
 }
 \references{
