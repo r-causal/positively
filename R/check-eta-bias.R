@@ -20,10 +20,14 @@ eta_bias_result <- new_class(
     boot_estimates = class_list
   ),
   validator = function(self) {
-    n_terms <- length(unique(self@results$term))
+    # The term column is checked before the term count is read from it, so that
+    # a results tibble without one reports the column it is missing rather than
+    # a truth length that disagrees with a count of zero.
     if (length(self@estimator) != 1) {
       "@estimator must be a single value"
-    } else if (length(self@truth) != n_terms) {
+    } else if (!"term" %in% names(self@results)) {
+      "@results must carry a term column"
+    } else if (length(self@truth) != length(unique(self@results$term))) {
       "@truth must have one value per term in @results"
     } else if (length(self@boot_estimates) != nrow(self@results)) {
       "@boot_estimates must have one vector per row of @results"

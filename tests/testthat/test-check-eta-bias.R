@@ -171,6 +171,42 @@ fit_eta <- function(data, estimator, ..., seed = 2024) {
 bias_of <- function(res) res@results$bias[[1]]
 mc_se_of <- function(res) res@results$mc_se[[1]]
 
+# The results schema a fitted run reports: one row per term per truncation
+# level. Recycling gives a sweep of one term when `truncation_lower` is longer
+# than one, and a multi-term level when `term` is.
+eta_bias_stub_results <- function(term = "1 - 0", truncation_lower = 0) {
+  tibble::tibble(
+    term = term,
+    truncation_lower = truncation_lower,
+    truncation_upper = 1 - truncation_lower,
+    bias = 0.1,
+    mc_se = 0.02,
+    boot_mean = 0.5
+  )
+}
+
+# A directly constructed eta_bias_result, used to exercise the class validator
+# on property shapes a fitted run does not produce. The defaults are a minimal
+# well-formed result: one term read at one truncation level.
+make_eta_bias_result <- function(
+  results = eta_bias_stub_results(),
+  estimator = "ipw",
+  truth = c(`1 - 0` = 0.4),
+  boot_estimates = list(c(0.3, 0.5))
+) {
+  eta_bias_result(
+    results = results,
+    exposure = "a",
+    exposure_type = "binary",
+    n = 100L,
+    params = list(n_boot = 2),
+    call = quote(check_eta_bias()),
+    estimator = estimator,
+    truth = truth,
+    boot_estimates = boot_estimates
+  )
+}
+
 # ---- Argument validation --------------------------------------------------
 
 test_that("check_eta_bias() rejects non-data-frame input", {
@@ -224,7 +260,7 @@ test_that("check_eta_bias() aborts on a missing outcome column", {
   )
 })
 
-test_that("check_eta_bias() aborts on missing exposure or outcome values", {
+test_that("check_eta_bias() aborts on missing exposure, outcome, or covariate values", {
   local_quiet()
   data <- sim_eta_good(n = 100, seed = 1)
 
@@ -240,6 +276,15 @@ test_that("check_eta_bias() aborts on missing exposure or outcome values", {
   expect_error(
     check_eta_bias(na_outcome, a, y, c(x1, x2), n_boot = 10),
     class = "positively_error"
+  )
+
+  # The bootstrap resamples complete covariate rows, so a missing covariate
+  # value is refused before any draw is taken.
+  na_covariate <- data
+  na_covariate$x1[1] <- NA
+  expect_error(
+    check_eta_bias(na_covariate, a, y, c(x1, x2), n_boot = 10),
+    class = "positively_missing_error"
   )
 })
 
@@ -733,6 +778,33 @@ test_that("the numeric matrix path is unchanged under a fixed seed (regression)"
   expect_equal(res@results$boot_mean[[1]], 1.2383665971651121)
 })
 
+# ---- Detected outcome type -------------------------------------------------
+
+test_that("resolve_outcome_type() reads a 0/1 outcome as binary", {
+  expect_identical(resolve_outcome_type("auto", c(0, 1, 0)), "binary")
+  # Two values are not enough on their own: the pair has to be 0 and 1, since
+  # the bootstrap outcome draw past detection is a Bernoulli one.
+  expect_identical(resolve_outcome_type("auto", c(1, 2)), "continuous")
+  expect_identical(resolve_outcome_type("auto", c(0, 1, 0.5)), "continuous")
+  # A constant 0/1 column holds one distinct value rather than two, so it falls
+  # to the continuous branch and its outcome model is the linear one.
+  expect_identical(resolve_outcome_type("auto", c(0, 0)), "continuous")
+})
+
+test_that("a detected binary outcome reproduces the declared path exactly", {
+  local_quiet()
+  data <- sim_eta_binary_outcome(n = 300, seed = 1)
+  auto <- fit_eta(data, "ipw", n_boot = 50)
+  declared <- fit_eta(data, "ipw", outcome_type = "binary", n_boot = 50)
+
+  # Both calls run under the same seed. The bootstrap outcome is a Bernoulli
+  # draw on the binary path and normal error on the continuous one, so the two
+  # runs agree draw for draw only if detection sent the default call down the
+  # binary branch.
+  expect_identical(declared@results, auto@results)
+  expect_identical(declared@boot_estimates, auto@boot_estimates)
+})
+
 # ---- Declared exposure type ------------------------------------------------
 
 test_that("a declared binary type reproduces the auto path exactly", {
@@ -972,6 +1044,55 @@ test_that("the estimand term names the contrast and keys the truth", {
   expect_identical(res@results$term, "1 - 0")
   expect_identical(names(res@truth), "1 - 0")
   expect_length(res@truth, 1L)
+})
+
+# ---- Class validator ------------------------------------------------------
+
+test_that("eta_bias_result accepts a minimal well-formed result", {
+  res <- make_eta_bias_result()
+
+  expect_identical(res@estimator, "ipw")
+  expect_identical(nrow(res@results), 1L)
+  expect_length(res@boot_estimates, 1L)
+})
+
+test_that("eta_bias_result rejects a non-scalar estimator", {
+  expect_error(
+    make_eta_bias_result(estimator = c("ipw", "gcomp")),
+    regexp = "@estimator"
+  )
+})
+
+test_that("eta_bias_result rejects results with no term column", {
+  no_term <- eta_bias_stub_results()
+  no_term$term <- NULL
+
+  # The term count is read off that column, so a schema missing it reports the
+  # column rather than a truth length that disagrees with a count of zero.
+  expect_error(
+    make_eta_bias_result(results = no_term),
+    regexp = "@results must carry a term column"
+  )
+})
+
+test_that("eta_bias_result rejects a truth that misses a term", {
+  two_terms <- eta_bias_stub_results(term = c("b - a", "c - a"))
+
+  expect_error(
+    make_eta_bias_result(results = two_terms),
+    regexp = "@truth"
+  )
+})
+
+test_that("eta_bias_result rejects boot_estimates that miss a row", {
+  # A two-level sweep of one term is two rows, so a single bootstrap-estimate
+  # vector leaves one of them with none.
+  sweep <- eta_bias_stub_results(truncation_lower = c(0, 0.05))
+
+  expect_error(
+    make_eta_bias_result(results = sweep),
+    regexp = "@boot_estimates"
+  )
 })
 
 # ---- Results shape (single run versus truncation grid) --------------------
@@ -1568,6 +1689,9 @@ test_that("the input and exposure validation messages are stable", {
   na_exposure <- good
   na_exposure$a[1] <- NA
 
+  na_covariate <- good
+  na_covariate$x1[1] <- NA
+
   expect_snapshot_abort(check_eta_bias(1:10, a, y, c(x1, x2), n_boot = 10))
   expect_snapshot_abort(check_eta_bias(
     one_level,
@@ -1593,6 +1717,13 @@ test_that("the input and exposure validation messages are stable", {
   ))
   expect_snapshot_abort(check_eta_bias(
     na_exposure,
+    a,
+    y,
+    c(x1, x2),
+    n_boot = 10
+  ))
+  expect_snapshot_abort(check_eta_bias(
+    na_covariate,
     a,
     y,
     c(x1, x2),
@@ -1684,6 +1815,41 @@ test_that("diagnostic_headline() names the estimator the bias belongs to", {
   # data alone, so a reading that omitted the estimator would not identify what
   # was measured.
   expect_match(text, "ipw", fixed = TRUE)
+})
+
+test_that("diagnostic_headline() states the term count at one truncation level", {
+  local_quiet()
+  skip_if_not_installed("nnet")
+  data <- sim_eta_categorical(n = 300, seed = 1)
+  res <- fit_eta(data, "ipw", exposure_type = "categorical", n_boot = 50)
+  headline <- expect_readable_headline(res)
+  text <- rendered_text(headline)
+
+  # Two terms at one truncation level is two rows, so a reading keyed on the row
+  # count alone would name a sweep that never ran. The span is across terms and
+  # the one level it was read at goes unnamed.
+  expect_match(text, "across 2 estimand terms", fixed = TRUE)
+  expect_no_match(text, "truncation level", fixed = TRUE)
+})
+
+test_that("diagnostic_headline() states both counts across a truncation grid", {
+  local_quiet()
+  skip_if_not_installed("nnet")
+  data <- sim_eta_categorical(n = 300, seed = 1)
+  res <- fit_eta(
+    data,
+    "ipw",
+    exposure_type = "categorical",
+    truncation_grid = c(0, 0.05, 0.1),
+    n_boot = 50
+  )
+  headline <- expect_readable_headline(res)
+  text <- rendered_text(headline)
+
+  # A sweep of more than one term spans both dimensions, so the reading states
+  # how many of each the span was taken over.
+  expect_match(text, "across 2 estimand terms", fixed = TRUE)
+  expect_match(text, "over 3 truncation levels", fixed = TRUE)
 })
 
 test_that("the ETA bias label and headline are stable", {

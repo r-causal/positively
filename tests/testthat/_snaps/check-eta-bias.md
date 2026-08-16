@@ -130,6 +130,15 @@
 ---
 
     Code
+      check_eta_bias(na_covariate, a, y, c(x1, x2), n_boot = 10)
+    Condition
+      Error in `check_eta_bias()`:
+      ! `.covariates` must not contain missing values.
+      x Missing values in "x1".
+
+---
+
+    Code
       check_eta_bias(good, a, y, c(x1, x2), outcome_type = "binary", n_boot = 10)
     Condition
       Error in `check_eta_bias()`:
