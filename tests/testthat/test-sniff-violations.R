@@ -159,6 +159,7 @@ make_quiet_hat_values <- function() {
 make_eta_bias_result <- function() {
   eta_bias_result(
     results = tibble::tibble(
+      term = "1 - 0",
       truncation_lower = 0,
       truncation_upper = 1,
       bias = 0.25,
@@ -171,7 +172,7 @@ make_eta_bias_result <- function() {
     params = list(n_boot = 50),
     call = quote(check_eta_bias()),
     estimator = "ipw",
-    truth = 0.5,
+    truth = c("1 - 0" = 0.5),
     boot_estimates = list(c(0.7, 0.8))
   )
 }

@@ -17,15 +17,19 @@ check_eta_bias(
   truncation_grid = NULL,
   n_boot = 500,
   error_dist = c("normal", "empirical"),
-  exposure_type = c("auto", "binary")
+  exposure_type = c("auto", "binary", "categorical", "continuous"),
+  reference_level = NULL,
+  msm_formula = NULL
 )
 }
 \arguments{
 \item{.data}{A data frame.}
 
-\item{.exposure}{The binary exposure column, selected with data-masking.
-\code{check_eta_bias()} aborts unless the exposure has exactly two distinct
-values, whether that type is detected or declared through \code{exposure_type}.}
+\item{.exposure}{The exposure column, selected with data-masking. A binary
+exposure has exactly two distinct values; a categorical exposure has as
+many levels as it has distinct values, and every non-reference level is
+contrasted against the reference; a continuous exposure has no levels, and
+is summarized by the working model \code{msm_formula} sets.}
 
 \item{.outcome}{The outcome column, selected with data-masking.}
 
@@ -35,31 +39,73 @@ treatment and outcome models expand factor and character covariates into
 indicator terms, and the bootstrap resamples covariate rows, so factor
 levels are preserved throughout.}
 
-\item{estimator}{The causal estimator to diagnose, one of \code{"ipw"} (inverse
-probability weighting, matching \code{\link[propensity:ipw]{propensity::ipw()}}), \code{"gcomp"}
-(G-computation), or \code{"aipw"} (augmented, doubly robust).}
+\item{estimator}{The causal estimator to diagnose, either one of the built-in
+estimators or one of your own.
+
+The built-in estimators are named by a string: \code{"ipw"} (inverse probability
+weighting, matching \code{\link[propensity:ipw]{propensity::ipw()}}), \code{"gcomp"} (G-computation), or
+\code{"aipw"} (augmented, doubly robust). The augmented estimator's correction is
+a sum over the exposure levels, so it is an error for a continuous exposure.
+
+An estimator of your own is a function, or a length-one list whose name
+labels that function. A bare function is labeled \code{"custom"}. The label is
+what \verb{@estimator}, \verb{@params}, and \code{\link[generics:glance]{generics::glance()}} report; the function
+itself is not kept on the result.
+
+The function is called once per bootstrap draw and receives one argument,
+the data frame of that draw: the resampled covariate rows, the exposure
+drawn from the fitted treatment mechanism, and the outcome drawn from the
+fitted outcome regression, under the column names they were selected by. A
+discrete exposure arrives as a factor over the levels the observed exposure
+holds, and a continuous one as the drawn numeric vector. The function must
+return one number per estimand term: named by the terms, in which case the
+values are read by name, or unnamed, in which case they are read in term
+order. Every draw's return is read on its own, so the two forms may be mixed
+from one draw to the next, and names that are anything other than the
+estimand terms are an error wherever they appear.
+
+The function has to aim at the estimand the run's terms define, which is the
+set of contrasts against \code{reference_level} for a discrete exposure and the
+coefficients of \code{msm_formula} for a continuous one. The truth is the same
+G-computation target whichever estimator is diagnosed, so an estimator aimed
+at anything else reports an estimand mismatch as part of its bias.
+
+\code{truncation} and \code{truncation_grid} bound a fitted nuisance model the function
+never receives, so supplying either alongside one is an error. A draw the
+function raises an error on is dropped exactly as a non-finite estimate is,
+and a run whose every draw was dropped is an error.}
 
 \item{exposure_formula}{An optional model formula for the treatment mechanism.
-\code{NULL} (the default) fits a main-effects logistic model of the exposure on
-the covariates.}
+\code{NULL} (the default) fits a main-effects model of the exposure on the
+covariates, logistic at two levels, a multinomial logit past two, and a
+normal linear model for a continuous exposure.}
 
 \item{outcome_formula}{An optional model formula for the outcome regression.
 \code{NULL} (the default) fits a main-effects model of the outcome on the
 exposure and covariates. Terms that recompute a data-dependent basis from
 the exposure column (for example \code{poly()} of the exposure) are not
 supported, because the counterfactual predictions rebuild the design with
-the exposure set to 0 or 1.}
+the exposure set to each of its levels in turn.}
 
 \item{outcome_type}{One of \code{"auto"} (detect from the outcome, the default),
 \code{"continuous"}, or \code{"binary"}.}
 
 \item{truncation}{An optional length-two numeric vector \code{c(lower, upper)}
 bounding the fitted propensity for a single run. \code{NULL} (the default)
-applies no truncation.}
+applies no truncation. A pair of bounds describes the one-dimensional
+simplex of a two-level exposure, so it applies to binary exposures only and
+is an error past two levels or on a continuous exposure.}
 
-\item{truncation_grid}{An optional numeric vector of lower bounds, each in
-\verb{[0, 0.5)}. Each becomes a swept truncation level \code{c(lower, 1 - lower)}, and
-all levels share one set of bootstrap draws. Overrides \code{truncation}.}
+\item{truncation_grid}{An optional numeric vector, each entry in \verb{[0, 1/k)}
+for an exposure with \code{k} levels, which is \verb{[0, 0.5)} for a binary exposure,
+and in \verb{[0, 1)} for a continuous one. All levels share one set of bootstrap
+draws, and the grid overrides \code{truncation}. What an entry means depends on
+the exposure type: at two levels it is a lower bound and becomes the swept
+truncation level \code{c(lower, 1 - lower)}; past two levels it raises every
+fitted probability below it and renormalizes each row, leaving no upper
+bound to apply or report; and for a continuous exposure it is a quantile
+level \code{g} that caps the stabilized weight at its \code{1 - g} quantile, read once
+from the observed fit and held fixed across the bootstrap draws.}
 
 \item{n_boot}{The number of bootstrap datasets. Defaults to \code{500}. Must be at
 least 2, since the Monte Carlo standard error needs two draws.}
@@ -69,83 +115,152 @@ least 2, since the Monte Carlo standard error needs two draws.}
 the default) or \code{"empirical"} (resample residuals). Ignored for binary
 outcomes.}
 
-\item{exposure_type}{One of \code{"auto"} (detect from the data, the default) or
-\code{"binary"}. A supplied type is authoritative and detection is not consulted,
-so \code{"binary"} is rejected only when the exposure column does not have
-exactly two distinct values. Declaring it unlocks no call that \code{"auto"}
-would refuse, since detection reads any two-valued column as binary; it is
-accepted so that every diagnostic takes the same argument.}
+\item{exposure_type}{One of \code{"auto"} (detect from the data, the default),
+\code{"binary"}, \code{"categorical"}, or \code{"continuous"}. A supplied type is
+authoritative and detection is not consulted, so it is rejected only when
+the exposure column cannot carry it: \code{"binary"} needs exactly two distinct
+values, \code{"continuous"} needs a numeric column, and \code{"categorical"} needs
+nothing beyond the two levels every discrete run needs. Within the discrete
+types the run is decided by the number of levels, so declaring
+\code{"categorical"} on a two-level column returns the binary run unchanged.}
+
+\item{reference_level}{The exposure level every contrast is taken against.
+\code{NULL} (the default) takes the first level, which is the lower of the two
+values for a binary exposure and the first factor level otherwise. A
+continuous exposure has no levels to contrast, so supplying it there is an
+error.}
+
+\item{msm_formula}{An optional one-sided formula for the marginal structural
+model a continuous exposure is summarized by, for example \code{~ a + I(a^2)}.
+\code{NULL} (the default) fits a model linear in the exposure, whose one
+coefficient is named after the exposure column. A discrete estimand is a set
+of contrasts and imposes no working model, so supplying it there is an
+error.}
 }
 \value{
 An \code{eta_bias_result} object, an S7 subclass of
-\link{positivity_diagnostic}. Its \verb{@results} tibble has one row per truncation
-level with columns \code{truncation_lower}, \code{truncation_upper}, \code{bias}
-(ETA.Bias), \code{mc_se} (the Monte Carlo standard error), and \code{boot_mean} (the
-mean bootstrap estimate). It also carries the properties \verb{@estimator},
-\verb{@truth}, and \verb{@boot_estimates} (a list of bootstrap-estimate vectors, one
-per row of \verb{@results}).
+\link{positivity_diagnostic}. Its \verb{@results} tibble has one row per estimand term
+and truncation level, with the columns \code{term}, \code{truncation_lower},
+\code{truncation_upper}, \code{bias} (ETA.Bias), \code{mc_se} (the Monte Carlo standard
+error), and \code{boot_mean} (the mean bootstrap estimate), in that order. \code{term}
+names the estimand contrast as \verb{<level> - <reference level>}, so an exposure
+coded 0/1 has the single term \code{"1 - 0"}; for a continuous exposure it names
+a working-model coefficient instead. A continuous run has no lower cap to
+place on a density ratio, so \code{truncation_lower} is \code{NA_real_} and
+\code{truncation_upper} holds the weight cap, which is \code{Inf} where no cap was
+applied. The object also carries the properties \verb{@estimator}, \verb{@truth} (a
+named numeric vector holding one truth per term), and \verb{@boot_estimates} (a
+list of bootstrap-estimate vectors, one per row of \verb{@results}).
 
 \code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
-\code{estimator}, \code{n_boot}, and \code{truth}. A run at a single truncation level adds
-\code{bias} and \code{mc_se}. A run over more than one level reports one bias per
-level, so it replaces those two with \code{n_levels}, \code{bias_min}, and
-\code{bias_max}. The level count is what decides this, not the argument used, so
-a length-one \code{truncation_grid} takes the single-level form.
+\code{estimator}, and \code{n_boot}. A run that dropped a bootstrap draw adds
+\code{n_boot_used}, the number of draws retained, counted as the smallest number
+any reported row was formed from; a run that dropped none omits the column.
+A single-term estimand adds \code{truth}; an estimand of more than one term has
+no single truth, so it reports \code{n_terms} in its place. A one-row result then
+adds \code{bias} and \code{mc_se}, while a result of more rows replaces those two with
+\code{n_levels}, \code{bias_min}, and \code{bias_max}. The row count is what decides this,
+not the argument used, so a length-one \code{truncation_grid} takes the one-row
+form.
 }
 \description{
 \code{check_eta_bias()} implements the ETA.Bias parametric-bootstrap diagnostic of
-Petersen et al. (2012) for binary point exposures. It estimates the bias that
-a chosen causal estimator would incur under the data's own fitted treatment
-and outcome mechanisms, isolating the component of bias that stems from
-positivity violations, weight truncation, and finite-sample sparsity.
+Petersen et al. (2012) for binary, categorical, and continuous point
+exposures. It estimates the bias that a chosen causal estimator would incur
+under the data's own fitted treatment and outcome mechanisms, isolating the
+component of bias that stems from positivity violations, weight truncation,
+and finite-sample sparsity.
 }
 \details{
 The diagnostic (the paper's Section 4.1) treats the fitted data-generating
 mechanism as a known truth and asks how a candidate estimator behaves under
-it. The algorithm has three steps.
+it. The algorithm has three steps: fit the treatment and outcome mechanisms,
+declare the fitted mechanism the truth, then resample from it and refit. The
+exposure type changes what each step does, and nothing about the order they
+come in.
 
-First, it fits the treatment mechanism \eqn{g_n(1 \mid W)}, a main-effects
-logistic model of the exposure on the covariates, and the outcome regression
+First, it fits the treatment mechanism \eqn{g_n} and the outcome regression
 \eqn{\bar{Q}_n(A, W)}, a main-effects linear or logistic model of the outcome
-on the exposure and covariates. Factor and character covariates enter these
-models as indicator terms, exactly as \code{\link[stats:glm]{stats::glm()}} expands them. The target
-of inference is a single scalar,
-the G-computation estimate on the observed data,
-\eqn{\psi = \frac{1}{n}\sum_i [\bar{Q}_n(1, W_i) - \bar{Q}_n(0, W_i)]}. This
-\code{truth} depends on the outcome model alone. It is identical across estimators
-and constant across truncation levels.
+on the exposure and the covariates. Factor and character covariates enter
+both models as indicator terms, exactly as \code{\link[stats:glm]{stats::glm()}} expands them. The
+treatment mechanism is a main-effects model of the exposure on the covariates
+in the form its type calls for: the logistic model \eqn{g_n(1 \mid W)} at two
+levels; the multinomial logit \eqn{g_n(a \mid W)} past two, which requires the
+\pkg{nnet} package; and for a continuous exposure the normal linear model
+\eqn{A \mid W \sim \mathcal{N}(m_n(W), \sigma_n^2)}, whose spread is the
+pooled maximum-likelihood residual standard deviation
+\eqn{\sigma_n = \sqrt{n^{-1} \sum_i (A_i - m_n(W_i))^2}}.
+
+The \code{truth} is the target the fitted mechanism implies, which is available
+exactly because that fit is the truth of the bootstrap data-generating
+mechanism. It depends on the outcome model alone, so it is identical across
+estimators and constant across truncation levels. A discrete exposure is
+summarized by the saturated factor model, whose coefficients are the
+G-computation contrasts against the reference level \eqn{a_0},
+\eqn{\psi_a = \frac{1}{n}\sum_i [\bar{Q}_n(a, W_i) - \bar{Q}_n(a_0, W_i)]},
+one per non-reference level \eqn{a}. A saturated model restricts nothing, so
+that summary imposes nothing; an exposure coded 0/1 is the two-level case and
+its one contrast is \eqn{\psi_1}. A continuous exposure has no levels to
+saturate. Its counterfactual mean curve
+\eqn{\frac{1}{n}\sum_i \bar{Q}_n(a, W_i)} is evaluated over the unique deciles
+of the observed exposure and projected by least squares onto the working model
+\code{msm_formula} sets, and the truth is the coefficients of that projection of
+the observed fit. Equal weights on a decile grid weight the projection by the
+marginal density of the exposure.
 
 Second, it draws \code{n_boot} bootstrap datasets. Each resamples the covariate
-rows with replacement, draws a bootstrap exposure
-\eqn{A^* \sim \mathrm{Bernoulli}(g_n(1 \mid W^*))} from the untruncated fitted
-propensity, and draws a bootstrap outcome from \eqn{\bar{Q}_n(A^*, W^*)}: for
-continuous outcomes by adding normal or empirical-residual error, and for
-binary outcomes by a Bernoulli draw. Truncation is a property of the
-estimator, not of the data-generating mechanism, so the bootstrap exposure is
-always drawn from the untruncated propensity.
+rows with replacement, draws a bootstrap exposure \eqn{A^*} from the
+untruncated fitted treatment mechanism at the resampled covariates, and draws
+a bootstrap outcome from \eqn{\bar{Q}_n(A^*, W^*)}: for continuous outcomes by
+adding normal or empirical-residual error, and for binary outcomes by a
+Bernoulli draw. The exposure draw is
+\eqn{A^* \sim \mathrm{Bernoulli}(g_n(1 \mid W^*))} at two levels, a
+categorical draw over the fitted probabilities \eqn{g_n(a \mid W^*)} past two,
+and \eqn{A^* \sim \mathcal{N}(m_n(W^*), \sigma_n^2)} for a continuous
+exposure. Truncation is a property of the estimator, not of the
+data-generating mechanism, so the bootstrap exposure is always drawn from the
+untruncated mechanism.
 
 Third, it refits both nuisance models on each bootstrap dataset and applies
-the candidate estimator, bounding the fitted propensity into the truncation
-interval where the estimator uses it. \code{ETA.Bias} is the mean of the bootstrap
-estimates minus \code{truth}, and its Monte Carlo standard error is the standard
-deviation of the bootstrap estimates divided by the square root of the number
-of retained draws. A bootstrap draw whose estimate is non-finite, which can
-happen when a resampled exposure lands in a single arm or a refit propensity
-reaches exactly 0 or 1, is dropped with a warning before the summaries are
-formed.
+the candidate estimator, truncating what that estimator divides by.
+\code{ETA.Bias} is the mean of the bootstrap estimates minus \code{truth}, and its
+Monte Carlo standard error is the standard deviation of the bootstrap
+estimates divided by the square root of the number of retained draws. A
+bootstrap draw whose estimate is non-finite carries no information, and is
+dropped with a warning before the summaries are formed.
+
+What a \code{truncation_grid} entry \eqn{g} truncates also follows the exposure
+type. At two levels it bounds the fitted propensity into \eqn{[g, 1 - g]}: the
+simplex is one-dimensional there, so a lower bound on one level is an upper
+bound on the other and the rule is two-sided. Past two levels it raises every
+fitted probability below \eqn{g} up to \eqn{g} and renormalizes each row to
+sum to one, which is the matrix method of \code{\link[propensity:ps_trunc]{propensity::ps_trunc()}} under
+\code{method = "ps"}. A lower pin on every level already bounds every weight
+denominator, so no upper bound is applied and none is reported. A continuous
+exposure divides by a density rather than by a probability, and \eqn{g} caps
+the stabilized weight \eqn{f_n(A) / f_n(A \mid W)} at its \eqn{1 - g}
+quantile, read once from the observed fit and held fixed across the bootstrap
+draws.
 
 The three estimators behave differently under positivity violations.
-G-computation ignores the propensity entirely, so its ETA.Bias is Monte Carlo
-noise around zero and is flat across a truncation grid. Inverse probability
-weighting divides by the fitted propensity, so extreme scores inflate its
-ETA.Bias, and tightening the truncation bound trades bias for variance. The
-augmented (doubly robust) estimator stays near zero in bias while carrying
-more variance than G-computation.
+G-computation ignores the treatment mechanism entirely, so its ETA.Bias is
+Monte Carlo noise around zero and is flat across a truncation grid. Inverse
+probability weighting divides by the fitted mechanism, so extreme
+probabilities and heavy density ratios inflate its ETA.Bias, and tightening
+the truncation bound trades bias for variance. The augmented (doubly robust)
+estimator stays near zero in bias while carrying more variance than
+G-computation, and it is defined for a discrete estimand alone.
 
 When \code{truncation_grid} is supplied, every grid point reuses one shared set of
 bootstrap draws and nuisance refits, so the sweep isolates the effect of the
 truncation bound alone: the inverse-probability-weighting bias rises and its
 bootstrap spread shrinks as the bound tightens.
+
+A continuous estimand is defined by the working model rather than approximated
+by it, so two analyses of the same data under different \code{msm_formula} values
+are aimed at different targets and report different biases. That is a property
+of the estimand and not an inconsistency: the bias reported is the bias of
+estimating the working model the analysis actually uses.
 
 ETA.Bias captures only the positivity, truncation, and sparsity component of
 bias and excludes model-misspecification bias by construction. It is a red
@@ -162,6 +277,21 @@ df <- data.frame(a = a, y = y, x1 = x1, x2 = x2)
 
 # n_boot is small here to keep the example fast.
 check_eta_bias(df, a, y, c(x1, x2), estimator = "ipw", n_boot = 25)
+
+# An estimator of your own reads one bootstrap dataset per draw. The exposure
+# arrives as a factor of its own levels, so the fitted coefficient is named
+# for the level it contrasts.
+by_hand <- function(.data) {
+  coef(lm(y ~ a + x1 + x2, data = .data))[["a1"]]
+}
+check_eta_bias(
+  df,
+  a,
+  y,
+  c(x1, x2),
+  estimator = list(gformula = by_hand),
+  n_boot = 25
+)
 
 }
 \references{

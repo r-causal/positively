@@ -135,7 +135,7 @@ diagnostic_supported_types <- function() {
     hat_values = "continuous",
     hdr = "continuous",
     extrapolation = "binary",
-    eta_bias = "binary",
+    eta_bias = c("binary", "categorical", "continuous"),
     port_seq = c("binary", "categorical", "continuous"),
     hdr_seq = "continuous",
     positivity = c("binary", "categorical", "continuous")

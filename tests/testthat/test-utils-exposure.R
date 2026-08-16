@@ -391,8 +391,8 @@ test_that("an explicit binary type aborts on three distinct values", {
 
 test_that("an explicit binary type accepts a factor with an unused level", {
   withr::local_options(positively.quiet = FALSE)
-  # binary_to_01() re-levels with factor() before modeling, so an unused level
-  # never reaches the math; the two observed levels are all it needs.
+  # The factor coding in eta_spec() re-levels before modeling, so an unused
+  # level never reaches the math; the two observed levels are all it needs.
   exposure <- factor(c("a", "b", "a"), levels = c("a", "b", "c"))
   resolved <- expect_silent(
     resolve_exposure_type(
