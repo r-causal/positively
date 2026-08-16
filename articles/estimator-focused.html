@@ -100,7 +100,9 @@ no subject with <code>region == "b"</code> and <code>x2 &gt; 1</code> is
 ever exposed, and a practical near-violation, where exposure depends
 steeply on <code>x1</code>, so the fitted propensity approaches zero in
 the lower tail of <code>x1</code> and one in the upper tail while both
-exposure levels remain observed.</p>
+exposure levels remain observed. Its exposure is binary, so the sections
+on categorical and continuous exposures simulate small examples of their
+own.</p>
 </div>
 <div class="section level2">
 <h2 id="eta-bias-the-bias-an-estimator-incurs">ETA.Bias: the bias an estimator incurs<a class="anchor" aria-label="anchor" href="#eta-bias-the-bias-an-estimator-incurs"></a>
@@ -163,6 +165,7 @@ on inverse probability weighting.</p>
 <span>  estimator <span class="op">=</span> <span class="st">"ipw"</span>,</span>
 <span>  n_boot <span class="op">=</span> <span class="fl">500</span></span>
 <span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Treating `.exposure` as binary</span></span>
 <span><span class="va">eta_ipw</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">ETA bias</span> <span style="color: #00BBBB;">────────────────────────────────────────────────────────────────────</span></span></span>
@@ -172,16 +175,20 @@ on inverse probability weighting.</p>
 <span><span class="co">#&gt; Bootstrap draws: 500</span></span>
 <span><span class="co">#&gt; Truth: 0.988</span></span>
 <span><span class="co">#&gt; ETA.Bias: 0.085 (MC SE 0.027)</span></span></code></pre></div>
-<p>The printed output reports the target truth, the estimator, and the
-ETA.Bias with its Monte Carlo standard error. <code><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy()</a></code>
-returns the same quantities as a table, one row per truncation level,
-along with the mean bootstrap estimate.</p>
+<p>The message reports that the exposure was detected as binary. The
+printed output reports the target truth, the estimator, and the ETA.Bias
+with its Monte Carlo standard error. <code><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy()</a></code> returns a table
+with one row per estimand term and truncation level, carrying the
+columns <code>term</code> (the contrast the row estimates),
+<code>truncation_lower</code> and <code>truncation_upper</code> (the
+bounds the estimator applied), <code>bias</code>, <code>mc_se</code>,
+and <code>boot_mean</code> (the mean bootstrap estimate).</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">eta_ipw</span><span class="op">)</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 1 × 5</span></span></span>
-<span><span class="co">#&gt;   truncation_lower truncation_upper   bias  mc_se boot_mean</span></span>
-<span><span class="co">#&gt;              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span>                0                1 0.085<span style="text-decoration: underline;">3</span> 0.027<span style="text-decoration: underline;">4</span>      1.07</span></span></code></pre></div>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 1 × 6</span></span></span>
+<span><span class="co">#&gt;   term  truncation_lower truncation_upper   bias  mc_se boot_mean</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> 1 - 0                0                1 0.085<span style="text-decoration: underline;">3</span> 0.027<span style="text-decoration: underline;">4</span>      1.07</span></span></code></pre></div>
 <p>The bias is positive and sits about three Monte Carlo standard errors
 above zero, so it is a feature of the fitted mechanism rather than
 bootstrap noise. The mechanism is the one the dataset was built to
@@ -269,13 +276,13 @@ row.</p>
 <span>  n_boot <span class="op">=</span> <span class="fl">500</span></span>
 <span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">sweep_result</span><span class="op">)</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 4 × 5</span></span></span>
-<span><span class="co">#&gt;   truncation_lower truncation_upper   bias   mc_se boot_mean</span></span>
-<span><span class="co">#&gt;              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span>             0                1    0.085<span style="text-decoration: underline;">3</span> 0.027<span style="text-decoration: underline;">4</span>       1.07</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span>             0.01             0.99 0.232  0.013<span style="text-decoration: underline;">6</span>       1.22</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span>             0.05             0.95 0.592  0.007<span style="text-decoration: underline;">00</span>      1.58</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span>             0.1              0.9  0.901  0.005<span style="text-decoration: underline;">91</span>      1.89</span></span></code></pre></div>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 4 × 6</span></span></span>
+<span><span class="co">#&gt;   term  truncation_lower truncation_upper   bias   mc_se boot_mean</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> 1 - 0             0                1    0.085<span style="text-decoration: underline;">3</span> 0.027<span style="text-decoration: underline;">4</span>       1.07</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> 1 - 0             0.01             0.99 0.232  0.013<span style="text-decoration: underline;">6</span>       1.22</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> 1 - 0             0.05             0.95 0.592  0.007<span style="text-decoration: underline;">00</span>      1.58</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span> 1 - 0             0.1              0.9  0.901  0.005<span style="text-decoration: underline;">91</span>      1.89</span></span></code></pre></div>
 <p>The first row and the rows below it say different things. The first
 row is the untruncated level, and its bias belongs to the positivity
 violation. Every row below it adds bias that the truncation rule
@@ -295,10 +302,282 @@ positivity-robust estimator would achieve.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">sweep_result</span>, type <span class="op">=</span> <span class="st">"sweep"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="estimator-focused_files/figure-html/eta-sweep-1.png" class="r-plt" alt="ETA.Bias plotted against the truncation lower bound for the inverse-probability-weighting estimator, rising from just above zero at no truncation to about nine tenths at a lower bound of one tenth, with a two Monte Carlo standard error band that narrows as the bound tightens." width="100%"></p>
+<div class="section level3">
+<h3 id="a-categorical-exposure-term-by-term">A categorical exposure, term by term<a class="anchor" aria-label="anchor" href="#a-categorical-exposure-term-by-term"></a>
+</h3>
+<p>A binary exposure has one contrast to report. A categorical exposure
+has one per non-reference level, and a positivity violation seldom
+reaches them equally. The example below plants three doses whose top
+level is nearly unreachable in the lower tail of <code>x1</code>, while
+the middle level is well supported everywhere.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">2025</span><span class="op">)</span></span>
+<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">400</span></span>
+<span><span class="va">x1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span>
+<span><span class="va">x2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># The odds of the top dose climb steeply in x1, so subjects in the lower tail</span></span>
+<span><span class="co"># of x1 almost never receive it.</span></span>
+<span><span class="va">odds</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="fl">0.5</span> <span class="op">*</span> <span class="va">x1</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="op">-</span><span class="fl">1.5</span> <span class="op">+</span> <span class="fl">3</span> <span class="op">*</span> <span class="va">x1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">probs</span> <span class="op">&lt;-</span> <span class="va">odds</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="va">odds</span><span class="op">)</span></span>
+<span><span class="va">dose</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">probs</span>, <span class="fl">1</span>, <span class="kw">function</span><span class="op">(</span><span class="va">p</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"low"</span>, <span class="st">"high"</span><span class="op">)</span>, <span class="fl">1</span>, prob <span class="op">=</span> <span class="va">p</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"low"</span>, <span class="st">"high"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">dose_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span>
+<span>  dose <span class="op">=</span> <span class="va">dose</span>,</span>
+<span>  y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">dose</span> <span class="op">==</span> <span class="st">"low"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fl">2</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">dose</span> <span class="op">==</span> <span class="st">"high"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fl">2</span> <span class="op">*</span> <span class="va">x1</span> <span class="op">+</span> <span class="fl">0.5</span> <span class="op">*</span> <span class="va">x2</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span>,</span>
+<span>  x1 <span class="op">=</span> <span class="va">x1</span>,</span>
+<span>  x2 <span class="op">=</span> <span class="va">x2</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/count.html" class="external-link">count</a></span><span class="op">(</span><span class="va">dose_data</span>, <span class="va">dose</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 3 × 2</span></span></span>
+<span><span class="co">#&gt;   dose      n</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;fct&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> none    155</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> low     148</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> high     97</span></span></code></pre></div>
+<p>Past two levels the treatment mechanism is a multinomial logit,
+fitted with the nnet package and refit on every bootstrap draw. The
+chunks in this section are gated on nnet being installed, so the
+vignette builds either way.</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">dose_ipw</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/check_eta_bias.html">check_eta_bias</a></span><span class="op">(</span></span>
+<span>  <span class="va">dose_data</span>,</span>
+<span>  <span class="va">dose</span>,</span>
+<span>  <span class="va">y</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">x1</span>, <span class="va">x2</span><span class="op">)</span>,</span>
+<span>  estimator <span class="op">=</span> <span class="st">"ipw"</span>,</span>
+<span>  n_boot <span class="op">=</span> <span class="fl">200</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Treating `.exposure` as categorical</span></span>
+<span><span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">dose_ipw</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 2 × 6</span></span></span>
+<span><span class="co">#&gt;   term        truncation_lower truncation_upper    bias  mc_se boot_mean</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> low - none                 0               <span style="color: #BB0000;">NA</span> -<span style="color: #BB0000;">0.013</span><span style="color: #BB0000; text-decoration: underline;">8</span> 0.032<span style="text-decoration: underline;">1</span>     0.828</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> high - none                0               <span style="color: #BB0000;">NA</span>  0.306  0.056<span style="text-decoration: underline;">2</span>     2.29</span></span></code></pre></div>
+<p>There is one row per non-reference level, and the two rows read
+differently. The <code>low - none</code> contrast is within one Monte
+Carlo standard error of zero: both levels are observed across the range
+of <code>x1</code>, so weighting has support to work with. The
+<code>high - none</code> contrast is biased upward by about five Monte
+Carlo standard errors, which is the planted violation showing up in the
+only estimand it touches. Reporting a single number for the whole
+exposure would have averaged the two together and understated the
+problem.</p>
+<p><code>truncation_upper</code> is missing on both rows because
+truncation past two levels applies no upper bound. The paragraph on
+truncation below unpacks that.</p>
+<p>G-computation, which never divides by the fitted probabilities, sits
+within two Monte Carlo standard errors of zero on both terms.</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">dose_gcomp</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/check_eta_bias.html">check_eta_bias</a></span><span class="op">(</span></span>
+<span>  <span class="va">dose_data</span>,</span>
+<span>  <span class="va">dose</span>,</span>
+<span>  <span class="va">y</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">x1</span>, <span class="va">x2</span><span class="op">)</span>,</span>
+<span>  estimator <span class="op">=</span> <span class="st">"gcomp"</span>,</span>
+<span>  n_boot <span class="op">=</span> <span class="fl">200</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/bind_rows.html" class="external-link">bind_rows</a></span><span class="op">(</span></span>
+<span>  ipw <span class="op">=</span> <span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">dose_ipw</span><span class="op">)</span>,</span>
+<span>  gcomp <span class="op">=</span> <span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">dose_gcomp</span><span class="op">)</span>,</span>
+<span>  .id <span class="op">=</span> <span class="st">"estimator"</span></span>
+<span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">estimator</span>, <span class="va">term</span>, <span class="va">bias</span>, <span class="va">mc_se</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 4 × 4</span></span></span>
+<span><span class="co">#&gt;   estimator term           bias   mc_se</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> ipw       low - none  -<span style="color: #BB0000;">0.013</span><span style="color: #BB0000; text-decoration: underline;">8</span> 0.032<span style="text-decoration: underline;">1</span> </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> ipw       high - none  0.306  0.056<span style="text-decoration: underline;">2</span> </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> gcomp     low - none  -<span style="color: #BB0000;">0.015</span><span style="color: #BB0000; text-decoration: underline;">7</span> 0.008<span style="text-decoration: underline;">52</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span> gcomp     high - none -<span style="color: #BB0000;">0.015</span><span style="color: #BB0000; text-decoration: underline;">3</span> 0.012<span style="text-decoration: underline;">1</span></span></span></code></pre></div>
+<p>The <code>type = "bootstrap"</code> plot gives each term its own row
+of facets, marked with the truth that term is aimed at. The two
+distributions sit differently against their dashed lines, which is the
+same reading the table gives.</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">dose_ipw</span>, type <span class="op">=</span> <span class="st">"bootstrap"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="estimator-focused_files/figure-html/dose-bootstrap-1.png" class="r-plt" alt="Histograms of bootstrap estimates for the inverse-probability-weighting estimator, one row per contrast. The low versus none row is a tall peak centered on its dashed truth line, and the high versus none row sits to the right of its dashed line with a long left tail." width="100%"></p>
+<p>Both terms are contrasts against a reference level, <code>none</code>
+here, which is the first factor level unless
+<code>reference_level</code> names another. The reference is a choice of
+parameterization rather than of estimand: the fitted mechanisms and the
+bootstrap draws do not change with it, only which differences are
+reported.</p>
+<p>Truncation changes shape along with the estimand. With two levels the
+fitted propensity has one free coordinate, so a grid entry
+<code>g</code> bounds it into <code>c(g, 1 - g)</code>. With more levels
+each row of fitted probabilities is a point on a simplex, and a grid
+entry raises every coordinate below <code>g</code> up to <code>g</code>
+and renormalizes the row to sum to one, matching
+<code><a href="https://r-causal.github.io/propensity/reference/ps_trunc.html" class="external-link">propensity::ps_trunc()</a></code>. Pinning every level away from zero
+already bounds every weight denominator, so there is no upper bound to
+apply, which is why <code>truncation_upper</code> is missing. A grid
+entry has to sit below <code>1 / k</code> for an exposure with
+<code>k</code> levels, since <code>k</code> coordinates pinned at
+<code>1 / k</code> already fill the simplex.</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">dose_sweep</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/check_eta_bias.html">check_eta_bias</a></span><span class="op">(</span></span>
+<span>  <span class="va">dose_data</span>,</span>
+<span>  <span class="va">dose</span>,</span>
+<span>  <span class="va">y</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">x1</span>, <span class="va">x2</span><span class="op">)</span>,</span>
+<span>  estimator <span class="op">=</span> <span class="st">"ipw"</span>,</span>
+<span>  truncation_grid <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.02</span>, <span class="fl">0.05</span>, <span class="fl">0.1</span><span class="op">)</span>,</span>
+<span>  n_boot <span class="op">=</span> <span class="fl">200</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">dose_sweep</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 8 × 6</span></span></span>
+<span><span class="co">#&gt;   term        truncation_lower truncation_upper     bias  mc_se boot_mean</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> low - none              0                  <span style="color: #BB0000;">NA</span> -<span style="color: #BB0000;">0.013</span><span style="color: #BB0000; text-decoration: underline;">8</span>  0.032<span style="text-decoration: underline;">1</span>     0.828</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> low - none              0.02               <span style="color: #BB0000;">NA</span> -<span style="color: #BB0000;">0.006</span><span style="color: #BB0000; text-decoration: underline;">64</span> 0.023<span style="text-decoration: underline;">9</span>     0.836</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> low - none              0.05               <span style="color: #BB0000;">NA</span>  0.030<span style="text-decoration: underline;">5</span>  0.018<span style="text-decoration: underline;">5</span>     0.873</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span> low - none              0.1                <span style="color: #BB0000;">NA</span>  0.077<span style="text-decoration: underline;">7</span>  0.014<span style="text-decoration: underline;">4</span>     0.920</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">5</span> high - none             0                  <span style="color: #BB0000;">NA</span>  0.306   0.056<span style="text-decoration: underline;">2</span>     2.29 </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">6</span> high - none             0.02               <span style="color: #BB0000;">NA</span>  0.617   0.031<span style="text-decoration: underline;">0</span>     2.60 </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">7</span> high - none             0.05               <span style="color: #BB0000;">NA</span>  0.949   0.022<span style="text-decoration: underline;">9</span>     2.93 </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">8</span> high - none             0.1                <span style="color: #BB0000;">NA</span>  1.32    0.019<span style="text-decoration: underline;">8</span>     3.31</span></span></code></pre></div>
+<p>The rows walk the sweep once per term. The <code>high - none</code>
+bias more than quadruples across the grid while the
+<code>low - none</code> bias stays under a tenth, so the truncation rule
+charges almost all of its bias to the contrast that was already the
+weakest. The Monte Carlo standard error falls on both terms, the
+variance side of the same tradeoff the binary sweep showed.</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">dose_sweep</span>, type <span class="op">=</span> <span class="st">"sweep"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="estimator-focused_files/figure-html/dose-sweep-plot-1.png" class="r-plt" alt="ETA.Bias against the truncation lower bound with one line per contrast. The high versus none line rises steeply from about three tenths to about one and a third, while the low versus none line stays close to zero across the whole grid." width="100%"></p>
+</div>
+<div class="section level3">
+<h3 id="a-continuous-exposure-and-its-working-model">A continuous exposure and its working model<a class="anchor" aria-label="anchor" href="#a-continuous-exposure-and-its-working-model"></a>
+</h3>
+<p>A continuous exposure has no levels to contrast, so the estimand is
+the coefficient set of a marginal structural model.
+<code>msm_formula</code> sets that working model, and the default is
+linear in the exposure. The weights differ too: inverse probability
+weighting for a continuous exposure divides by a density rather than by
+a probability, weighting each observation by the stabilized density
+ratio, the marginal density of the exposure over its conditional density
+given the covariates.</p>
+<p>That ratio is what a sharp treatment mechanism makes explosive. The
+example plants one: <code>x1</code> explains nine tenths of the variance
+in the dose, so the conditional density is far tighter than the marginal
+and the few observations whose dose is unusual for their covariates
+carry enormous weight.</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">2025</span><span class="op">)</span></span>
+<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">400</span></span>
+<span><span class="va">x1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span>
+<span><span class="va">x2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">infusion</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span>
+<span>  x1 <span class="op">=</span> <span class="va">x1</span>,</span>
+<span>  x2 <span class="op">=</span> <span class="va">x2</span>,</span>
+<span>  dose <span class="op">=</span> <span class="fl">1.5</span> <span class="op">*</span> <span class="va">x1</span> <span class="op">+</span> <span class="fl">0.5</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span>
+<span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">dose</span> <span class="op">+</span> <span class="fl">2</span> <span class="op">*</span> <span class="va">x1</span> <span class="op">+</span> <span class="fl">0.5</span> <span class="op">*</span> <span class="va">x2</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">infusion_ipw</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/check_eta_bias.html">check_eta_bias</a></span><span class="op">(</span></span>
+<span>  <span class="va">infusion</span>,</span>
+<span>  <span class="va">dose</span>,</span>
+<span>  <span class="va">y</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">x1</span>, <span class="va">x2</span><span class="op">)</span>,</span>
+<span>  estimator <span class="op">=</span> <span class="st">"ipw"</span>,</span>
+<span>  n_boot <span class="op">=</span> <span class="fl">200</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Treating `.exposure` as continuous</span></span>
+<span><span class="va">infusion_ipw</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">ETA bias</span> <span style="color: #00BBBB;">────────────────────────────────────────────────────────────────────</span></span></span>
+<span><span class="co">#&gt; Exposure: <span style="color: #0000BB;">"dose"</span> (continuous)</span></span>
+<span><span class="co">#&gt; Observations: 400</span></span>
+<span><span class="co">#&gt; Estimator: ipw</span></span>
+<span><span class="co">#&gt; Bootstrap draws: 200</span></span>
+<span><span class="co">#&gt; Truth: 1.093</span></span>
+<span><span class="co">#&gt; ETA.Bias: 0.848 (MC SE 0.017)</span></span></code></pre></div>
+<p>The term is named <code>dose</code>, the one non-intercept
+coefficient of the default working model, and the truth is that
+coefficient under the observed fit: the counterfactual mean outcome is
+evaluated over the deciles of the observed dose and projected onto the
+working model by least squares. The bias is more than three quarters of
+the truth, which is what a mechanism this sharp does to a density-ratio
+weight. G-computation, reading the same fitted outcome model, sits on
+zero.</p>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">infusion_gcomp</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/check_eta_bias.html">check_eta_bias</a></span><span class="op">(</span></span>
+<span>  <span class="va">infusion</span>,</span>
+<span>  <span class="va">dose</span>,</span>
+<span>  <span class="va">y</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">x1</span>, <span class="va">x2</span><span class="op">)</span>,</span>
+<span>  estimator <span class="op">=</span> <span class="st">"gcomp"</span>,</span>
+<span>  n_boot <span class="op">=</span> <span class="fl">200</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">infusion_gcomp</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 1 × 6</span></span></span>
+<span><span class="co">#&gt;   term  truncation_lower truncation_upper     bias   mc_se boot_mean</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> dose                <span style="color: #BB0000;">NA</span>              <span style="color: #BB0000;">Inf</span> -<span style="color: #BB0000;">0.003</span><span style="color: #BB0000; text-decoration: underline;">43</span> 0.007<span style="text-decoration: underline;">53</span>      1.09</span></span></code></pre></div>
+<p>Because the working model defines the estimand rather than
+approximating one, two analyses of these data that set different
+<code>msm_formula</code> values are aimed at different targets and will
+report different biases. That is a property of the estimand and not an
+inconsistency: the number reported is the bias of estimating the working
+model the analysis actually uses, so it is worth reading beside the
+formula that produced it.</p>
+<p>Truncation is the third thing that changes with the type. There is no
+probability to bound, so a grid entry <code>g</code> caps the stabilized
+weight at its <code>1 - g</code> quantile, read once from the observed
+fit and held fixed across the bootstrap draws. The augmented estimator
+is unavailable here, and <code>truncation</code> and
+<code>reference_level</code> are errors rather than silent no-ops.</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">infusion_sweep</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/check_eta_bias.html">check_eta_bias</a></span><span class="op">(</span></span>
+<span>  <span class="va">infusion</span>,</span>
+<span>  <span class="va">dose</span>,</span>
+<span>  <span class="va">y</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">x1</span>, <span class="va">x2</span><span class="op">)</span>,</span>
+<span>  estimator <span class="op">=</span> <span class="st">"ipw"</span>,</span>
+<span>  truncation_grid <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.01</span>, <span class="fl">0.05</span>, <span class="fl">0.1</span><span class="op">)</span>,</span>
+<span>  n_boot <span class="op">=</span> <span class="fl">200</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">infusion_sweep</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 4 × 6</span></span></span>
+<span><span class="co">#&gt;   term  truncation_lower truncation_upper  bias   mc_se boot_mean</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> dose                <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">Inf</span>     0.848 0.016<span style="text-decoration: underline;">8</span>       1.94</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> dose                <span style="color: #BB0000;">NA</span>            6.89  0.942 0.007<span style="text-decoration: underline;">99</span>      2.03</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> dose                <span style="color: #BB0000;">NA</span>            1.47  1.03  0.004<span style="text-decoration: underline;">81</span>      2.12</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span> dose                <span style="color: #BB0000;">NA</span>            0.813 1.07  0.004<span style="text-decoration: underline;">14</span>      2.16</span></span></code></pre></div>
+<p><code>truncation_lower</code> is missing at every level, since there
+is no lower cap to place on a density ratio, and
+<code>truncation_upper</code> holds the cap itself: infinite where no
+truncation was applied, then the weight at each requested quantile. The
+caps say how concentrated the ratio is, falling from about seven at the
+0.99 quantile of the weights to under one at the 0.9 quantile. The bias
+says that capping does not rescue the estimator. It grows slightly as
+the cap tightens while the Monte Carlo standard error falls by a factor
+of four, so truncation buys stability around an answer that is wrong by
+most of the target either way.</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">infusion_sweep</span>, type <span class="op">=</span> <span class="st">"sweep"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="estimator-focused_files/figure-html/infusion-sweep-plot-1.png" class="r-plt" alt="ETA.Bias against the weight cap quantile for a continuous exposure, a single line rising gently from about eight tenths at no truncation to about one and a tenth at a cap quantile of one tenth, well above the dashed line at zero." width="100%"></p>
 <p>ETA.Bias captures the positivity, truncation, and sparsity component
 of bias and excludes model-misspecification bias by construction. It
 reports a diagnostic for a fitted mechanism and does not correct the
 estimate.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="extrapolation-as-the-g-computation-view-of-positivity">Extrapolation as the g-computation view of positivity<a class="anchor" aria-label="anchor" href="#extrapolation-as-the-g-computation-view-of-positivity"></a>
@@ -319,7 +598,7 @@ how well the opposite exposure group covers that unit’s position in
 covariate space, using Gower distances that handle numeric and
 categorical covariates together. We pass all three covariates, including
 the factor <code>region</code>.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">extrapolation</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/check_extrapolation.html">check_extrapolation</a></span><span class="op">(</span></span>
 <span>  <span class="va">pos_violations</span>,</span>
 <span>  <span class="va">exposure</span>,</span>
@@ -348,7 +627,7 @@ multiplier.</p>
 distance to the nearest opposite-group unit; <code>gower_mean</code>,
 the mean distance to the opposite group; and <code>frac_nearby</code>,
 the fraction of the opposite group within the reference radius.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">extrapolation</span><span class="op">)</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 1,000 × 7</span></span></span>
 <span><span class="co">#&gt;      .id exposure frac_nearby gower_min gower_mean in_hull low_support</span></span>
@@ -371,7 +650,7 @@ distribution of <code>frac_nearby</code> within each exposure group.
 Most units carry a third to a half of the opposite group nearby, and the
 thin left tail is the handful with almost none, whose g-computation
 prediction under the missing exposure rests on extrapolation.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">extrapolation</span>, type <span class="op">=</span> <span class="st">"distribution"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="estimator-focused_files/figure-html/extrapolation-distribution-1.png" class="r-plt" alt="Histograms of the fraction of nearby opposite-group units, faceted by exposure group, each rising from a thin left tail near zero to a peak around four tenths." width="100%"></p>
 <p>The convex-hull test is the sharper statement of the same idea. It
@@ -386,7 +665,7 @@ lpSolve is a suggested dependency, so install it to enable the hull
 test. <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> aggregates the results by exposure group,
 reporting the fraction of each group inside the opposite group’s
 hull.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">extrapolation</span><span class="op">)</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 2 × 5</span></span></span>
 <span><span class="co">#&gt;   exposure     n mean_gower_min prop_supported prop_in_hull</span></span>
@@ -397,7 +676,7 @@ hull.</p>
 group fall inside the opposite group’s hull. The units outside it are
 the ones that require extrapolation, and they include the structural
 subgroup that is never exposed.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">extrapolation</span>, type <span class="op">=</span> <span class="st">"hull"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="estimator-focused_files/figure-html/extrapolation-hull-1.png" class="r-plt" alt="Stacked bars per exposure group showing the share of units inside versus outside the opposite group's convex hull." width="100%"></p>
 <p>Read together, the two diagnostics describe the same positivity

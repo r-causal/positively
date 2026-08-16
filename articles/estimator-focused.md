@@ -30,7 +30,8 @@ structural violation, where no subject with `region == "b"` and `x2 > 1`
 is ever exposed, and a practical near-violation, where exposure depends
 steeply on `x1`, so the fitted propensity approaches zero in the lower
 tail of `x1` and one in the upper tail while both exposure levels remain
-observed.
+observed. Its exposure is binary, so the sections on categorical and
+continuous exposures simulate small examples of their own.
 
 ## ETA.Bias: the bias an estimator incurs
 
@@ -102,6 +103,7 @@ eta_ipw <- check_eta_bias(
   estimator = "ipw",
   n_boot = 500
 )
+#> ℹ Treating `.exposure` as binary
 eta_ipw
 #> 
 #> ── ETA bias ────────────────────────────────────────────────────────────────────
@@ -113,19 +115,22 @@ eta_ipw
 #> ETA.Bias: 0.085 (MC SE 0.027)
 ```
 
-The printed output reports the target truth, the estimator, and the
-ETA.Bias with its Monte Carlo standard error.
-[`tidy()`](https://generics.r-lib.org/reference/tidy.html) returns the
-same quantities as a table, one row per truncation level, along with the
-mean bootstrap estimate.
+The message reports that the exposure was detected as binary. The
+printed output reports the target truth, the estimator, and the ETA.Bias
+with its Monte Carlo standard error.
+[`tidy()`](https://generics.r-lib.org/reference/tidy.html) returns a
+table with one row per estimand term and truncation level, carrying the
+columns `term` (the contrast the row estimates), `truncation_lower` and
+`truncation_upper` (the bounds the estimator applied), `bias`, `mc_se`,
+and `boot_mean` (the mean bootstrap estimate).
 
 ``` r
 
 tidy(eta_ipw)
-#> # A tibble: 1 × 5
-#>   truncation_lower truncation_upper   bias  mc_se boot_mean
-#>              <dbl>            <dbl>  <dbl>  <dbl>     <dbl>
-#> 1                0                1 0.0853 0.0274      1.07
+#> # A tibble: 1 × 6
+#>   term  truncation_lower truncation_upper   bias  mc_se boot_mean
+#>   <chr>            <dbl>            <dbl>  <dbl>  <dbl>     <dbl>
+#> 1 1 - 0                0                1 0.0853 0.0274      1.07
 ```
 
 The bias is positive and sits about three Monte Carlo standard errors
@@ -231,13 +236,13 @@ sweep_result <- check_eta_bias(
   n_boot = 500
 )
 tidy(sweep_result)
-#> # A tibble: 4 × 5
-#>   truncation_lower truncation_upper   bias   mc_se boot_mean
-#>              <dbl>            <dbl>  <dbl>   <dbl>     <dbl>
-#> 1             0                1    0.0853 0.0274       1.07
-#> 2             0.01             0.99 0.232  0.0136       1.22
-#> 3             0.05             0.95 0.592  0.00700      1.58
-#> 4             0.1              0.9  0.901  0.00591      1.89
+#> # A tibble: 4 × 6
+#>   term  truncation_lower truncation_upper   bias   mc_se boot_mean
+#>   <chr>            <dbl>            <dbl>  <dbl>   <dbl>     <dbl>
+#> 1 1 - 0             0                1    0.0853 0.0274       1.07
+#> 2 1 - 0             0.01             0.99 0.232  0.0136       1.22
+#> 3 1 - 0             0.05             0.95 0.592  0.00700      1.58
+#> 4 1 - 0             0.1              0.9  0.901  0.00591      1.89
 ```
 
 The first row and the rows below it say different things. The first row
@@ -268,6 +273,331 @@ inverse-probability-weighting estimator, rising from just above zero at
 no truncation to about nine tenths at a lower bound of one tenth, with a
 two Monte Carlo standard error band that narrows as the bound
 tightens.](estimator-focused_files/figure-html/eta-sweep-1.png)
+
+### A categorical exposure, term by term
+
+A binary exposure has one contrast to report. A categorical exposure has
+one per non-reference level, and a positivity violation seldom reaches
+them equally. The example below plants three doses whose top level is
+nearly unreachable in the lower tail of `x1`, while the middle level is
+well supported everywhere.
+
+``` r
+
+set.seed(2025)
+n <- 400
+x1 <- rnorm(n)
+x2 <- rnorm(n)
+
+# The odds of the top dose climb steeply in x1, so subjects in the lower tail
+# of x1 almost never receive it.
+odds <- cbind(1, exp(0.5 * x1), exp(-1.5 + 3 * x1))
+probs <- odds / rowSums(odds)
+dose <- factor(
+  apply(probs, 1, function(p) sample(c("none", "low", "high"), 1, prob = p)),
+  levels = c("none", "low", "high")
+)
+
+dose_data <- tibble(
+  dose = dose,
+  y = as.numeric(dose == "low") +
+    2 * as.numeric(dose == "high") +
+    2 * x1 + 0.5 * x2 + rnorm(n),
+  x1 = x1,
+  x2 = x2
+)
+count(dose_data, dose)
+#> # A tibble: 3 × 2
+#>   dose      n
+#>   <fct> <int>
+#> 1 none    155
+#> 2 low     148
+#> 3 high     97
+```
+
+Past two levels the treatment mechanism is a multinomial logit, fitted
+with the nnet package and refit on every bootstrap draw. The chunks in
+this section are gated on nnet being installed, so the vignette builds
+either way.
+
+``` r
+
+set.seed(1)
+dose_ipw <- check_eta_bias(
+  dose_data,
+  dose,
+  y,
+  c(x1, x2),
+  estimator = "ipw",
+  n_boot = 200
+)
+#> ℹ Treating `.exposure` as categorical
+tidy(dose_ipw)
+#> # A tibble: 2 × 6
+#>   term        truncation_lower truncation_upper    bias  mc_se boot_mean
+#>   <chr>                  <dbl>            <dbl>   <dbl>  <dbl>     <dbl>
+#> 1 low - none                 0               NA -0.0138 0.0321     0.828
+#> 2 high - none                0               NA  0.306  0.0562     2.29
+```
+
+There is one row per non-reference level, and the two rows read
+differently. The `low - none` contrast is within one Monte Carlo
+standard error of zero: both levels are observed across the range of
+`x1`, so weighting has support to work with. The `high - none` contrast
+is biased upward by about five Monte Carlo standard errors, which is the
+planted violation showing up in the only estimand it touches. Reporting
+a single number for the whole exposure would have averaged the two
+together and understated the problem.
+
+`truncation_upper` is missing on both rows because truncation past two
+levels applies no upper bound. The paragraph on truncation below unpacks
+that.
+
+G-computation, which never divides by the fitted probabilities, sits
+within two Monte Carlo standard errors of zero on both terms.
+
+``` r
+
+set.seed(1)
+dose_gcomp <- check_eta_bias(
+  dose_data,
+  dose,
+  y,
+  c(x1, x2),
+  estimator = "gcomp",
+  n_boot = 200
+)
+
+bind_rows(
+  ipw = tidy(dose_ipw),
+  gcomp = tidy(dose_gcomp),
+  .id = "estimator"
+) |>
+  select(estimator, term, bias, mc_se)
+#> # A tibble: 4 × 4
+#>   estimator term           bias   mc_se
+#>   <chr>     <chr>         <dbl>   <dbl>
+#> 1 ipw       low - none  -0.0138 0.0321 
+#> 2 ipw       high - none  0.306  0.0562 
+#> 3 gcomp     low - none  -0.0157 0.00852
+#> 4 gcomp     high - none -0.0153 0.0121
+```
+
+The `type = "bootstrap"` plot gives each term its own row of facets,
+marked with the truth that term is aimed at. The two distributions sit
+differently against their dashed lines, which is the same reading the
+table gives.
+
+``` r
+
+autoplot(dose_ipw, type = "bootstrap")
+```
+
+![Histograms of bootstrap estimates for the
+inverse-probability-weighting estimator, one row per contrast. The low
+versus none row is a tall peak centered on its dashed truth line, and
+the high versus none row sits to the right of its dashed line with a
+long left
+tail.](estimator-focused_files/figure-html/dose-bootstrap-1.png)
+
+Both terms are contrasts against a reference level, `none` here, which
+is the first factor level unless `reference_level` names another. The
+reference is a choice of parameterization rather than of estimand: the
+fitted mechanisms and the bootstrap draws do not change with it, only
+which differences are reported.
+
+Truncation changes shape along with the estimand. With two levels the
+fitted propensity has one free coordinate, so a grid entry `g` bounds it
+into `c(g, 1 - g)`. With more levels each row of fitted probabilities is
+a point on a simplex, and a grid entry raises every coordinate below `g`
+up to `g` and renormalizes the row to sum to one, matching
+[`propensity::ps_trunc()`](https://r-causal.github.io/propensity/reference/ps_trunc.html).
+Pinning every level away from zero already bounds every weight
+denominator, so there is no upper bound to apply, which is why
+`truncation_upper` is missing. A grid entry has to sit below `1 / k` for
+an exposure with `k` levels, since `k` coordinates pinned at `1 / k`
+already fill the simplex.
+
+``` r
+
+set.seed(1)
+dose_sweep <- check_eta_bias(
+  dose_data,
+  dose,
+  y,
+  c(x1, x2),
+  estimator = "ipw",
+  truncation_grid = c(0, 0.02, 0.05, 0.1),
+  n_boot = 200
+)
+tidy(dose_sweep)
+#> # A tibble: 8 × 6
+#>   term        truncation_lower truncation_upper     bias  mc_se boot_mean
+#>   <chr>                  <dbl>            <dbl>    <dbl>  <dbl>     <dbl>
+#> 1 low - none              0                  NA -0.0138  0.0321     0.828
+#> 2 low - none              0.02               NA -0.00664 0.0239     0.836
+#> 3 low - none              0.05               NA  0.0305  0.0185     0.873
+#> 4 low - none              0.1                NA  0.0777  0.0144     0.920
+#> 5 high - none             0                  NA  0.306   0.0562     2.29 
+#> 6 high - none             0.02               NA  0.617   0.0310     2.60 
+#> 7 high - none             0.05               NA  0.949   0.0229     2.93 
+#> 8 high - none             0.1                NA  1.32    0.0198     3.31
+```
+
+The rows walk the sweep once per term. The `high - none` bias more than
+quadruples across the grid while the `low - none` bias stays under a
+tenth, so the truncation rule charges almost all of its bias to the
+contrast that was already the weakest. The Monte Carlo standard error
+falls on both terms, the variance side of the same tradeoff the binary
+sweep showed.
+
+``` r
+
+autoplot(dose_sweep, type = "sweep")
+```
+
+![ETA.Bias against the truncation lower bound with one line per
+contrast. The high versus none line rises steeply from about three
+tenths to about one and a third, while the low versus none line stays
+close to zero across the whole
+grid.](estimator-focused_files/figure-html/dose-sweep-plot-1.png)
+
+### A continuous exposure and its working model
+
+A continuous exposure has no levels to contrast, so the estimand is the
+coefficient set of a marginal structural model. `msm_formula` sets that
+working model, and the default is linear in the exposure. The weights
+differ too: inverse probability weighting for a continuous exposure
+divides by a density rather than by a probability, weighting each
+observation by the stabilized density ratio, the marginal density of the
+exposure over its conditional density given the covariates.
+
+That ratio is what a sharp treatment mechanism makes explosive. The
+example plants one: `x1` explains nine tenths of the variance in the
+dose, so the conditional density is far tighter than the marginal and
+the few observations whose dose is unusual for their covariates carry
+enormous weight.
+
+``` r
+
+set.seed(2025)
+n <- 400
+x1 <- rnorm(n)
+x2 <- rnorm(n)
+
+infusion <- tibble(
+  x1 = x1,
+  x2 = x2,
+  dose = 1.5 * x1 + 0.5 * rnorm(n)
+) |>
+  mutate(y = dose + 2 * x1 + 0.5 * x2 + rnorm(n))
+```
+
+``` r
+
+set.seed(1)
+infusion_ipw <- check_eta_bias(
+  infusion,
+  dose,
+  y,
+  c(x1, x2),
+  estimator = "ipw",
+  n_boot = 200
+)
+#> ℹ Treating `.exposure` as continuous
+infusion_ipw
+#> 
+#> ── ETA bias ────────────────────────────────────────────────────────────────────
+#> Exposure: "dose" (continuous)
+#> Observations: 400
+#> Estimator: ipw
+#> Bootstrap draws: 200
+#> Truth: 1.093
+#> ETA.Bias: 0.848 (MC SE 0.017)
+```
+
+The term is named `dose`, the one non-intercept coefficient of the
+default working model, and the truth is that coefficient under the
+observed fit: the counterfactual mean outcome is evaluated over the
+deciles of the observed dose and projected onto the working model by
+least squares. The bias is more than three quarters of the truth, which
+is what a mechanism this sharp does to a density-ratio weight.
+G-computation, reading the same fitted outcome model, sits on zero.
+
+``` r
+
+set.seed(1)
+infusion_gcomp <- check_eta_bias(
+  infusion,
+  dose,
+  y,
+  c(x1, x2),
+  estimator = "gcomp",
+  n_boot = 200
+)
+tidy(infusion_gcomp)
+#> # A tibble: 1 × 6
+#>   term  truncation_lower truncation_upper     bias   mc_se boot_mean
+#>   <chr>            <dbl>            <dbl>    <dbl>   <dbl>     <dbl>
+#> 1 dose                NA              Inf -0.00343 0.00753      1.09
+```
+
+Because the working model defines the estimand rather than approximating
+one, two analyses of these data that set different `msm_formula` values
+are aimed at different targets and will report different biases. That is
+a property of the estimand and not an inconsistency: the number reported
+is the bias of estimating the working model the analysis actually uses,
+so it is worth reading beside the formula that produced it.
+
+Truncation is the third thing that changes with the type. There is no
+probability to bound, so a grid entry `g` caps the stabilized weight at
+its `1 - g` quantile, read once from the observed fit and held fixed
+across the bootstrap draws. The augmented estimator is unavailable here,
+and `truncation` and `reference_level` are errors rather than silent
+no-ops.
+
+``` r
+
+set.seed(1)
+infusion_sweep <- check_eta_bias(
+  infusion,
+  dose,
+  y,
+  c(x1, x2),
+  estimator = "ipw",
+  truncation_grid = c(0, 0.01, 0.05, 0.1),
+  n_boot = 200
+)
+tidy(infusion_sweep)
+#> # A tibble: 4 × 6
+#>   term  truncation_lower truncation_upper  bias   mc_se boot_mean
+#>   <chr>            <dbl>            <dbl> <dbl>   <dbl>     <dbl>
+#> 1 dose                NA          Inf     0.848 0.0168       1.94
+#> 2 dose                NA            6.89  0.942 0.00799      2.03
+#> 3 dose                NA            1.47  1.03  0.00481      2.12
+#> 4 dose                NA            0.813 1.07  0.00414      2.16
+```
+
+`truncation_lower` is missing at every level, since there is no lower
+cap to place on a density ratio, and `truncation_upper` holds the cap
+itself: infinite where no truncation was applied, then the weight at
+each requested quantile. The caps say how concentrated the ratio is,
+falling from about seven at the 0.99 quantile of the weights to under
+one at the 0.9 quantile. The bias says that capping does not rescue the
+estimator. It grows slightly as the cap tightens while the Monte Carlo
+standard error falls by a factor of four, so truncation buys stability
+around an answer that is wrong by most of the target either way.
+
+``` r
+
+autoplot(infusion_sweep, type = "sweep")
+```
+
+![ETA.Bias against the weight cap quantile for a continuous exposure, a
+single line rising gently from about eight tenths at no truncation to
+about one and a tenth at a cap quantile of one tenth, well above the
+dashed line at
+zero.](estimator-focused_files/figure-html/infusion-sweep-plot-1.png)
 
 ETA.Bias captures the positivity, truncation, and sparsity component of
 bias and excludes model-misspecification bias by construction. It
