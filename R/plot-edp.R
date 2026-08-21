@@ -7,6 +7,7 @@
 #' empirical cumulative distribution colored by intervention. For the
 #' estimator variant, `type = "scatter"` plots `edp_outcome` against
 #' `edp_treatment` colored by `ideal_weight`; it aborts for the data variant.
+#' [pull_plot_data()] returns the tibble any of these views draws.
 #'
 #' @param object An `edp_result` from [check_edp()].
 #' @param type One of `"histogram"`, `"ecdf"`, or `"scatter"`.
@@ -44,25 +45,6 @@ method(autoplot, edp_result) <- function(
   }
 }
 
-#' The results tibble keyed on the intervention label
-#'
-#' Every view that separates the interventions keys on the label rather than on
-#' `value`, which a function intervention varies from observation to
-#' observation. The levels follow the order the interventions were given in.
-#'
-#' @param results An `edp_result` results tibble.
-#'
-#' @return `results` with `intervention` as a factor.
-#' @keywords internal
-#' @noRd
-edp_plot_data <- function(results) {
-  results$intervention <- factor(
-    results$intervention,
-    levels = unique(results$intervention)
-  )
-  results
-}
-
 #' The histogram view of an EDP diagnostic
 #'
 #' @param object An `edp_result`.
@@ -72,7 +54,7 @@ edp_plot_data <- function(results) {
 #' @noRd
 autoplot_edp_histogram <- function(object) {
   measure <- edp_primary_column(object@results)
-  plot_data <- edp_plot_data(object@results)
+  plot_data <- pull_plot_data(object, type = "histogram")
   ggplot2::ggplot(plot_data, ggplot2::aes(x = .data[[measure]])) +
     ggplot2::geom_histogram(bins = 30, fill = "grey70", color = "white") +
     ggplot2::facet_wrap(
@@ -95,7 +77,7 @@ autoplot_edp_histogram <- function(object) {
 #' @noRd
 autoplot_edp_ecdf <- function(object) {
   measure <- edp_primary_column(object@results)
-  plot_data <- edp_plot_data(object@results)
+  plot_data <- pull_plot_data(object, type = "ecdf")
   ggplot2::ggplot(
     plot_data,
     ggplot2::aes(x = .data[[measure]], color = .data$intervention)
@@ -118,17 +100,8 @@ autoplot_edp_ecdf <- function(object) {
 #' @keywords internal
 #' @noRd
 autoplot_edp_scatter <- function(object, call = rlang::caller_env()) {
-  if (object@variant != "estimator") {
-    abort(
-      c(
-        "The scatter view needs the estimator variant.",
-        i = "Rerun {.fn check_edp} with {.code variant = \"estimator\"}."
-      ),
-      error_class = "positively_variant_error",
-      call = call
-    )
-  }
-  results <- object@results
+  edp_require_estimator(object, call = call)
+  results <- pull_plot_data(object, type = "scatter")
   finite_rows <- results[is.finite(results$ideal_weight), , drop = FALSE]
   infinite_rows <- results[is.infinite(results$ideal_weight), , drop = FALSE]
 

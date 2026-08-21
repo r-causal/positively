@@ -37,8 +37,10 @@ reference:
   - check_density_ratios
 - title: Plots
   desc: >
-    Autoplot methods that visualize each diagnostic result.
+    Autoplot methods that visualize each diagnostic result, and the accessor
+    that returns the data behind a view.
   contents:
+  - pull_plot_data
   - autoplot.positivity_check
   - autoplot.edp_result
   - autoplot.port_result

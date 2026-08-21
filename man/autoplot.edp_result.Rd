@@ -20,6 +20,7 @@ distribution of EDP faceted by intervention, and \code{type = "ecdf"} shows its
 empirical cumulative distribution colored by intervention. For the
 estimator variant, \code{type = "scatter"} plots \code{edp_outcome} against
 \code{edp_treatment} colored by \code{ideal_weight}; it aborts for the data variant.
+\code{\link[=pull_plot_data]{pull_plot_data()}} returns the tibble any of these views draws.
 }
 \examples{
 set.seed(1)
