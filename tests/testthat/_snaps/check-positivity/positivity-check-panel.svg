@@ -174,7 +174,7 @@
 </defs>
 <g clip-path='url(#cpMzguMjd8MTAxLjQ4fDQ1LjU3fDYyLjIy)'>
 <rect x='38.27' y='45.57' width='63.20' height='16.65' style='stroke-width: 1.07; stroke: none; fill: #D9D9D9;' />
-<text x='69.87' y='56.92' text-anchor='middle' style='font-size: 8.80px; fill: #1A1A1A; font-family: sans;' textLength='30.82px' lengthAdjust='spacingAndGlyphs'>value: 0</text>
+<text x='69.87' y='56.92' text-anchor='middle' style='font-size: 8.80px; fill: #1A1A1A; font-family: sans;' textLength='55.28px' lengthAdjust='spacingAndGlyphs'>intervention: 0</text>
 </g>
 <g clip-path='url(#cpMC4wMHw3MjAuMDB8MC4wMHw1NzYuMDA=)'>
 </g>
@@ -185,7 +185,7 @@
 </defs>
 <g clip-path='url(#cpMTA2Ljk2fDE3MC4xNnw0NS41N3w2Mi4yMg==)'>
 <rect x='106.96' y='45.57' width='63.20' height='16.65' style='stroke-width: 1.07; stroke: none; fill: #D9D9D9;' />
-<text x='138.56' y='56.92' text-anchor='middle' style='font-size: 8.80px; fill: #1A1A1A; font-family: sans;' textLength='30.82px' lengthAdjust='spacingAndGlyphs'>value: 1</text>
+<text x='138.56' y='56.92' text-anchor='middle' style='font-size: 8.80px; fill: #1A1A1A; font-family: sans;' textLength='55.28px' lengthAdjust='spacingAndGlyphs'>intervention: 1</text>
 </g>
 <g clip-path='url(#cpMC4wMHw3MjAuMDB8MC4wMHw1NzYuMDA=)'>
 <polyline points='41.34,542.37 41.34,539.63 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
@@ -210,7 +210,7 @@
 <polyline points='35.53,156.25 38.27,156.25 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
 <text x='104.22' y='562.76' text-anchor='middle' style='font-size: 11.00px; font-family: sans;' textLength='99.07px' lengthAdjust='spacingAndGlyphs'>Effective data points</text>
 <text transform='translate(18.53,300.93) rotate(-90)' text-anchor='middle' style='font-size: 11.00px; font-family: sans;' textLength='64.83px' lengthAdjust='spacingAndGlyphs'>Observations</text>
-<text x='38.27' y='37.35' style='font-size: 13.20px; font-family: sans;' textLength='243.64px' lengthAdjust='spacingAndGlyphs'>Effective data points by intervention value</text>
+<text x='38.27' y='37.35' style='font-size: 13.20px; font-family: sans;' textLength='208.41px' lengthAdjust='spacingAndGlyphs'>Effective data points by intervention</text>
 </g>
 <defs>
   <clipPath id='cpMzI1LjE0fDQ1Ny4wM3w2Mi4yMnw1MzkuNjM='>

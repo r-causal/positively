@@ -184,6 +184,101 @@
       Error in `check_edp()`:
       ! `.treatment_covariates` must select at least one column.
 
+# the function-intervention error messages are stable
+
+    Code
+      check_edp(data, exposure, x1, values = list(shift), exposure_type = "continuous")
+    Condition
+      Error in `check_edp()`:
+      ! Every function in `values` must be named.
+      i The name labels the intervention in the results and on a plot.
+      x Element 1 is an unnamed function.
+
+---
+
+    Code
+      check_edp(data, exposure, x1, values = stats::setNames(list(shift, shift), c(
+        "down", "down")), exposure_type = "continuous")
+    Condition
+      Error in `check_edp()`:
+      ! `values` must label every intervention distinctly.
+      x Duplicated label: "down".
+
+---
+
+    Code
+      check_edp(data, exposure, x1, values = stats::setNames(list(5, 1), c("", "5")),
+      exposure_type = "continuous")
+    Condition
+      Error in `check_edp()`:
+      ! `values` must label every intervention distinctly.
+      x Duplicated label: "5".
+      i An element without a name is labeled by its own value.
+
+---
+
+    Code
+      check_edp(data, exposure, x1, values = list(bad = function(.x) rep("a", length(
+        .x))), exposure_type = "continuous")
+    Condition
+      Error in `check_edp()`:
+      ! The `values` function "bad" must return a numeric vector, not a <character>.
+
+---
+
+    Code
+      check_edp(data, exposure, x1, values = list(bad = function(.x) .x[1:2]),
+      exposure_type = "continuous")
+    Condition
+      Error in `check_edp()`:
+      ! The `values` function "bad" must return one value per observation or a single value.
+      x It returned 2 values for 60 observations.
+
+---
+
+    Code
+      check_edp(data, exposure, x1, values = list(bad = function(.x) replace(.x, 1,
+        NA_real_)), exposure_type = "continuous")
+    Condition
+      Error in `check_edp()`:
+      ! The `values` function "bad" must not return missing values.
+
+---
+
+    Code
+      check_edp(data, exposure, x1, values = list(bad = function(.x) replace(.x, 1,
+        Inf)), exposure_type = "continuous")
+    Condition
+      Error in `check_edp()`:
+      ! The `values` function "bad" must not return non-finite values.
+
+---
+
+    Code
+      check_edp(data, exposure, x1, values = list(bad = NULL), exposure_type = "continuous")
+    Condition
+      Error in `check_edp()`:
+      ! `values` must contain single values or functions of the exposure.
+      x Element 1 is a <NULL> of length 0.
+
+---
+
+    Code
+      check_edp(data, exposure, x1, values = list(), exposure_type = "continuous")
+    Condition
+      Error in `check_edp()`:
+      ! `values` must contain at least one value.
+
+---
+
+    Code
+      check_edp(binary, exposure, c(x1, x2), values = list(down = shift))
+    Condition
+      Error in `check_edp()`:
+      ! A function in `values` needs a continuous exposure.
+      x The exposure is binary.
+      i A function maps each observed exposure to its intervened value.
+
 # the unused-bandwidth warnings are stable
 
     Code
@@ -252,6 +347,19 @@
       edp_outcome range: 4.23 to 38.179
       edp_treatment range: 8.995 to 98.272
       ideal_weight range: 2.127 to 2.795
+
+# the print method is stable for a function intervention
+
+    Code
+      print(res)
+    Output
+      
+      -- Effective data points -------------------------------------------------------
+      Exposure: "exposure" (continuous)
+      Observations: 150
+      Variant: data
+      Intervention values: 2
+      edp range: 0.039 to 38.715
 
 # the EDP label and headline are stable
 

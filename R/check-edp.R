@@ -82,10 +82,17 @@ edp_result <- new_class(
 #'   estimator variant, selected with tidyselect. Defaults to `.covariates`.
 #' @param .treatment_covariates The treatment-model covariate columns for the
 #'   estimator variant, selected with tidyselect. Defaults to `.covariates`.
-#' @param values The intervention values \eqn{a^*}. `NULL` (the default) uses
-#'   every level of a factor exposure and every observed value of a binary or
-#'   character exposure, and the deciles of the observed exposure for continuous
-#'   exposures.
+#' @param values The interventions. `NULL` (the default) uses every level of a
+#'   factor exposure and every observed value of a binary or character exposure,
+#'   and the deciles of the observed exposure for continuous exposures. A vector
+#'   holds one intervention value \eqn{a^*} per element. A list holds the same
+#'   single values and, for a continuous exposure, functions of the observed
+#'   exposure such as `list(3, 5, lower = function(.x) .x - 5)`. A function is
+#'   called once on the whole exposure vector and returns one intervened
+#'   exposure \eqn{d(a_i)} per observation, or a single value used for every
+#'   observation. Each function needs a name, which labels the intervention; an
+#'   unnamed value is labeled by the value itself, and every label in a list
+#'   must be distinct.
 #' @param variant One of `"data"` (report a single `edp` per point, the default)
 #'   or `"estimator"` (report `edp_outcome`, `edp_treatment`, and
 #'   `ideal_weight`).
@@ -106,14 +113,16 @@ edp_result <- new_class(
 #'   nothing of the column.
 #'
 #' @return An `edp_result` object, an S7 subclass of [positivity_diagnostic].
-#'   Its `@results` tibble has one row per observation and intervention value.
-#'   The data variant carries columns `.id` (the observation row index), `value`
-#'   (the intervention value \eqn{a^*}), and `edp`. The estimator variant
-#'   replaces `edp` with `edp_outcome`, `edp_treatment`, and `ideal_weight`. It
-#'   also carries the `@variant` and `@bandwidths` properties.
+#'   Its `@results` tibble has one row per observation and intervention. The data
+#'   variant carries columns `.id` (the observation row index), `intervention`
+#'   (the intervention label), `value` (the intervened exposure, the constant
+#'   \eqn{a^*} for a single value and \eqn{d(a_i)} for a function), and `edp`.
+#'   The estimator variant replaces `edp` with `edp_outcome`, `edp_treatment`,
+#'   and `ideal_weight`. It also carries the `@variant` and `@bandwidths`
+#'   properties.
 #'
 #'   [generics::glance()] returns a one-row tibble with `n` (the sample size),
-#'   `variant`, `n_values` (the number of intervention values), and the observed
+#'   `variant`, `n_values` (the number of interventions), and the observed
 #'   range of every measure the variant reports. That is `edp_min` and `edp_max`
 #'   for the data variant, and `edp_outcome_min`, `edp_outcome_max`,
 #'   `edp_treatment_min`, `edp_treatment_max`, `ideal_weight_min`, and
@@ -222,9 +231,7 @@ check_edp <- function(
     fn = "check_edp"
   )
 
-  if (!is.null(values)) {
-    validate_values(values, exposure_type)
-  }
+  interventions <- resolve_interventions(values, exposure_vec, exposure_type)
 
   compute_names <- if (variant == "estimator") {
     unique(c(outcome_names, treatment_names))
@@ -244,14 +251,13 @@ check_edp <- function(
   } else {
     NA_real_
   }
-  values_grid <- resolve_values(values, exposure_vec, exposure_type)
 
   exposure_kernels <- lapply(
-    values_grid,
-    function(a) {
-      exposure_kernel(
+    interventions,
+    function(intervention) {
+      exposure_kernel_target(
         exposure_vec,
-        a,
+        intervention$target,
         exposure_type,
         bw_exposure_resolved,
         categorical_similarity
@@ -259,8 +265,13 @@ check_edp <- function(
     }
   )
 
-  ids <- rep(seq_len(n), times = length(values_grid))
-  value_column <- rep(values_grid, each = n)
+  labels <- vapply(interventions, function(x) x$label, character(1))
+  ids <- rep(seq_len(n), times = length(interventions))
+  intervention_column <- rep(labels, each = n)
+  value_column <- unlist(
+    lapply(interventions, function(x) rep_len(x$target, n)),
+    use.names = FALSE
+  )
 
   if (variant == "data") {
     cov_bw <- resolve_covariate_bandwidths(
@@ -275,10 +286,15 @@ check_edp <- function(
       categorical_similarity
     )
     edp <- unlist(
-      lapply(exposure_kernels, function(e) as.double(similarity %*% e)),
+      lapply(exposure_kernels, function(e) edp_kernel_sum(similarity, e)),
       use.names = FALSE
     )
-    results <- tibble::tibble(.id = ids, value = value_column, edp = edp)
+    results <- tibble::tibble(
+      .id = ids,
+      intervention = intervention_column,
+      value = value_column,
+      edp = edp
+    )
     bandwidths <- list(exposure = bw_exposure_resolved, covariates = cov_bw)
   } else {
     outcome_bw <- resolve_covariate_bandwidths(
@@ -304,15 +320,19 @@ check_edp <- function(
       categorical_similarity
     )
     edp_outcome <- unlist(
-      lapply(exposure_kernels, function(e) as.double(outcome_similarity %*% e)),
+      lapply(
+        exposure_kernels,
+        function(e) edp_kernel_sum(outcome_similarity, e)
+      ),
       use.names = FALSE
     )
     edp_treatment <- rep(
       rowSums(treatment_similarity),
-      times = length(values_grid)
+      times = length(interventions)
     )
     results <- tibble::tibble(
       .id = ids,
+      intervention = intervention_column,
       value = value_column,
       edp_outcome = edp_outcome,
       edp_treatment = edp_treatment,
@@ -333,7 +353,10 @@ check_edp <- function(
     params = list(
       variant = variant,
       kernel = kernel,
-      values = values_grid,
+      values = stats::setNames(
+        lapply(interventions, function(x) x$spec),
+        labels
+      ),
       categorical_similarity = categorical_similarity,
       bw_exposure = bw_exposure_resolved,
       bw_covariates = bw_covariates,
@@ -373,6 +396,252 @@ resolve_covariate_names <- function(
   selection <- eval_select_columns(quo, .data, arg_name, call = call)
   validate_column_selection(selection, arg_name, call = call)
   names(selection)
+}
+
+#' Resolve every spelling of `values` into labeled intervention records
+#'
+#' Each record is a `list(label, spec, target)`: `label` names the intervention
+#' in the results and on a plot, `spec` is the element as the user wrote it, and
+#' `target` is the intervened exposure, either one value for the whole sample or
+#' one value per observation.
+#'
+#' A vector, and the default grid, give one record per value labeled by the
+#' value itself. A list may hold single values under the same rule and, for a
+#' continuous exposure, functions of the observed exposure. Every label is
+#' derived before any function runs, so a list that cannot be labeled fails
+#' without evaluating user code.
+#'
+#' @param values The user-supplied values, or `NULL` for the default grid.
+#' @param exposure_vec The observed exposure vector.
+#' @param exposure_type The resolved exposure type.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return A list of intervention records.
+#' @keywords internal
+#' @noRd
+resolve_interventions <- function(
+  values,
+  exposure_vec,
+  exposure_type,
+  arg_name = "values",
+  call = rlang::caller_env()
+) {
+  if (!is.null(values) && length(values) == 0) {
+    abort(
+      "{.arg {arg_name}} must contain at least one value.",
+      error_class = "positively_empty_error",
+      call = call
+    )
+  }
+  if (!is.list(values)) {
+    if (!is.null(values)) {
+      validate_values(values, exposure_type, arg_name = arg_name, call = call)
+    }
+    grid <- resolve_values(values, exposure_vec, exposure_type)
+    return(lapply(seq_along(grid), function(i) {
+      value <- grid[[i]]
+      list(label = as.character(value), spec = value, target = value)
+    }))
+  }
+
+  supplied <- names(values) %||% rep("", length(values))
+  supplied[is.na(supplied)] <- ""
+  labels <- intervention_labels(values, supplied, arg_name, call)
+  validate_distinct_labels(labels, supplied, arg_name, call)
+  lapply(seq_along(values), function(i) {
+    resolve_one_intervention(
+      values[[i]],
+      labels[[i]],
+      exposure_vec,
+      exposure_type,
+      arg_name,
+      call
+    )
+  })
+}
+
+#' Derive one label per element of a list of interventions
+#'
+#' A name is the label wherever the user wrote one. An unnamed single value is
+#' labeled by the value itself, and an unnamed function has nothing to be
+#' called by, so it is rejected here rather than reaching a plot without an
+#' axis label.
+#'
+#' @param values A list of interventions.
+#' @param supplied The names the user wrote, one per element and `""` where the
+#'   element has none.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return A character vector of labels, one per element.
+#' @keywords internal
+#' @noRd
+intervention_labels <- function(values, supplied, arg_name, call) {
+  vapply(
+    seq_along(values),
+    function(i) {
+      spec <- values[[i]]
+      if (!is.function(spec) && !(is.atomic(spec) && length(spec) == 1)) {
+        spec_class <- class(spec)[1]
+        abort(
+          c(
+            "{.arg {arg_name}} must contain single values or functions of the exposure.",
+            x = "Element {i} is a {.cls {spec_class}} of length {length(spec)}."
+          ),
+          error_class = "positively_type_error",
+          call = call
+        )
+      }
+      if (nzchar(supplied[[i]])) {
+        return(supplied[[i]])
+      }
+      if (is.function(spec)) {
+        abort(
+          c(
+            "Every function in {.arg {arg_name}} must be named.",
+            i = "The name labels the intervention in the results and on a plot.",
+            x = "Element {i} is an unnamed function."
+          ),
+          error_class = "positively_unnamed_error",
+          call = call
+        )
+      }
+      as.character(spec)
+    },
+    character(1)
+  )
+}
+
+#' Validate that no two interventions share a label
+#'
+#' @param labels The derived labels.
+#' @param supplied The names the user wrote, one per element and `""` where the
+#'   element has none.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return `labels`, invisibly, when every label is distinct.
+#' @keywords internal
+#' @noRd
+validate_distinct_labels <- function(labels, supplied, arg_name, call) {
+  repeated <- unique(labels[duplicated(labels)])
+  if (length(repeated) == 0) {
+    return(invisible(labels))
+  }
+  bullets <- c(
+    "{.arg {arg_name}} must label every intervention distinctly.",
+    x = "Duplicated label{?s}: {.val {repeated}}."
+  )
+  if (!all(nzchar(supplied[labels %in% repeated]))) {
+    bullets <- c(
+      bullets,
+      i = "An element without a name is labeled by its own value."
+    )
+  }
+  abort(bullets, error_class = "positively_duplicate_error", call = call)
+}
+
+#' Resolve one element of a list of interventions into a record
+#'
+#' @param spec The element as the user supplied it.
+#' @param label The intervention's label.
+#' @param exposure_vec The observed exposure vector.
+#' @param exposure_type The resolved exposure type.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return An intervention record.
+#' @keywords internal
+#' @noRd
+resolve_one_intervention <- function(
+  spec,
+  label,
+  exposure_vec,
+  exposure_type,
+  arg_name,
+  call
+) {
+  if (!is.function(spec)) {
+    validate_values(spec, exposure_type, arg_name = arg_name, call = call)
+    return(list(label = label, spec = spec, target = spec))
+  }
+  if (exposure_type != "continuous") {
+    abort(
+      c(
+        "A function in {.arg {arg_name}} needs a continuous exposure.",
+        x = "The exposure is {exposure_type}.",
+        i = "A function maps each observed exposure to its intervened value."
+      ),
+      error_class = "positively_type_error",
+      call = call
+    )
+  }
+  target <- spec(exposure_vec)
+  list(
+    label = label,
+    spec = spec,
+    target = validate_intervention_target(
+      target,
+      label,
+      length(exposure_vec),
+      arg_name,
+      call
+    )
+  )
+}
+
+#' Validate what an intervention function returned
+#'
+#' The result stands in for the exposure, so it has to meet what the exposure
+#' column itself must meet: numeric, complete, and finite. A single value is
+#' recycled over the sample, the one output length that does not already say
+#' which observation each target belongs to.
+#'
+#' @param target The value the function returned.
+#' @param label The intervention's label.
+#' @param n The number of observations.
+#' @param arg_name The argument name used in error messages.
+#' @param call The calling environment, used to build the error's call.
+#'
+#' @return A double vector of length `n`.
+#' @keywords internal
+#' @noRd
+validate_intervention_target <- function(target, label, n, arg_name, call) {
+  if (!is.numeric(target)) {
+    target_class <- class(target)[1]
+    abort(
+      "The {.arg {arg_name}} function {.val {label}} must return a numeric vector, not a {.cls {target_class}}.",
+      error_class = "positively_type_error",
+      call = call
+    )
+  }
+  if (!length(target) %in% c(1L, n)) {
+    abort(
+      c(
+        "The {.arg {arg_name}} function {.val {label}} must return one value per observation or a single value.",
+        x = "It returned {length(target)} value{?s} for {n} observation{?s}."
+      ),
+      error_class = "positively_size_error",
+      call = call
+    )
+  }
+  target <- rep_len(as.double(target), n)
+  if (anyNA(target)) {
+    abort(
+      "The {.arg {arg_name}} function {.val {label}} must not return missing values.",
+      error_class = "positively_missing_error",
+      call = call
+    )
+  }
+  if (!all(is.finite(target))) {
+    abort(
+      "The {.arg {arg_name}} function {.val {label}} must not return non-finite values.",
+      error_class = "positively_range_error",
+      call = call
+    )
+  }
+  target
 }
 
 #' Resolve the intervention-value grid
@@ -627,20 +896,76 @@ exposure_kernel <- function(
   }
 }
 
+#' The exposure-dimension kernel for one intervention target
+#'
+#' A single target is one point every observation is moved to, so the kernel is
+#' one value per observation. A target per observation makes the kernel an
+#' `n` by `n` matrix instead, rows indexing the intervened-on point and columns
+#' the observed sample.
+#'
+#' @param exposure_vec The observed exposure vector.
+#' @param target A single intervention value, or one per observation.
+#' @param exposure_type The resolved exposure type.
+#' @param bw The continuous-exposure half-distance (ignored when discrete).
+#' @param categorical_similarity The non-matching kernel value for discrete
+#'   exposures.
+#'
+#' @return A numeric vector of length `n`, or an `n` by `n` numeric matrix.
+#' @keywords internal
+#' @noRd
+exposure_kernel_target <- function(
+  exposure_vec,
+  target,
+  exposure_type,
+  bw,
+  categorical_similarity
+) {
+  if (length(target) == 1) {
+    return(exposure_kernel(
+      exposure_vec,
+      target,
+      exposure_type,
+      bw,
+      categorical_similarity
+    ))
+  }
+  continuous_kernel(outer(target, as.double(exposure_vec), "-"), bw)
+}
+
+#' Sum the product kernel over the sample for every observation
+#'
+#' @param similarity The `n` by `n` covariate similarity matrix.
+#' @param kernel The exposure kernel: one value per observation for a single
+#'   target, or an `n` by `n` matrix for one target per observation.
+#'
+#' @return A numeric vector of length `n`.
+#' @keywords internal
+#' @noRd
+edp_kernel_sum <- function(similarity, kernel) {
+  if (is.matrix(kernel)) {
+    return(rowSums(similarity * kernel))
+  }
+  as.double(similarity %*% kernel)
+}
+
 #' The reparameterized Gaussian kernel over a difference vector
 #'
 #' Returns `0.5 ^ ((delta / bw) ^ 2)`, which equals `1` at `delta == 0` and
 #' `0.5` at `abs(delta) == bw`. A half-distance of `0` counts exact matches.
 #'
-#' @param delta A numeric vector of differences.
+#' @param delta A numeric vector or matrix of differences.
 #' @param bw The half-distance.
 #'
-#' @return A numeric vector in `[0, 1]`.
+#' @return A numeric object in `[0, 1]`, shaped like `delta`.
 #' @keywords internal
 #' @noRd
 continuous_kernel <- function(delta, bw) {
   if (bw == 0) {
-    return(as.double(delta == 0))
+    matches <- delta == 0
+    # Assigning the storage mode keeps a matrix a matrix, which as.double()
+    # would flatten.
+    storage.mode(matches) <- "double"
+    return(matches)
   }
   0.5^((delta / bw)^2)
 }

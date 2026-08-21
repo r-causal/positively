@@ -3,8 +3,8 @@
 #' Plot an effective-data-points diagnostic
 #'
 #' Draws one view of a [check_edp()] result. `type = "histogram"` shows the
-#' distribution of EDP faceted by intervention value, and `type = "ecdf"` shows
-#' its empirical cumulative distribution colored by intervention value. For the
+#' distribution of EDP faceted by intervention, and `type = "ecdf"` shows its
+#' empirical cumulative distribution colored by intervention. For the
 #' estimator variant, `type = "scatter"` plots `edp_outcome` against
 #' `edp_treatment` colored by `ideal_weight`; it aborts for the data variant.
 #'
@@ -44,6 +44,25 @@ method(autoplot, edp_result) <- function(
   }
 }
 
+#' The results tibble keyed on the intervention label
+#'
+#' Every view that separates the interventions keys on the label rather than on
+#' `value`, which a function intervention varies from observation to
+#' observation. The levels follow the order the interventions were given in.
+#'
+#' @param results An `edp_result` results tibble.
+#'
+#' @return `results` with `intervention` as a factor.
+#' @keywords internal
+#' @noRd
+edp_plot_data <- function(results) {
+  results$intervention <- factor(
+    results$intervention,
+    levels = unique(results$intervention)
+  )
+  results
+}
+
 #' The histogram view of an EDP diagnostic
 #'
 #' @param object An `edp_result`.
@@ -53,18 +72,17 @@ method(autoplot, edp_result) <- function(
 #' @noRd
 autoplot_edp_histogram <- function(object) {
   measure <- edp_primary_column(object@results)
-  plot_data <- object@results
-  plot_data$value <- factor(plot_data$value)
+  plot_data <- edp_plot_data(object@results)
   ggplot2::ggplot(plot_data, ggplot2::aes(x = .data[[measure]])) +
     ggplot2::geom_histogram(bins = 30, fill = "grey70", color = "white") +
     ggplot2::facet_wrap(
-      ggplot2::vars(.data$value),
+      ggplot2::vars(.data$intervention),
       labeller = ggplot2::label_both
     ) +
     ggplot2::labs(
       x = "Effective data points",
       y = "Observations",
-      title = "Effective data points by intervention value"
+      title = "Effective data points by intervention"
     )
 }
 
@@ -77,18 +95,17 @@ autoplot_edp_histogram <- function(object) {
 #' @noRd
 autoplot_edp_ecdf <- function(object) {
   measure <- edp_primary_column(object@results)
-  plot_data <- object@results
-  plot_data$value <- factor(plot_data$value)
+  plot_data <- edp_plot_data(object@results)
   ggplot2::ggplot(
     plot_data,
-    ggplot2::aes(x = .data[[measure]], color = .data$value)
+    ggplot2::aes(x = .data[[measure]], color = .data$intervention)
   ) +
     ggplot2::stat_ecdf() +
     ggplot2::labs(
       x = "Effective data points",
       y = "Cumulative proportion",
-      color = "Intervention value",
-      title = "Effective data points by intervention value"
+      color = "Intervention",
+      title = "Effective data points by intervention"
     )
 }
 

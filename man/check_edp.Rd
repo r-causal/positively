@@ -32,10 +32,17 @@ estimator variant, selected with tidyselect. Defaults to \code{.covariates}.}
 \item{.treatment_covariates}{The treatment-model covariate columns for the
 estimator variant, selected with tidyselect. Defaults to \code{.covariates}.}
 
-\item{values}{The intervention values \eqn{a^*}. \code{NULL} (the default) uses
-every level of a factor exposure and every observed value of a binary or
-character exposure, and the deciles of the observed exposure for continuous
-exposures.}
+\item{values}{The interventions. \code{NULL} (the default) uses every level of a
+factor exposure and every observed value of a binary or character exposure,
+and the deciles of the observed exposure for continuous exposures. A vector
+holds one intervention value \eqn{a^*} per element. A list holds the same
+single values and, for a continuous exposure, functions of the observed
+exposure such as \code{list(3, 5, lower = function(.x) .x - 5)}. A function is
+called once on the whole exposure vector and returns one intervened
+exposure \eqn{d(a_i)} per observation, or a single value used for every
+observation. Each function needs a name, which labels the intervention; an
+unnamed value is labeled by the value itself, and every label in a list
+must be distinct.}
 
 \item{variant}{One of \code{"data"} (report a single \code{edp} per point, the default)
 or \code{"estimator"} (report \code{edp_outcome}, \code{edp_treatment}, and
@@ -63,14 +70,16 @@ nothing of the column.}
 }
 \value{
 An \code{edp_result} object, an S7 subclass of \link{positivity_diagnostic}.
-Its \verb{@results} tibble has one row per observation and intervention value.
-The data variant carries columns \code{.id} (the observation row index), \code{value}
-(the intervention value \eqn{a^*}), and \code{edp}. The estimator variant
-replaces \code{edp} with \code{edp_outcome}, \code{edp_treatment}, and \code{ideal_weight}. It
-also carries the \verb{@variant} and \verb{@bandwidths} properties.
+Its \verb{@results} tibble has one row per observation and intervention. The data
+variant carries columns \code{.id} (the observation row index), \code{intervention}
+(the intervention label), \code{value} (the intervened exposure, the constant
+\eqn{a^*} for a single value and \eqn{d(a_i)} for a function), and \code{edp}.
+The estimator variant replaces \code{edp} with \code{edp_outcome}, \code{edp_treatment},
+and \code{ideal_weight}. It also carries the \verb{@variant} and \verb{@bandwidths}
+properties.
 
 \code{\link[generics:glance]{generics::glance()}} returns a one-row tibble with \code{n} (the sample size),
-\code{variant}, \code{n_values} (the number of intervention values), and the observed
+\code{variant}, \code{n_values} (the number of interventions), and the observed
 range of every measure the variant reports. That is \code{edp_min} and \code{edp_max}
 for the data variant, and \code{edp_outcome_min}, \code{edp_outcome_max},
 \code{edp_treatment_min}, \code{edp_treatment_max}, \code{ideal_weight_min}, and
