@@ -863,6 +863,21 @@ test_that("PoRT autoplot renders as expected", {
   )
 })
 
+test_that("the bars read low support by fill and the thresholds by a dash", {
+  local_quiet()
+  # The fill is the whole of what marks a subgroup as low support, so its two
+  # levels are drawn in colours a reader can tell apart. The threshold lines are
+  # references rather than readings, and the dash is what says so.
+  res <- check_port(port_anchor_data(), exposure, g)
+
+  plot <- ggplot2::autoplot(res)
+  guide <- ggplot2::get_guide_data(plot, "fill")
+  expect_identical(as.character(guide$.label), c("FALSE", "TRUE"))
+  expect_identical(guide$fill, c("grey70", "#B2182B"))
+
+  expect_identical(unique(built_layer(plot, "xintercept")$linetype), "dashed")
+})
+
 test_that("duplicate subgroups draw a bar of their own prevalence, not a sum", {
   local_quiet()
   res <- check_port(port_anchor_data(), exposure, g)

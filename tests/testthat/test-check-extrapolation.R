@@ -1101,6 +1101,24 @@ test_that("plot() draws the view and returns the result invisibly", {
   expect_identical(plot(res), res)
 })
 
+test_that("the distribution view draws in the stock geom_histogram appearance", {
+  local_quiet()
+  # The bars stand for counts and nothing else, so they carry the fill and the
+  # outline ggplot2 gives a histogram rather than a pair of their own.
+  data <- sim_extrap_gaussian(200, p = 4, sep = 0, seed = 1)
+  res <- check_extrapolation(
+    data,
+    exposure,
+    tidyselect::starts_with("x"),
+    hull = FALSE
+  )
+
+  bars <- histogram_bars(ggplot2::autoplot(res, type = "distribution"))
+  stock <- stock_histogram_aes()
+  expect_identical(unique(bars$fill), stock$fill)
+  expect_identical(unique(bars$colour), stock$colour)
+})
+
 test_that("the extrapolation distribution view renders as expected", {
   local_quiet()
   # The distribution view reads only `frac_nearby` and `exposure`, so it renders

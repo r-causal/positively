@@ -582,6 +582,17 @@ test_that("autoplot() rejects an unknown type as a classed error", {
   )
 })
 
+test_that("the point histogram draws in the stock geom_histogram appearance", {
+  # The bars stand for counts and nothing else, so they carry the fill and the
+  # outline ggplot2 gives a histogram rather than a pair of their own.
+  res <- check_density_ratios(gen_lognormal_ratios(200, k = 1))
+
+  bars <- histogram_bars(ggplot2::autoplot(res, type = "distribution"))
+  stock <- stock_histogram_aes()
+  expect_identical(unique(bars$fill), stock$fill)
+  expect_identical(unique(bars$colour), stock$colour)
+})
+
 test_that("density-ratio autoplot views render as expected", {
   announce_doppelganger(
     "Density ratios point histogram",

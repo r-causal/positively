@@ -1078,6 +1078,21 @@ test_that("plot() draws the view and returns the result invisibly", {
   expect_identical(plot(res), res)
 })
 
+test_that("the null view draws in the stock geom_histogram appearance", {
+  local_quiet()
+  # The bars stand for counts and nothing else, so they carry the fill and the
+  # outline ggplot2 gives a histogram rather than a pair of their own. The two
+  # lines the view draws over them are the only part of it whose appearance
+  # carries meaning.
+  data <- sim_hat_linear(150, beta = 1, seed = 1)
+  res <- check_hat_values(data, dose, x1, null_reps = 20)
+
+  bars <- histogram_bars(ggplot2::autoplot(res, type = "null"))
+  stock <- stock_histogram_aes()
+  expect_identical(unique(bars$fill), stock$fill)
+  expect_identical(unique(bars$colour), stock$colour)
+})
+
 test_that("hat-value autoplot views render as expected", {
   local_quiet()
   announce_doppelganger(

@@ -56,12 +56,7 @@ autoplot_extrapolation_distribution <- function(object) {
     plot_data,
     ggplot2::aes(x = .data$frac_nearby)
   ) +
-    ggplot2::geom_histogram(
-      bins = 30,
-      boundary = 0,
-      fill = "grey70",
-      color = "white"
-    ) +
+    ggplot2::geom_histogram(bins = 30, boundary = 0) +
     ggplot2::facet_wrap(
       ggplot2::vars(.data$exposure),
       ncol = 1,

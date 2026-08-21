@@ -1609,6 +1609,40 @@ test_that("autoplot() rejects an unknown type as a classed error", {
   )
 })
 
+test_that("the bootstrap view draws in the stock geom_histogram appearance", {
+  # The bars stand for counts and nothing else, so they carry the fill and the
+  # outline ggplot2 gives a histogram rather than a pair of their own.
+  res <- make_eta_bias_result()
+
+  bars <- histogram_bars(ggplot2::autoplot(res, type = "bootstrap"))
+  stock <- stock_histogram_aes()
+  expect_identical(unique(bars$fill), stock$fill)
+  expect_identical(unique(bars$colour), stock$colour)
+})
+
+test_that("the bootstrap view marks its truth with a dashed line", {
+  # The line is a reference rather than a reading, and the dash is what tells a
+  # reader so.
+  res <- make_eta_bias_result()
+
+  plot <- ggplot2::autoplot(res, type = "bootstrap")
+  expect_identical(unique(built_layer(plot, "xintercept")$linetype), "dashed")
+})
+
+test_that("a one-term sweep keeps its grey band and its dashed zero line", {
+  # One term needs no key to tell terms apart, so the band is neutral rather
+  # than a fill a legend would have to name, and the line at zero is a reference
+  # rather than a reading.
+  res <- make_eta_bias_result(
+    results = eta_bias_stub_results(truncation_lower = c(0, 0.05, 0.1)),
+    boot_estimates = rep(list(c(0.3, 0.5)), 3)
+  )
+
+  plot <- ggplot2::autoplot(res, type = "sweep")
+  expect_identical(unique(built_layer(plot, "ymax")$fill), "grey80")
+  expect_identical(unique(built_layer(plot, "yintercept")$linetype), "dashed")
+})
+
 test_that("ETA bias autoplot views render as expected", {
   local_quiet()
   announce_doppelganger(

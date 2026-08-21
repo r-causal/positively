@@ -58,7 +58,7 @@ autoplot_hat_values_null <- function(object) {
   # capped at 30 so large null distributions are not oversmoothed.
   bins <- min(30L, max(1L, ceiling(sqrt(nrow(null_data)))))
   ggplot2::ggplot(null_data, ggplot2::aes(x = .data$phi)) +
-    ggplot2::geom_histogram(bins = bins, fill = "grey70", color = "white") +
+    ggplot2::geom_histogram(bins = bins) +
     ggplot2::geom_vline(
       xintercept = object@null_quantile,
       linetype = "dashed"

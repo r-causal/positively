@@ -51,7 +51,7 @@ method(autoplot, density_ratios_result) <- function(
 autoplot_density_ratios_histogram <- function(object) {
   plot_data <- pull_plot_data(object, type = "distribution")
   ggplot2::ggplot(plot_data, ggplot2::aes(x = .data$ratio)) +
-    ggplot2::geom_histogram(bins = 30, fill = "grey70", color = "white") +
+    ggplot2::geom_histogram(bins = 30) +
     ggplot2::labs(
       x = "Density ratio",
       y = "Observations",

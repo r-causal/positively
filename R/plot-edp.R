@@ -144,7 +144,7 @@ autoplot_edp_histogram <- function(object) {
   measure <- edp_primary_column(object@results)
   plot_data <- pull_plot_data(object, type = "histogram")
   ggplot2::ggplot(plot_data, ggplot2::aes(x = .data[[measure]])) +
-    ggplot2::geom_histogram(bins = 30, fill = "grey70", color = "white") +
+    ggplot2::geom_histogram(bins = 30) +
     ggplot2::facet_wrap(
       ggplot2::vars(.data$intervention),
       labeller = ggplot2::label_both

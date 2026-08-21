@@ -146,7 +146,7 @@ autoplot_eta_bias_bootstrap <- function(object) {
   )
 
   ggplot2::ggplot(boot_data, ggplot2::aes(x = .data$estimate)) +
-    ggplot2::geom_histogram(bins = 30, fill = "grey70", color = "white") +
+    ggplot2::geom_histogram(bins = 30) +
     ggplot2::geom_vline(
       ggplot2::aes(xintercept = .data$truth),
       data = truth_data,

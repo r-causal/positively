@@ -1661,6 +1661,10 @@ test_that("the scatter view separates infinite ideal weights into their own laye
   # The infinite rows carry a single fixed shape distinct from the finite layer.
   expect_length(unique(infinite_layer$shape), 1)
   expect_false(unique(infinite_layer$shape) %in% unique(finite_layer$shape))
+  # The crosses sit off the gradient the finite rows are read on, so their
+  # colour is fixed and is not a value that gradient can take.
+  expect_identical(unique(infinite_layer$colour), "#B2182B")
+  expect_false(unique(infinite_layer$colour) %in% unique(finite_layer$colour))
 })
 
 test_that("the scatter view builds without a colour label when every weight is infinite", {
@@ -1712,6 +1716,24 @@ test_that("the histogram view facets on the intervention label", {
   expect_false("value" %in% names(layout))
   expect_identical(nrow(layout), 2L)
   expect_setequal(as.character(layout$intervention), c("down", "0"))
+})
+
+test_that("the histogram view draws in the stock geom_histogram appearance", {
+  # The bars stand for counts and nothing else, so they carry the fill and the
+  # outline ggplot2 gives a histogram rather than a pair of their own.
+  data <- sim_edp_gaussian(60)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+
+  bars <- histogram_bars(ggplot2::autoplot(res, type = "histogram"))
+  stock <- stock_histogram_aes()
+  expect_identical(unique(bars$fill), stock$fill)
+  expect_identical(unique(bars$colour), stock$colour)
 })
 
 test_that("the ecdf view colors by the intervention label", {
