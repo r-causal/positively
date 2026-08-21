@@ -25,9 +25,9 @@
 #'   variant. `ymin` and `ymax` are the fifth and the ninety-fifth percentile,
 #'   `lower`, `middle`, and `upper` are the quartiles, `n` is the number of
 #'   observations summarized, and `outliers` is a list-column of the values
-#'   lying outside the whiskers, which the view draws as points. The estimator variant covers
-#'   `edp_outcome` and `edp_treatment`; `ideal_weight` shares no scale with
-#'   them and is left to the scatter view.
+#'   lying outside the whiskers, which the view draws as points. The estimator
+#'   variant covers `edp_outcome` and `edp_treatment`; `ideal_weight` shares no
+#'   scale with them and is left to the scatter view.
 #' * `"histogram"`, `"ecdf"`, and `"density"` return the results at their own
 #'   grain, one row per observation and intervention, with `intervention` as a
 #'   factor whose levels follow the order the interventions were given in. The
@@ -52,8 +52,9 @@
 #'
 #' * `"bootstrap"` returns one row per bootstrap draw, keyed on the estimand
 #'   `term`, on the truncation `level`, and on the `label` its facet strip
-#'   reads. Each draw carries the `truth` its term was aimed at alongside the
-#'   `estimate`, which the view draws as one line per term.
+#'   reads. The view bins the `estimate`. Each draw also carries the `truth` its
+#'   term was aimed at, which the view draws as a reference line, one per term
+#'   rather than one per draw, since a term's truth is the same in every draw.
 #' * `"sweep"` returns one row per term and truncation level, holding the
 #'   `truncation` the sweep is drawn against, the `bias`, and the `lower` and
 #'   `upper` ends of the band two Monte Carlo standard errors either side of
@@ -92,7 +93,7 @@
 #' own, so name the diagnostic to pull: `pull_plot_data(check, "port")`. The
 #' frame is that child's, unchanged, and a `type` passed alongside reaches it.
 #'
-#' @param x A [positivity_diagnostic].
+#' @param x A [positivity_diagnostic] or a [positivity_check].
 #' @param ... Passed to methods. A class drawing more than one view takes
 #'   `type`, the name of the view whose data to return, matched against that
 #'   class's [autoplot()] menu. A [check_port()] result takes

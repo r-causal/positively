@@ -25,8 +25,11 @@ facet per intervention. \code{type = "histogram"} shows the distribution of EDP
 faceted by intervention, \code{type = "ecdf"} shows its empirical cumulative
 distribution colored by intervention, and \code{type = "density"} draws one
 density ridgeline per intervention, which needs the \pkg{ggridges} package.
-For the estimator variant, \code{type = "scatter"} plots \code{edp_outcome} against
-\code{edp_treatment} colored by \code{ideal_weight}; it aborts for the data variant.
+Each of those three draws one measure: \code{edp} for the data variant and
+\code{edp_outcome} for the estimator variant, the measure carrying the exposure
+dimension and so the one an intervention moves. \code{type = "scatter"} plots
+\code{edp_outcome} against \code{edp_treatment} colored by \code{ideal_weight}; it needs
+the estimator variant and aborts for the data variant.
 \code{\link[=pull_plot_data]{pull_plot_data()}} returns the tibble any of these views draws.
 }
 \examples{

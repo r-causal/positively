@@ -11,8 +11,11 @@
 #' faceted by intervention, `type = "ecdf"` shows its empirical cumulative
 #' distribution colored by intervention, and `type = "density"` draws one
 #' density ridgeline per intervention, which needs the \pkg{ggridges} package.
-#' For the estimator variant, `type = "scatter"` plots `edp_outcome` against
-#' `edp_treatment` colored by `ideal_weight`; it aborts for the data variant.
+#' Each of those three draws one measure: `edp` for the data variant and
+#' `edp_outcome` for the estimator variant, the measure carrying the exposure
+#' dimension and so the one an intervention moves. `type = "scatter"` plots
+#' `edp_outcome` against `edp_treatment` colored by `ideal_weight`; it needs
+#' the estimator variant and aborts for the data variant.
 #' [pull_plot_data()] returns the tibble any of these views draws.
 #'
 #' @param object An `edp_result` from [check_edp()].

@@ -7,7 +7,7 @@
 pull_plot_data(x, ...)
 }
 \arguments{
-\item{x}{A \link{positivity_diagnostic}.}
+\item{x}{A \link{positivity_diagnostic} or a \link{positivity_check}.}
 
 \item{...}{Passed to methods. A class drawing more than one view takes
 \code{type}, the name of the view whose data to return, matched against that
@@ -41,9 +41,9 @@ intervention, or one row per measure and intervention for the estimator
 variant. \code{ymin} and \code{ymax} are the fifth and the ninety-fifth percentile,
 \code{lower}, \code{middle}, and \code{upper} are the quartiles, \code{n} is the number of
 observations summarized, and \code{outliers} is a list-column of the values
-lying outside the whiskers, which the view draws as points. The estimator variant covers
-\code{edp_outcome} and \code{edp_treatment}; \code{ideal_weight} shares no scale with
-them and is left to the scatter view.
+lying outside the whiskers, which the view draws as points. The estimator
+variant covers \code{edp_outcome} and \code{edp_treatment}; \code{ideal_weight} shares no
+scale with them and is left to the scatter view.
 \item \code{"histogram"}, \code{"ecdf"}, and \code{"density"} return the results at their own
 grain, one row per observation and intervention, with \code{intervention} as a
 factor whose levels follow the order the interventions were given in. The
@@ -70,8 +70,9 @@ For a \code{\link[=check_eta_bias]{check_eta_bias()}} result:
 \itemize{
 \item \code{"bootstrap"} returns one row per bootstrap draw, keyed on the estimand
 \code{term}, on the truncation \code{level}, and on the \code{label} its facet strip
-reads. Each draw carries the \code{truth} its term was aimed at alongside the
-\code{estimate}, which the view draws as one line per term.
+reads. The view bins the \code{estimate}. Each draw also carries the \code{truth} its
+term was aimed at, which the view draws as a reference line, one per term
+rather than one per draw, since a term's truth is the same in every draw.
 \item \code{"sweep"} returns one row per term and truncation level, holding the
 \code{truncation} the sweep is drawn against, the \code{bias}, and the \code{lower} and
 \code{upper} ends of the band two Monte Carlo standard errors either side of
