@@ -1416,8 +1416,12 @@ test_that("autoplot() returns a ggplot for each data-variant type", {
     exposure_type = "continuous"
   )
 
+  expect_s3_class(ggplot2::autoplot(res, type = "boxplot"), "ggplot")
   expect_s3_class(ggplot2::autoplot(res, type = "histogram"), "ggplot")
   expect_s3_class(ggplot2::autoplot(res, type = "ecdf"), "ggplot")
+
+  skip_if_not_installed("ggridges")
+  expect_s3_class(ggplot2::autoplot(res, type = "density"), "ggplot")
 })
 
 test_that("autoplot() rejects an unknown type as a classed error", {
@@ -1449,6 +1453,132 @@ test_that("plot() draws the view and returns the result invisibly", {
     exposure_type = "continuous"
   )
   expect_identical(plot(res), res)
+})
+
+test_that("the default view boxes EDP by intervention", {
+  data <- sim_edp_gaussian(60)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(down = function(.x) .x - 1, 0),
+    exposure_type = "continuous"
+  )
+
+  plot <- ggplot2::autoplot(res)
+  frame <- pull_plot_data(res, type = "boxplot")
+  expect_identical(plot$data, frame)
+
+  # The whiskers reach the 5th and the 95th percentile rather than Tukey's
+  # fences, so the box is drawn from summaries computed ahead of it and the
+  # points beyond the whiskers are a layer of their own.
+  expect_length(plot$layers, 2L)
+  expect_s3_class(plot$layers[[1]]$geom, "GeomBoxplot")
+  expect_s3_class(plot$layers[[1]]$stat, "StatIdentity")
+  expect_s3_class(plot$layers[[2]]$geom, "GeomPoint")
+
+  built <- ggplot2::ggplot_build(plot)
+  box <- built$data[[1]]
+  expect_identical(nrow(box), nrow(frame))
+  for (stat in c("ymin", "lower", "middle", "upper", "ymax")) {
+    expect_equal(box[[stat]], frame[[stat]])
+  }
+
+  # One panel, with the interventions along x in the order they were given.
+  expect_identical(nrow(built$layout$layout), 1L)
+  expect_identical(as.numeric(box$x), c(1, 2))
+  expect_identical(
+    built$layout$panel_params[[1]]$x$get_labels(),
+    c("down", "0")
+  )
+
+  points <- built$data[[2]]
+  expect_gt(nrow(points), 0L)
+  expect_identical(nrow(points), length(unlist(frame$outliers)))
+  expect_equal(
+    unname(lapply(split(points$y, as.numeric(points$x)), sort)),
+    unname(lapply(frame$outliers, sort))
+  )
+})
+
+test_that("the boxplot draws an empty point layer when nothing lies outside", {
+  local_quiet()
+  # Two strata under exact categorical matching: one of five observations with
+  # three treated, one of three with one treated. At the treated target every
+  # EDP is the number treated in its own stratum, so the eight values tie
+  # five-deep at 3 and three-deep at 1. The type-7 5th and 95th percentiles
+  # fall inside those ties, which leaves nothing outside the whiskers.
+  data <- data.frame(
+    exposure = c(0L, 0L, 1L, 1L, 1L, 0L, 0L, 1L),
+    s = factor(rep(c("a", "b"), c(5L, 3L)))
+  )
+  res <- check_edp(
+    data,
+    exposure,
+    s,
+    values = 1,
+    categorical_similarity = 0
+  )
+  frame <- pull_plot_data(res, type = "boxplot")
+  expect_identical(frame$outliers[[1]], double(0))
+
+  plot <- ggplot2::autoplot(res)
+  expect_no_condition(ggplot2::ggplot_build(plot))
+
+  built <- ggplot2::ggplot_build(plot)
+  expect_length(built$data, 2L)
+  expect_identical(nrow(built$data[[2]]), 0L)
+})
+
+test_that("the estimator boxplot draws both EDP measures by intervention", {
+  data <- sim_edp_gaussian(60)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    variant = "estimator",
+    values = list(down = function(.x) .x - 1, 0),
+    exposure_type = "continuous"
+  )
+
+  plot <- ggplot2::autoplot(res)
+  frame <- pull_plot_data(res, type = "boxplot")
+  expect_identical(plot$data, frame)
+  expect_s3_class(plot$layers[[1]]$geom, "GeomBoxplot")
+  expect_s3_class(plot$layers[[1]]$stat, "StatIdentity")
+
+  built <- ggplot2::ggplot_build(plot)
+  # One facet per intervention, in the order the interventions were given, with
+  # the two measures along x. The scale's data values pin the drawn order; the
+  # display text the axis shows is the figure's business.
+  expect_identical(
+    as.character(built$layout$layout$intervention),
+    c("down", "0")
+  )
+  measures <- built$layout$panel_params[[1]]$x$limits
+  expect_identical(measures, c("edp_outcome", "edp_treatment"))
+
+  # The ideal weight shares no scale with the two EDP measures, so this view
+  # does not draw it.
+  expect_false("ideal_weight" %in% measures)
+  expect_false("ideal_weight" %in% names(plot$data))
+  expect_false(any(vapply(
+    built$data,
+    function(layer) "ideal_weight" %in% names(layer),
+    logical(1)
+  )))
+
+  box <- built$data[[1]]
+  expect_identical(nrow(box), nrow(frame))
+  drawn <- paste(
+    levels(frame$intervention)[as.integer(box$PANEL)],
+    levels(frame$measure)[as.numeric(box$x)]
+  )
+  position <- match(paste(frame$intervention, frame$measure), drawn)
+  expect_false(anyNA(position))
+  for (stat in c("ymin", "lower", "middle", "upper", "ymax")) {
+    expect_equal(box[[stat]][position], frame[[stat]])
+  }
 })
 
 test_that("the estimator scatter view is a ggplot and aborts for the data variant", {
@@ -1601,6 +1731,60 @@ test_that("the ecdf view colors by the intervention label", {
   expect_length(unique(built$data[[1]]$colour), 2)
 })
 
+test_that("the density view draws one ridgeline per intervention", {
+  skip_if_not_installed("ggridges")
+  data <- sim_edp_gaussian(60)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(down = function(.x) .x - 1, 0),
+    exposure_type = "continuous"
+  )
+
+  plot <- ggplot2::autoplot(res, type = "density")
+  expect_identical(plot$data, pull_plot_data(res, type = "density"))
+  expect_s3_class(plot$layers[[1]]$geom, "GeomDensityRidges")
+
+  # ggridges reports the joint bandwidth it settles on unless it is handed one,
+  # so a view that leaves it to pick talks in every transcript that draws it.
+  expect_no_message(ggplot2::ggplot_build(plot))
+
+  built <- ggplot2::ggplot_build(plot)
+  # The interventions run up y in the order they were given; EDP runs along x,
+  # the measure the histogram view draws.
+  expect_identical(
+    built$layout$panel_params[[1]]$y$get_labels(),
+    c("down", "0")
+  )
+  x_range <- built$layout$panel_params[[1]]$x.range
+  expect_lte(x_range[[1]], min(res@results$edp))
+  expect_gte(x_range[[2]], max(res@results$edp))
+})
+
+test_that("the density view says what it needs when ggridges is absent", {
+  local_quiet()
+  data <- sim_edp_gaussian(60)
+  # The result is built before the mock, because resolving the exposure type
+  # asks whether a package is installed.
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+
+  # Mocked rather than skipped, so the reader without ggridges sees a message
+  # this suite has read, rather than one that fires only on machines it never
+  # runs on.
+  local_mocked_bindings(is_installed = function(...) FALSE, .package = "rlang")
+  expect_snapshot_abort(
+    ggplot2::autoplot(res, type = "density"),
+    class = "positively_missing_package_error"
+  )
+})
+
 test_that("EDP autoplot views render as expected", {
   local_quiet()
   announce_doppelganger(
@@ -1658,6 +1842,73 @@ test_that("EDP autoplot views render as expected", {
   expect_doppelganger(
     "EDP estimator scatter with infinite weights",
     ggplot2::autoplot(res_infinite, type = "scatter")
+  )
+})
+
+test_that("EDP boxplot views render as expected", {
+  local_quiet()
+  announce_doppelganger(
+    "EDP boxplot by intervention",
+    "EDP estimator boxplot by measure"
+  )
+  data <- sim_edp_gaussian(150)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+  # The figure has to show the outlier layer it pins.
+  expect_gt(length(unlist(pull_plot_data(res, type = "boxplot")$outliers)), 0L)
+  expect_doppelganger("EDP boxplot by intervention", ggplot2::autoplot(res))
+
+  estimator <- check_edp(
+    data,
+    exposure,
+    x1,
+    variant = "estimator",
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+  expect_doppelganger(
+    "EDP estimator boxplot by measure",
+    ggplot2::autoplot(estimator)
+  )
+})
+
+test_that("the EDP density view renders as expected", {
+  local_quiet()
+  announce_doppelganger("EDP density by intervention")
+  skip_if_not_installed("ggridges")
+  data <- sim_edp_gaussian(150)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+  expect_doppelganger(
+    "EDP density by intervention",
+    ggplot2::autoplot(res, type = "density")
+  )
+})
+
+test_that("a function intervention renders in the histogram view", {
+  local_quiet()
+  announce_doppelganger("EDP histogram shift intervention")
+  data <- sim_edp_gaussian(150)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(down = function(.x) .x - 1, 0),
+    exposure_type = "continuous"
+  )
+  expect_doppelganger(
+    "EDP histogram shift intervention",
+    ggplot2::autoplot(res, type = "histogram")
   )
 })
 

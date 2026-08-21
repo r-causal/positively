@@ -102,6 +102,10 @@ test_that("the type menu mirrors autoplot's and refuses an unknown view", {
 
   # The accessor exists to hand back what a view draws, so it offers exactly the
   # views autoplot() offers, in the same order.
+  expect_identical(
+    autoplot_types(res),
+    c("boxplot", "histogram", "ecdf", "density", "scatter")
+  )
   expect_identical(pull_plot_data_types(edp_result), autoplot_types(res))
 
   # A view name is chosen from a fixed menu like any other argument, and asking
@@ -114,6 +118,205 @@ test_that("the type menu mirrors autoplot's and refuses an unknown view", {
 })
 
 # ---- Frames against what the views draw -----------------------------------
+
+test_that("the boxplot frame is the hand-computed five-number summary", {
+  # Five observations whose exposure and covariate both run 0 to 4, with both
+  # half-distances at 1. Every kernel factor is then
+  # 0.5 ^ ((a_j - a*) ^ 2 + (x_j - x_i) ^ 2), a negative power of two, so each
+  # EDP is a sum of powers of two and is exact in double precision.
+  data <- tibble::tibble(exposure = c(0, 1, 2, 3, 4), x1 = c(0, 1, 2, 3, 4))
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    bw_exposure = 1,
+    bw_covariates = 1,
+    values = 0,
+    exposure_type = "continuous"
+  )
+  edp <- c(
+    2^0 + 2^-2 + 2^-8 + 2^-18 + 2^-32,
+    2^0 + 2^-5 + 2^-13 + 2^-25,
+    2^-2 + 2^-3 + 2^-10 + 2^-20,
+    2^-4 + 2^-8 + 2^-17,
+    2^-8 + 2^-9 + 2^-15
+  )
+  expect_identical(res@results$edp, edp)
+
+  frame <- pull_plot_data(res, type = "boxplot")
+
+  expect_identical(
+    names(frame),
+    c(
+      "intervention",
+      "n",
+      "ymin",
+      "lower",
+      "middle",
+      "upper",
+      "ymax",
+      "outliers"
+    )
+  )
+  expect_identical(nrow(frame), 1L)
+  expect_s3_class(frame$intervention, "factor")
+  expect_identical(levels(frame$intervention), "0")
+  expect_type(frame$n, "integer")
+  expect_identical(frame$n, 5L)
+  for (stat in c("ymin", "lower", "middle", "upper", "ymax")) {
+    expect_type(frame[[stat]], "double")
+  }
+  expect_type(frame$outliers, "list")
+  expect_type(frame$outliers[[1]], "double")
+
+  # Type 7 reads a quantile at h = (n - 1)p + 1, which for these five
+  # observations is 1.2, 2, 3, 4, and 4.8: the quartiles and the median are
+  # order statistics outright, and each whisker interpolates a fifth of the way
+  # in from the end. The interpolated ends are compared rather than pinned bit
+  # for bit, because a fifth is not a binary fraction.
+  sorted <- sort(edp)
+  expect_equal(
+    frame$ymin,
+    sorted[[1]] + 0.2 * (sorted[[2]] - sorted[[1]]),
+    tolerance = 1e-12
+  )
+  expect_identical(frame$lower, sorted[[2]])
+  expect_identical(frame$middle, sorted[[3]])
+  expect_identical(frame$upper, sorted[[4]])
+  expect_equal(
+    frame$ymax,
+    sorted[[4]] + 0.8 * (sorted[[5]] - sorted[[4]]),
+    tolerance = 1e-12
+  )
+
+  # The smallest and the largest observation are the two lying strictly outside
+  # the whiskers.
+  expect_identical(sort(frame$outliers[[1]]), sorted[c(1L, 5L)])
+})
+
+test_that("the boxplot frame is one row per intervention in grid order", {
+  data <- sim_pull_gaussian(60)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(down = function(.x) .x - 1, 0),
+    exposure_type = "continuous"
+  )
+
+  frame <- pull_plot_data(res, type = "boxplot")
+
+  # The levels follow the order the interventions were given rather than the
+  # order their labels sort in, and so do the rows.
+  expect_identical(
+    levels(frame$intervention),
+    unique(names(res@params$values))
+  )
+  expect_identical(levels(frame$intervention), c("down", "0"))
+  expect_identical(as.character(frame$intervention), c("down", "0"))
+  expect_identical(frame$n, c(60L, 60L))
+
+  plot <- ggplot2::autoplot(res, type = "boxplot")
+  expect_identical(plot$data, frame)
+
+  built <- ggplot2::ggplot_build(plot)
+  box <- built$data[[1]]
+  # One box per row of the frame, at the heights the frame gives rather than at
+  # the ones a boxplot would compute for itself.
+  expect_identical(nrow(box), nrow(frame))
+  expect_identical(as.numeric(box$x), c(1, 2))
+  for (stat in c("ymin", "lower", "middle", "upper", "ymax")) {
+    expect_equal(box[[stat]], frame[[stat]])
+  }
+
+  # The point layer draws the outliers list-column unchopped: every value, with
+  # its own box, and nothing besides.
+  points <- built$data[[2]]
+  expect_gt(nrow(points), 0L)
+  expect_identical(nrow(points), length(unlist(frame$outliers)))
+  expect_equal(
+    unname(lapply(split(points$y, as.numeric(points$x)), sort)),
+    unname(lapply(frame$outliers, sort))
+  )
+})
+
+test_that("the estimator boxplot frame covers the two EDP measures", {
+  data <- sim_pull_gaussian(60)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    variant = "estimator",
+    values = list(down = function(.x) .x - 1, 0),
+    exposure_type = "continuous"
+  )
+
+  frame <- pull_plot_data(res, type = "boxplot")
+
+  expect_identical(
+    names(frame),
+    c(
+      "intervention",
+      "measure",
+      "n",
+      "ymin",
+      "lower",
+      "middle",
+      "upper",
+      "ymax",
+      "outliers"
+    )
+  )
+  expect_s3_class(frame$measure, "factor")
+  expect_s3_class(frame$intervention, "factor")
+  # The ideal weight shares no scale with the two EDP measures, so this view
+  # leaves it to the scatter view and to tidy().
+  expect_identical(levels(frame$measure), c("edp_outcome", "edp_treatment"))
+  expect_identical(levels(frame$intervention), c("down", "0"))
+
+  # One row per measure and intervention, and every pairing is present.
+  expect_identical(nrow(frame), 4L)
+  expect_setequal(
+    paste(frame$intervention, frame$measure),
+    c(
+      "down edp_outcome",
+      "0 edp_outcome",
+      "down edp_treatment",
+      "0 edp_treatment"
+    )
+  )
+  expect_identical(frame$n, rep(60L, 4L))
+  expect_type(frame$outliers, "list")
+
+  # Each row summarizes its own measure within its own intervention, which the
+  # median pins independently of the quantile call.
+  for (row in seq_len(nrow(frame))) {
+    measure <- as.character(frame$measure[[row]])
+    label <- as.character(frame$intervention[[row]])
+    values <- res@results[[measure]][res@results$intervention == label]
+    expect_identical(length(values), frame$n[[row]])
+    expect_equal(frame$middle[[row]], stats::median(values))
+  }
+})
+
+test_that("the density frame is the observation frame and needs no ggridges", {
+  data <- sim_pull_gaussian(60)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+
+  frame <- pull_plot_data(res, type = "density")
+  expect_identical(frame, pull_plot_data(res, type = "histogram"))
+
+  # The frame is the numbers rather than the figure, so the package that draws
+  # the ridgelines is not needed to read them.
+  local_mocked_bindings(is_installed = function(...) FALSE, .package = "rlang")
+  expect_identical(pull_plot_data(res, type = "density"), frame)
+})
 
 test_that("the histogram frame is what the histogram view draws", {
   data <- sim_pull_gaussian(60)
@@ -263,7 +466,7 @@ test_that("interventions sharing a label share a level", {
     exposure_type = "continuous"
   )
 
-  frame <- pull_plot_data(res)
+  frame <- pull_plot_data(res, type = "histogram")
 
   # The shared label is one level, and neither intervention's rows are dropped
   # or turned into missing levels along the way.
@@ -271,7 +474,7 @@ test_that("interventions sharing a label share a level", {
   expect_identical(nrow(frame), 2L * nrow(data))
   expect_false(anyNA(frame$intervention))
 
-  for (type in c("histogram", "ecdf")) {
+  for (type in c("histogram", "ecdf", "density")) {
     expect_identical(pull_plot_data(res, type = type), frame)
   }
 

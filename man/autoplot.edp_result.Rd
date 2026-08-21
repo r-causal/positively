@@ -7,7 +7,8 @@
 \arguments{
 \item{object}{An \code{edp_result} from \code{\link[=check_edp]{check_edp()}}.}
 
-\item{type}{One of \code{"histogram"}, \code{"ecdf"}, or \code{"scatter"}.}
+\item{type}{One of \code{"boxplot"}, \code{"histogram"}, \code{"ecdf"}, \code{"density"}, or
+\code{"scatter"}.}
 
 \item{...}{Not used.}
 }
@@ -15,10 +16,16 @@
 A \link[ggplot2:ggplot]{ggplot2::ggplot} object.
 }
 \description{
-Draws one view of a \code{\link[=check_edp]{check_edp()}} result. \code{type = "histogram"} shows the
-distribution of EDP faceted by intervention, and \code{type = "ecdf"} shows its
-empirical cumulative distribution colored by intervention. For the
-estimator variant, \code{type = "scatter"} plots \code{edp_outcome} against
+Draws one view of a \code{\link[=check_edp]{check_edp()}} result. \code{type = "boxplot"}, the default,
+boxes EDP by intervention. Its whiskers reach the fifth and the ninety-fifth
+percentile, following Ring and Schomaker (2026) rather than Tukey's fences,
+and the values outside them are drawn as points. For the estimator variant
+it draws the outcome-model and the treatment-model measure side by side in a
+facet per intervention. \code{type = "histogram"} shows the distribution of EDP
+faceted by intervention, \code{type = "ecdf"} shows its empirical cumulative
+distribution colored by intervention, and \code{type = "density"} draws one
+density ridgeline per intervention, which needs the \pkg{ggridges} package.
+For the estimator variant, \code{type = "scatter"} plots \code{edp_outcome} against
 \code{edp_treatment} colored by \code{ideal_weight}; it aborts for the data variant.
 \code{\link[=pull_plot_data]{pull_plot_data()}} returns the tibble any of these views draws.
 }
@@ -30,6 +37,7 @@ dose <- rnorm(n, mean = x1)
 df <- data.frame(dose = dose, x1 = x1)
 result <- check_edp(df, dose, x1, values = c(0, 1), exposure_type = "continuous")
 
+autoplot(result)
 autoplot(result, type = "histogram")
 autoplot(result, type = "ecdf")
 

@@ -34,6 +34,7 @@ Imports:
     vctrs
 Suggests:
     dplyr (>= 1.1.0),
+    ggridges,
     halfmoon,
     knitr,
     lmtp,

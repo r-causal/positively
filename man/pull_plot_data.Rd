@@ -33,11 +33,19 @@ is refused here exactly as \code{autoplot()} refuses it.
 
 For a \code{\link[=check_edp]{check_edp()}} result:
 \itemize{
-\item \code{"histogram"} and \code{"ecdf"} return the results at their own grain, one row
-per observation and intervention, with \code{intervention} as a factor whose
-levels follow the order the interventions were given in. The label is what
-separates the interventions rather than \code{value}, which a function
-intervention varies from observation to observation.
+\item \code{"boxplot"} returns the box statistics themselves, one row per
+intervention, or one row per measure and intervention for the estimator
+variant. \code{ymin} and \code{ymax} are the fifth and the ninety-fifth percentile,
+\code{lower}, \code{middle}, and \code{upper} are the quartiles, \code{n} is the number of
+observations summarized, and \code{outliers} is a list-column of the values
+lying outside the whiskers, which the view draws as points. The estimator variant covers
+\code{edp_outcome} and \code{edp_treatment}; \code{ideal_weight} shares no scale with
+them and is left to the scatter view.
+\item \code{"histogram"}, \code{"ecdf"}, and \code{"density"} return the results at their own
+grain, one row per observation and intervention, with \code{intervention} as a
+factor whose levels follow the order the interventions were given in. The
+label is what separates the interventions rather than \code{value}, which a
+function intervention varies from observation to observation.
 \item \code{"scatter"} returns the whole estimator results tibble. The view draws the
 rows of finite \code{ideal_weight} in one layer and the infinite rows in
 another, and both are read off \code{ideal_weight}. It needs the estimator

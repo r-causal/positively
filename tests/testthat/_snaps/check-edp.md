@@ -7,6 +7,15 @@
       ! The scatter view needs the estimator variant.
       i Rerun `check_edp()` with `variant = "estimator"`.
 
+# the density view says what it needs when ggridges is absent
+
+    Code
+      ggplot2::autoplot(res, type = "density")
+    Condition
+      Error in `autoplot.positively::edp_result`:
+      ! The density view requires the ggridges package.
+      i Install ggridges, or draw another view: `autoplot(x, type = "histogram")`.
+
 # the argument validation messages are stable
 
     Code
