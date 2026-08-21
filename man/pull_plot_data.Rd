@@ -9,8 +9,11 @@ pull_plot_data(x, ...)
 \arguments{
 \item{x}{A \link{positivity_diagnostic}.}
 
-\item{...}{Passed to methods. Every method takes \code{type}, the name of the view
-whose data to return, matched against that class's \code{\link[=autoplot]{autoplot()}} menu.}
+\item{...}{Passed to methods. A class drawing more than one view takes
+\code{type}, the name of the view whose data to return, matched against that
+class's \code{\link[=autoplot]{autoplot()}} menu. A \code{\link[=check_port]{check_port()}} result takes
+\code{low_support_only} as \code{\link[=autoplot]{autoplot()}} does, and a \link{positivity_check} takes the
+name of the diagnostic to pull.}
 }
 \value{
 A \link[tibble:tibble]{tibble} holding one view's data.
@@ -51,6 +54,64 @@ rows of finite \code{ideal_weight} in one layer and the infinite rows in
 another, and both are read off \code{ideal_weight}. It needs the estimator
 variant, and asking for it after a data-variant run is an error.
 }
+
+For a \code{\link[=check_density_ratios]{check_density_ratios()}} result:
+\itemize{
+\item \code{"distribution"} returns one row per ratio and time point, \code{time} and
+\code{ratio}. That is the grain the point-treatment histogram bins and the
+time-varying boxplot summarizes, and the raw ratios live nowhere else in
+the result.
+\item \code{"cumulative"} returns the cumulative-product summaries the series view
+draws, one row per time point and statistic, with \code{series} naming the
+summary in the words the key uses. It needs a time-varying input.
+}
+
+For a \code{\link[=check_eta_bias]{check_eta_bias()}} result:
+\itemize{
+\item \code{"bootstrap"} returns one row per bootstrap draw, keyed on the estimand
+\code{term}, on the truncation \code{level}, and on the \code{label} its facet strip
+reads. Each draw carries the \code{truth} its term was aimed at alongside the
+\code{estimate}, which the view draws as one line per term.
+\item \code{"sweep"} returns one row per term and truncation level, holding the
+\code{truncation} the sweep is drawn against, the \code{bias}, and the \code{lower} and
+\code{upper} ends of the band two Monte Carlo standard errors either side of
+it. It needs a sweep of more than one level.
+}
+
+For a \code{\link[=check_hat_values]{check_hat_values()}} result:
+\itemize{
+\item \code{"null"} returns the null replicates in \code{phi}. The three numbers the
+figure marks beside them, \code{null_quantile}, \code{phi_hat}, and \code{conf_level},
+ride as repeated columns.
+\item \code{"profile"} returns one row per exposure percentile the candidates were
+built at, \code{prob} and the \code{fraction} of that percentile's candidates
+reading as high leverage. The results hold one row per candidate, so the
+aggregation is what this view adds.
+}
+
+For a \code{\link[=check_port]{check_port()}} or \code{\link[=check_port_seq]{check_port_seq()}} result there is one view, so the
+method takes \code{low_support_only} where a menu would take \code{type}. It returns
+one row per bar: the reported subgroups, with a leaf that more than one tree
+reported collapsed to a single row, the display \code{label}, the \code{width}
+proportional to subgroup size, and the pair of thresholds the row's
+prevalence was judged against in \code{beta_lower} and \code{beta_upper}.
+
+For a \code{\link[=check_hdr]{check_hdr()}} or \code{\link[=check_hdr_seq]{check_hdr_seq()}} result there is one view, and the
+frame is the results with \code{time} as a factor where a sequential run carries
+one, because the wave separates the curves rather than measuring anything.
+
+For a \code{\link[=check_extrapolation]{check_extrapolation()}} result:
+\itemize{
+\item \code{"distribution"} returns the results with \code{exposure} as a factor, which is
+what panels the histograms.
+\item \code{"hull"} returns the same rows with \code{membership}, the reading of \code{in_hull}
+that the stacked bars and the key both use. It needs the hull test to have
+run.
+}
+
+A \link{positivity_check} holds one frame per child rather than a frame of its
+own, so name the diagnostic to pull: \code{pull_plot_data(check, "port")}. The
+frame is that child's, unchanged, and a \code{type} passed alongside reaches it.
 }
 \examples{
 set.seed(1)

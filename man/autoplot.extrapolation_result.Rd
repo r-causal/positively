@@ -20,6 +20,7 @@ Draws one of two views of a \code{\link[=check_extrapolation]{check_extrapolatio
 faceted by exposure group, the share of the opposite group that lies nearby
 each observation. \code{type = "hull"} shows convex-hull membership as stacked bars
 per exposure group, and is available only when the hull test ran.
+\code{\link[=pull_plot_data]{pull_plot_data()}} returns the tibble either of these views draws.
 }
 \examples{
 set.seed(1)

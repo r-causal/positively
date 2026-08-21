@@ -7,6 +7,7 @@
 #' faceted by exposure group, the share of the opposite group that lies nearby
 #' each observation. `type = "hull"` shows convex-hull membership as stacked bars
 #' per exposure group, and is available only when the hull test ran.
+#' [pull_plot_data()] returns the tibble either of these views draws.
 #'
 #' @param object An `extrapolation_result` from [check_extrapolation()].
 #' @param type One of `"distribution"` or `"hull"`.
@@ -50,8 +51,7 @@ method(autoplot, extrapolation_result) <- function(
 #' @keywords internal
 #' @noRd
 autoplot_extrapolation_distribution <- function(object) {
-  plot_data <- object@results
-  plot_data$exposure <- factor(plot_data$exposure)
+  plot_data <- pull_plot_data(object, type = "distribution")
   ggplot2::ggplot(
     plot_data,
     ggplot2::aes(x = .data$frac_nearby)
@@ -83,29 +83,8 @@ autoplot_extrapolation_distribution <- function(object) {
 #' @keywords internal
 #' @noRd
 autoplot_extrapolation_hull <- function(object, call = rlang::caller_env()) {
-  if (!object@hull_run) {
-    # A rerun with hull = TRUE only helps when numeric covariates were present;
-    # without any, the missing precondition is what to report instead.
-    advice <- if (isTRUE(object@params$n_numeric > 0)) {
-      "Rerun {.fn check_extrapolation} with {.code hull = TRUE}."
-    } else {
-      "The hull test needs at least one numeric covariate."
-    }
-    abort(
-      c(
-        "The convex-hull view needs the hull test to have run.",
-        i = advice
-      ),
-      error_class = "positively_hull_absent_error",
-      call = call
-    )
-  }
-  plot_data <- object@results
-  plot_data$exposure <- factor(plot_data$exposure)
-  plot_data$membership <- factor(
-    ifelse(plot_data$in_hull, "Inside hull", "Outside hull"),
-    levels = c("Inside hull", "Outside hull")
-  )
+  extrapolation_require_hull(object, call = call)
+  plot_data <- pull_plot_data(object, type = "hull")
   ggplot2::ggplot(
     plot_data,
     ggplot2::aes(x = .data$exposure, fill = .data$membership)

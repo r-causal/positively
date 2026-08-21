@@ -7,6 +7,7 @@
 #' observed \eqn{\hat{\phi}} and the `conf_level` null quantile marked.
 #' `type = "profile"` shows the proportion of high-leverage candidates at each
 #' exposure percentile, the leverage profile across the exposure range.
+#' [pull_plot_data()] returns the tibble either of these views draws.
 #'
 #' @param object A `hat_values_result` from [check_hat_values()].
 #' @param type One of `"null"` or `"profile"`.
@@ -51,11 +52,11 @@ method(autoplot, hat_values_result) <- function(
 #' @keywords internal
 #' @noRd
 autoplot_hat_values_null <- function(object) {
-  null_data <- tibble::tibble(phi = object@null_dist)
+  null_data <- pull_plot_data(object, type = "null")
   conf_level <- object@params$conf_level
   # Fewer bins for small null_reps keeps the histogram from reading as ragged;
   # capped at 30 so large null distributions are not oversmoothed.
-  bins <- min(30L, max(1L, ceiling(sqrt(length(object@null_dist)))))
+  bins <- min(30L, max(1L, ceiling(sqrt(nrow(null_data)))))
   ggplot2::ggplot(null_data, ggplot2::aes(x = .data$phi)) +
     ggplot2::geom_histogram(bins = bins, fill = "grey70", color = "white") +
     ggplot2::geom_vline(
@@ -87,12 +88,7 @@ autoplot_hat_values_null <- function(object) {
 #' @keywords internal
 #' @noRd
 autoplot_hat_values_profile <- function(object) {
-  results <- object@results
-  fraction <- tapply(results$high_leverage, results$prob, mean)
-  profile <- tibble::tibble(
-    prob = as.double(names(fraction)),
-    fraction = as.double(fraction)
-  )
+  profile <- pull_plot_data(object, type = "profile")
   ggplot2::ggplot(profile, ggplot2::aes(x = .data$prob, y = .data$fraction)) +
     ggplot2::geom_line() +
     ggplot2::geom_point() +

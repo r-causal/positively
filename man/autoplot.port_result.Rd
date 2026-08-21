@@ -23,7 +23,8 @@ A sequential result is faceted by time point, and each facet carries its own
 resolved thresholds. A censoring run is faceted by both time point and row
 type, so the exposure and censoring subgroups are separated, the censoring
 facets plot censoring prevalence, and each facet's reference lines are drawn
-from the thresholds that family was judged against.
+from the thresholds that family was judged against. \code{\link[=pull_plot_data]{pull_plot_data()}}
+returns the tibble this view draws.
 }
 \details{
 A full result can report hundreds of subgroups, which crowds the y axis.

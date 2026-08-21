@@ -20,7 +20,7 @@ Draws one of two views of a \code{\link[=check_density_ratios]{check_density_rat
 for a point treatment and a per-time boxplot for a time-varying treatment.
 \code{type = "cumulative"} shows the cumulative-product quantiles across time
 points, the sequential positivity signature, and is available for matrix
-inputs.
+inputs. \code{\link[=pull_plot_data]{pull_plot_data()}} returns the tibble either of these views draws.
 }
 \examples{
 m <- matrix(c(1, 1, 2, 1, 3, 1, 4, 1), nrow = 2)

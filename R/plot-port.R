@@ -9,7 +9,8 @@
 #' resolved thresholds. A censoring run is faceted by both time point and row
 #' type, so the exposure and censoring subgroups are separated, the censoring
 #' facets plot censoring prevalence, and each facet's reference lines are drawn
-#' from the thresholds that family was judged against.
+#' from the thresholds that family was judged against. [pull_plot_data()]
+#' returns the tibble this view draws.
 #'
 #' A full result can report hundreds of subgroups, which crowds the y axis.
 #' Setting `low_support_only = TRUE` draws only the low-support subgroups and
@@ -44,7 +45,10 @@ method(autoplot, port_result) <- function(
   ...
 ) {
   validate_flag(low_support_only, arg_name = "low_support_only")
-  plot_data <- port_plot_data(object, low_support_only = low_support_only)
+  plot_data <- pull_plot_data(object, low_support_only = low_support_only)
+  # The reference lines are per facet rather than per row, so a facet whose bars
+  # were all filtered out keeps the pair of lines its subgroups were judged
+  # against instead of losing them with the rows.
   reference <- port_beta_reference(object)
   sequential <- "time" %in% names(object@results)
   has_type <- "type" %in% names(object@results)
