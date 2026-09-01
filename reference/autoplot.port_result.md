@@ -9,6 +9,8 @@ both time point and row type, so the exposure and censoring subgroups
 are separated, the censoring facets plot censoring prevalence, and each
 facet's reference lines are drawn from the thresholds that family was
 judged against.
+[`pull_plot_data()`](https://r-causal.github.io/positively/reference/pull_plot_data.md)
+returns the tibble this view draws.
 
 ## Arguments
 

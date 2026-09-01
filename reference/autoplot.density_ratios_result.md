@@ -7,6 +7,8 @@ ratios: a histogram for a point treatment and a per-time boxplot for a
 time-varying treatment. `type = "cumulative"` shows the
 cumulative-product quantiles across time points, the sequential
 positivity signature, and is available for matrix inputs.
+[`pull_plot_data()`](https://r-causal.github.io/positively/reference/pull_plot_data.md)
+returns the tibble either of these views draws.
 
 ## Arguments
 

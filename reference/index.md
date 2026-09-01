@@ -40,8 +40,11 @@ time-varying sequence variants.
 
 ## Plots
 
-Autoplot methods that visualize each diagnostic result.
+Autoplot methods that visualize each diagnostic result, and the accessor
+that returns the data behind a view.
 
+- [`pull_plot_data()`](https://r-causal.github.io/positively/reference/pull_plot_data.md)
+  : Pull the data behind a plot
 - [`autoplot.positivity_check`](https://r-causal.github.io/positively/reference/autoplot.positivity_check.md)
   [`plot.positivity_check`](https://r-causal.github.io/positively/reference/autoplot.positivity_check.md)
   : Plot the diagnostics a positivity check holds

@@ -107,10 +107,25 @@ estimator variant, selected with tidyselect. Defaults to <code>.covariates</code
 
 
 <dt id="arg-values">values<a class="anchor" aria-label="anchor" href="#arg-values"></a></dt>
-<dd><p>The intervention values \(a^*\). <code>NULL</code> (the default) uses
+<dd><p>The interventions, one per element. <code>NULL</code> (the default) uses
 every level of a factor exposure and every observed value of a binary or
 character exposure, and the deciles of the observed exposure for continuous
-exposures.</p></dd>
+exposures.</p>
+<p>A vector holds one intervention value \(a^*\) per element, the value every
+observation is moved to. A list holds the same single values and, for a
+continuous exposure, functions of the observed exposure:
+<code>list(3, 5, lower = function(.x) .x - 5)</code>. A function is called once on the
+whole exposure vector and returns one intervened exposure \(d(a_i)\) per
+observation, or a single value used for every observation. Functions need a
+continuous exposure; one supplied for a binary or categorical exposure is an
+error.</p>
+<p>Every intervention carries a label, which names it in the results and along
+a plot's axis. In a vector, every element is labeled by <code><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character()</a></code> of
+the value itself and any names the vector carries are ignored. In a list, a
+named element is labeled by its name, an unnamed single value by
+<code><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character()</a></code> of the value itself, and an unnamed function is an error,
+since it has nothing else to be called by. Two elements of a list cannot
+share a label.</p></dd>
 
 
 <dt id="arg-variant">variant<a class="anchor" aria-label="anchor" href="#arg-variant"></a></dt>
@@ -152,13 +167,15 @@ nothing of the column.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>An <code>edp_result</code> object, an S7 subclass of <a href="positivity_diagnostic.html">positivity_diagnostic</a>.
-Its <code>@results</code> tibble has one row per observation and intervention value.
-The data variant carries columns <code>.id</code> (the observation row index), <code>value</code>
-(the intervention value \(a^*\)), and <code>edp</code>. The estimator variant
-replaces <code>edp</code> with <code>edp_outcome</code>, <code>edp_treatment</code>, and <code>ideal_weight</code>. It
-also carries the <code>@variant</code> and <code>@bandwidths</code> properties.</p>
+Its <code>@results</code> tibble has one row per observation and intervention. The data
+variant carries columns <code>.id</code> (the observation row index), <code>intervention</code>
+(the intervention label), <code>value</code> (the intervened exposure, the constant
+\(a^*\) for a single value and \(d(a_i)\) for a function), and <code>edp</code>.
+The estimator variant replaces <code>edp</code> with <code>edp_outcome</code>, <code>edp_treatment</code>,
+and <code>ideal_weight</code>. It also carries the <code>@variant</code> and <code>@bandwidths</code>
+properties.</p>
 <p><code><a href="https://generics.r-lib.org/reference/glance.html" class="external-link">generics::glance()</a></code> returns a one-row tibble with <code>n</code> (the sample size),
-<code>variant</code>, <code>n_values</code> (the number of intervention values), and the observed
+<code>variant</code>, <code>n_values</code> (the number of interventions), and the observed
 range of every measure the variant reports. That is <code>edp_min</code> and <code>edp_max</code>
 for the data variant, and <code>edp_outcome_min</code>, <code>edp_outcome_max</code>,
 <code>edp_treatment_min</code>, <code>edp_treatment_max</code>, <code>ideal_weight_min</code>, and
@@ -180,6 +197,18 @@ categorical dimension contributes <code>1</code> on a match and <code>categorica
 otherwise. Numeric covariates and continuous exposures are continuous
 dimensions; factor and character covariates, together with binary and
 categorical exposures, are categorical dimensions.</p>
+<p>An intervention need not be a single value every observation is moved to. A
+function supplied through <code>values</code> is a rule \(d\) applied to the observed
+exposure, so observation \(i\) is moved to \(d(a_i)\) and the
+intervened-on point is \(o^*_i = (l_i, d(a_i))\). Lowering every observed
+dose by five units is <code>function(.x) .x - 5</code>. EDP is then read per natural
+observation under the shift rather than at one common target; the algorithm
+is unchanged, and only the intervened-on points come from the rule. Because
+those points differ across observations, the exposure factor of the kernel
+compares every observed exposure against a target that moves with the
+observation rather than against a single \(a^*\). A run therefore holds one
+\(n \times n\) matrix of exposure-kernel values per function intervention,
+materialized before any summing and held for the duration of the run.</p>
 <p>The half-distances follow the paper's rule of thumb: <code>1 * sd</code> for each
 numeric covariate and <code>0.5 * sd</code> for a continuous exposure. These are marginal
 scales, so a mid-support gap in a strongly multimodal exposure can be masked
@@ -227,6 +256,31 @@ Positivity Issues, with a Focus on Continuous Treatments.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Variant: data</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Intervention values: 2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> edp range: 0.793 to 26.809</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># An intervention can also be a function of the observed exposure, read as a</span></span></span>
+<span class="r-in"><span><span class="co"># shift away from the dose each observation received</span></span></span>
+<span class="r-in"><span><span class="va">shifted</span> <span class="op">&lt;-</span> <span class="fu">check_edp</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">df</span>,</span></span>
+<span class="r-in"><span>  <span class="va">dose</span>,</span></span>
+<span class="r-in"><span>  <span class="va">x1</span>,</span></span>
+<span class="r-in"><span>  values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, lower <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">.x</span><span class="op">)</span> <span class="va">.x</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  exposure_type <span class="op">=</span> <span class="st">"continuous"</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">shifted</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 300 × 4</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      .id intervention value   edp</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>     1 0                0  17.9</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>     2 0                0  26.7</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>     3 0                0  14.6</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>     4 0                0  11.4</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>     5 0                0  26.8</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>     6 0                0  14.8</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>     7 0                0  26.1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>     8 0                0  24.0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>     9 0                0  25.5</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>    10 0                0  22.7</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 290 more rows</span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

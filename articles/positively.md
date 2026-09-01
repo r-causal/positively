@@ -255,10 +255,11 @@ compact <- check_positivity(
 autoplot(compact)
 ```
 
-![Effective data points faceted by candidate exposure value, each a
-broad distribution running from zero to the sample maximum, beside the
-fraction of nearby opposite-group units faceted by exposure group, each
-rising from near zero to a peak around four
+![Boxplots of effective data points at the two candidate exposure
+values, both spanning most of the range from zero to the largest
+observed value with points beyond their whiskers, beside histograms of
+the fraction of nearby opposite-group units faceted by exposure group,
+each rising from near zero to a peak around four
 tenths.](positively_files/figure-html/container-plot-1.png)
 
 Naming a diagnostic draws that one alone, and arguments go with the
@@ -355,19 +356,19 @@ values are the two levels, 0 and 1.
 edp <- check_edp(pos_violations, exposure, c(x1, x2, region))
 #> ℹ Treating `.exposure` as binary
 tidy(edp)
-#> # A tibble: 2,000 × 3
-#>      .id value   edp
-#>    <int> <int> <dbl>
-#>  1     1     0  43.7
-#>  2     2     0  77.3
-#>  3     3     0  99.2
-#>  4     4     0 129. 
-#>  5     5     0  33.3
-#>  6     6     0  22.7
-#>  7     7     0  46.0
-#>  8     8     0  47.5
-#>  9     9     0  97.3
-#> 10    10     0  81.8
+#> # A tibble: 2,000 × 4
+#>      .id intervention value   edp
+#>    <int> <chr>        <int> <dbl>
+#>  1     1 0                0  43.7
+#>  2     2 0                0  77.3
+#>  3     3 0                0  99.2
+#>  4     4 0                0 129. 
+#>  5     5 0                0  33.3
+#>  6     6 0                0  22.7
+#>  7     7 0                0  46.0
+#>  8     8 0                0  47.5
+#>  9     9 0                0  97.3
+#> 10    10 0                0  81.8
 #> # ℹ 1,990 more rows
 ```
 
@@ -377,8 +378,11 @@ set, not against a universal threshold. Units in a thinly supported
 region carry a low value at the exposure level they rarely receive,
 because few observed neighbors surround the intervened-on point. The
 [`autoplot()`](https://ggplot2.tidyverse.org/reference/autoplot.html)
-method shows the distribution of effective data points, faceted by
-candidate exposure value; the left tail near zero is the set of units
+method reads effective data points by candidate value. The default view
+boxes them, with whiskers at the fifth and the ninety-fifth percentile
+following Ring and Schomaker (2026) and the values outside them drawn as
+points. `type = "histogram"` opens the same numbers up as a distribution
+faceted by candidate value; the left tail near zero is the set of units
 with little observed support under that intervention.
 
 ``` r

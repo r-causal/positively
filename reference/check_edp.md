@@ -51,10 +51,28 @@ check_edp(
 
 - values:
 
-  The intervention values \\a^\*\\. `NULL` (the default) uses every
+  The interventions, one per element. `NULL` (the default) uses every
   level of a factor exposure and every observed value of a binary or
   character exposure, and the deciles of the observed exposure for
   continuous exposures.
+
+  A vector holds one intervention value \\a^\*\\ per element, the value
+  every observation is moved to. A list holds the same single values
+  and, for a continuous exposure, functions of the observed exposure:
+  `list(3, 5, lower = function(.x) .x - 5)`. A function is called once
+  on the whole exposure vector and returns one intervened exposure
+  \\d(a_i)\\ per observation, or a single value used for every
+  observation. Functions need a continuous exposure; one supplied for a
+  binary or categorical exposure is an error.
+
+  Every intervention carries a label, which names it in the results and
+  along a plot's axis. In a vector, every element is labeled by
+  [`as.character()`](https://rdrr.io/r/base/character.html) of the value
+  itself and any names the vector carries are ignored. In a list, a
+  named element is labeled by its name, an unnamed single value by
+  [`as.character()`](https://rdrr.io/r/base/character.html) of the value
+  itself, and an unnamed function is an error, since it has nothing else
+  to be called by. Two elements of a list cannot share a label.
 
 - variant:
 
@@ -96,18 +114,19 @@ check_edp(
 
 An `edp_result` object, an S7 subclass of
 [positivity_diagnostic](https://r-causal.github.io/positively/reference/positivity_diagnostic.md).
-Its `@results` tibble has one row per observation and intervention
-value. The data variant carries columns `.id` (the observation row
-index), `value` (the intervention value \\a^\*\\), and `edp`. The
-estimator variant replaces `edp` with `edp_outcome`, `edp_treatment`,
-and `ideal_weight`. It also carries the `@variant` and `@bandwidths`
-properties.
+Its `@results` tibble has one row per observation and intervention. The
+data variant carries columns `.id` (the observation row index),
+`intervention` (the intervention label), `value` (the intervened
+exposure, the constant \\a^\*\\ for a single value and \\d(a_i)\\ for a
+function), and `edp`. The estimator variant replaces `edp` with
+`edp_outcome`, `edp_treatment`, and `ideal_weight`. It also carries the
+`@variant` and `@bandwidths` properties.
 
 [`generics::glance()`](https://generics.r-lib.org/reference/glance.html)
 returns a one-row tibble with `n` (the sample size), `variant`,
-`n_values` (the number of intervention values), and the observed range
-of every measure the variant reports. That is `edp_min` and `edp_max`
-for the data variant, and `edp_outcome_min`, `edp_outcome_max`,
+`n_values` (the number of interventions), and the observed range of
+every measure the variant reports. That is `edp_min` and `edp_max` for
+the data variant, and `edp_outcome_min`, `edp_outcome_max`,
 `edp_treatment_min`, `edp_treatment_max`, `ideal_weight_min`, and
 `ideal_weight_max` for the estimator variant.
 
@@ -127,6 +146,20 @@ contributes `1` on a match and `categorical_similarity` otherwise.
 Numeric covariates and continuous exposures are continuous dimensions;
 factor and character covariates, together with binary and categorical
 exposures, are categorical dimensions.
+
+An intervention need not be a single value every observation is moved
+to. A function supplied through `values` is a rule \\d\\ applied to the
+observed exposure, so observation \\i\\ is moved to \\d(a_i)\\ and the
+intervened-on point is \\o^\*\_i = (l_i, d(a_i))\\. Lowering every
+observed dose by five units is `function(.x) .x - 5`. EDP is then read
+per natural observation under the shift rather than at one common
+target; the algorithm is unchanged, and only the intervened-on points
+come from the rule. Because those points differ across observations, the
+exposure factor of the kernel compares every observed exposure against a
+target that moves with the observation rather than against a single
+\\a^\*\\. A run therefore holds one \\n \times n\\ matrix of
+exposure-kernel values per function intervention, materialized before
+any summing and held for the duration of the run.
 
 The half-distances follow the paper's rule of thumb: `1 * sd` for each
 numeric covariate and `0.5 * sd` for a continuous exposure. These are
@@ -178,4 +211,29 @@ result
 #> Variant: data
 #> Intervention values: 2
 #> edp range: 0.793 to 26.809
+
+# An intervention can also be a function of the observed exposure, read as a
+# shift away from the dose each observation received
+shifted <- check_edp(
+  df,
+  dose,
+  x1,
+  values = list(0, 1, lower = function(.x) .x - 1),
+  exposure_type = "continuous"
+)
+tidy(shifted)
+#> # A tibble: 300 × 4
+#>      .id intervention value   edp
+#>    <int> <chr>        <dbl> <dbl>
+#>  1     1 0                0  17.9
+#>  2     2 0                0  26.7
+#>  3     3 0                0  14.6
+#>  4     4 0                0  11.4
+#>  5     5 0                0  26.8
+#>  6     6 0                0  14.8
+#>  7     7 0                0  26.1
+#>  8     8 0                0  24.0
+#>  9     9 0                0  25.5
+#> 10    10 0                0  22.7
+#> # ℹ 290 more rows
 ```

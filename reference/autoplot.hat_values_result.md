@@ -7,6 +7,8 @@ a histogram with the observed \\\hat{\phi}\\ and the `conf_level` null
 quantile marked. `type = "profile"` shows the proportion of
 high-leverage candidates at each exposure percentile, the leverage
 profile across the exposure range.
+[`pull_plot_data()`](https://r-causal.github.io/positively/reference/pull_plot_data.md)
+returns the tibble either of these views draws.
 
 ## Arguments
 

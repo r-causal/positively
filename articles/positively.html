@@ -295,7 +295,7 @@ own, so the panel below holds the other two.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">compact</span><span class="op">)</span></span></code></pre></div>
-<p><img src="positively_files/figure-html/container-plot-1.png" class="r-plt" alt="Effective data points faceted by candidate exposure value, each a broad distribution running from zero to the sample maximum, beside the fraction of nearby opposite-group units faceted by exposure group, each rising from near zero to a peak around four tenths." width="100%"></p>
+<p><img src="positively_files/figure-html/container-plot-1.png" class="r-plt" alt="Boxplots of effective data points at the two candidate exposure values, both spanning most of the range from zero to the largest observed value with points beyond their whiskers, beside histograms of the fraction of nearby opposite-group units faceted by exposure group, each rising from near zero to a peak around four tenths." width="100%"></p>
 <p>Naming a diagnostic draws that one alone, and arguments go with the
 name, so <code>autoplot(check, "port", low_support_only = TRUE)</code>
 draws the PoRT chart restricted to its low-support subgroups. Naming a
@@ -373,29 +373,32 @@ values are the two levels, 0 and 1.</p>
 <code class="sourceCode R"><span><span class="va">edp</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/check_edp.html">check_edp</a></span><span class="op">(</span><span class="va">pos_violations</span>, <span class="va">exposure</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">x1</span>, <span class="va">x2</span>, <span class="va">region</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Treating `.exposure` as binary</span></span>
 <span><span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">edp</span><span class="op">)</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 2,000 × 3</span></span></span>
-<span><span class="co">#&gt;      .id value   edp</span></span>
-<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span>     1     0  43.7</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span>     2     0  77.3</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span>     3     0  99.2</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span>     4     0 129. </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span>     5     0  33.3</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span>     6     0  22.7</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span>     7     0  46.0</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span>     8     0  47.5</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span>     9     0  97.3</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span>    10     0  81.8</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 2,000 × 4</span></span></span>
+<span><span class="co">#&gt;      .id intervention value   edp</span></span>
+<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span>     1 0                0  43.7</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span>     2 0                0  77.3</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span>     3 0                0  99.2</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span>     4 0                0 129. </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span>     5 0                0  33.3</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span>     6 0                0  22.7</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span>     7 0                0  46.0</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span>     8 0                0  47.5</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span>     9 0                0  97.3</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span>    10 0                0  81.8</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># ℹ 1,990 more rows</span></span></span></code></pre></div>
 <p>Effective data points are a relative measure. They are meaningful
 when compared across units or across candidate values for a fixed
 covariate set, not against a universal threshold. Units in a thinly
 supported region carry a low value at the exposure level they rarely
 receive, because few observed neighbors surround the intervened-on
-point. The <code><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot()</a></code> method shows the distribution of
-effective data points, faceted by candidate exposure value; the left
-tail near zero is the set of units with little observed support under
-that intervention.</p>
+point. The <code><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot()</a></code> method reads effective data points by
+candidate value. The default view boxes them, with whiskers at the fifth
+and the ninety-fifth percentile following Ring and Schomaker (2026) and
+the values outside them drawn as points. <code>type = "histogram"</code>
+opens the same numbers up as a distribution faceted by candidate value;
+the left tail near zero is the set of units with little observed support
+under that intervention.</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">edp</span>, type <span class="op">=</span> <span class="st">"histogram"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="positively_files/figure-html/edp-plot-1.png" class="r-plt" alt="Histograms of effective data points faceted by candidate exposure value, each with a left tail of low-support observations near zero." width="100%"></p>

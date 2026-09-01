@@ -192,6 +192,53 @@ observations.</p>
 because the kernel measures local support in the joint
 exposure-covariate space without assuming a form for the conditional
 density.</p>
+<div class="section level3">
+<h3 id="shifting-each-observation-away-from-the-dose-it-received">Shifting each observation away from the dose it received<a class="anchor" aria-label="anchor" href="#shifting-each-observation-away-from-the-dose-it-received"></a>
+</h3>
+<p>A candidate value asks what the support looks like when every
+observation is moved to the same dose. An intervention can instead be a
+rule applied to the dose each observation already received. Passing
+<code>values</code> a list that mixes single values with functions of
+the observed exposure asks both questions in one run. Each function
+needs a name, which labels its intervention; a single value labels
+itself.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">shift</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/check_edp.html">check_edp</a></span><span class="op">(</span></span>
+<span>  <span class="va">pos_violations_long</span>,</span>
+<span>  <span class="va">a2</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">l0</span>, <span class="va">l1</span><span class="op">)</span>,</span>
+<span>  values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">5</span>, shifted <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">.x</span><span class="op">)</span> <span class="va">.x</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Treating `.exposure` as continuous</span></span>
+<span></span>
+<span><span class="fu"><a href="https://generics.r-lib.org/reference/tidy.html" class="external-link">tidy</a></span><span class="op">(</span><span class="va">shift</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/group_by.html" class="external-link">group_by</a></span><span class="op">(</span><span class="va">intervention</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/summarise.html" class="external-link">summarize</a></span><span class="op">(</span>edp <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">edp</span><span class="op">)</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 3 × 2</span></span></span>
+<span><span class="co">#&gt;   intervention   edp</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> 1             59.6</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> 5             62.2</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> shifted       40.1</span></span></code></pre></div>
+<p>Under <code>shifted</code>, each observation is moved to its own
+<code>a2 - 1</code> rather than to a common target, so effective data
+points are read per natural observation: a row reports the support
+surrounding the dose that observation would have received under the
+shift. The <code>value</code> column holds that intervened dose, which
+now varies from row to row, and <code>intervention</code> is what tells
+the three apart. The mean under the shift falls well below either single
+value because subtracting one carries observations into two thinly
+supported places: the 126 drawn between four and five land in the
+<code>(2, 4)</code> gap, and the 121 drawn below one fall beneath the
+observed range, where support is thinner still.</p>
+<p>The default <code><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot()</a></code> view boxes effective data points
+by intervention. Its whiskers reach the fifth and the ninety-fifth
+percentile, following Ring and Schomaker (2026) rather than Tukey’s
+fences, and the values outside them are drawn as points.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">shift</span><span class="op">)</span></span></code></pre></div>
+<p><img src="continuous-exposures_files/figure-html/edp-shift-plot-1.png" class="r-plt" alt="Boxplots of effective data points for the interventions one, five, and shifted. The boxes for one and five sit near sixty-five effective data points, while the shifted box is centered near thirty-six and reaches lower, with points beyond the whiskers at both ends of every box." width="100%"></p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="hat-values-leverage-based-extrapolation-risk">Hat values: leverage-based extrapolation risk<a class="anchor" aria-label="anchor" href="#hat-values-leverage-based-extrapolation-risk"></a>
@@ -209,7 +256,7 @@ of the covariates.</p>
 chunk. We use <code>null_reps = 100</code> to keep the vignette fast.
 This is a toy setting; in practice keep at least the default of 500
 replicates so that the null quantile is stable.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">hat_values</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/check_hat_values.html">check_hat_values</a></span><span class="op">(</span></span>
 <span>  <span class="va">pos_violations_long</span>,</span>
@@ -235,7 +282,7 @@ percentiles of the observed exposure, which fall on the two supported
 modes and never enter the gap. Second, <code>a2</code> does not depend
 strongly on <code>l0</code> or <code>l1</code>, so no exposure-covariate
 combination is far from the observed design in the leverage sense.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">hat_values</span>, type <span class="op">=</span> <span class="st">"null"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="continuous-exposures_files/figure-html/hat-null-1.png" class="r-plt" alt="Histogram of the null distribution of the leverage summary statistic, with a dashed line at the null quantile and a solid line at the observed statistic; the observed statistic sits within the null distribution." width="100%"></p>
 <p>Hat values identify extrapolation risk that arises when specific
@@ -256,7 +303,7 @@ highest-density region excludes that value, that is, the share of the
 population for which the target dose is not supported. The ratio is zero
 when the target is supported everywhere and one when it is supported
 nowhere.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">hdr</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/check_hdr.html">check_hdr</a></span><span class="op">(</span><span class="va">pos_violations_long</span>, <span class="va">a2</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">l0</span>, <span class="va">l1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">hdr</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -280,7 +327,7 @@ flexible conditional-density estimator supplied through
 hole.</p>
 <p>To show the ratio when it is informative, consider a mean-shift
 example in which the exposure depends strongly on a covariate.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">2</span><span class="op">)</span></span>
 <span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">500</span></span>
 <span><span class="va">l</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span>
@@ -302,7 +349,7 @@ population. The non-overlap ratio has a nonzero floor even at the
 central target, and it rises toward one for extreme targets. The
 <code><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot()</a></code> curve shows the ratio against the target
 value.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">hdr_shift</span><span class="op">)</span></span></code></pre></div>
 <p><img src="continuous-exposures_files/figure-html/hdr-plot-1.png" class="r-plt" alt="Non-overlap ratio plotted against target exposure value for the mean-shift example, forming a U shape that is lowest near the center of the exposure range and rises toward one at both extremes." width="100%"></p>
 <p>The non-overlap ratio measures support for a common target dose
@@ -344,7 +391,7 @@ its values are distinct, which is a sensible default and the wrong
 answer for a coarsely measured dose. Consider a drug dose recorded at
 eight milligram levels across 150 subjects, with higher doses given to
 subjects with higher <code>l</code>.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span></span>
 <span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">150</span></span>
 <span><span class="va">l</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span>
@@ -356,7 +403,7 @@ subjects with higher <code>l</code>.</p>
 <p>The dose is continuous in every sense that matters to these
 diagnostics, but eight distinct values over 150 observations fall well
 under the cutoff, so it is detected as categorical.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/check_edp.html">check_edp</a></span><span class="op">(</span><span class="va">coarse</span>, <span class="va">dose</span>, <span class="va">l</span>, values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">10</span>, <span class="fl">40</span>, <span class="fl">70</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Treating `.exposure` as categorical</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -375,7 +422,7 @@ is authoritative: detection is not consulted at all, and the declaration
 is refused only when its math cannot run on the column as given, which
 for <code>"continuous"</code> means a column that is not numeric and for
 <code>"binary"</code> a column without exactly two distinct values.</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/check_hdr.html">check_hdr</a></span><span class="op">(</span><span class="va">coarse</span>, <span class="va">dose</span>, <span class="va">l</span>, values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">10</span>, <span class="fl">40</span>, <span class="fl">70</span><span class="op">)</span>, exposure_type <span class="op">=</span> <span class="st">"continuous"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">HDR non-overlap</span> <span style="color: #00BBBB;">─────────────────────────────────────────────────────────────</span></span></span>
@@ -390,7 +437,7 @@ covariate profiles support.</p>
 <p><code><a href="../reference/check_positivity.html">check_positivity()</a></code> takes the same argument and forwards
 the resolved type to every diagnostic it composes, so one declaration
 covers the whole set.</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">4</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/check_positivity.html">check_positivity</a></span><span class="op">(</span><span class="va">coarse</span>, <span class="va">dose</span>, <span class="va">l</span>, exposure_type <span class="op">=</span> <span class="st">"continuous"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -420,7 +467,7 @@ and declaring it there fails on the argument rather than on the column.
 <code><a href="../reference/check_positivity.html">check_positivity()</a></code> takes all three types, so it is where
 the structural rule does the refusing: eight distinct doses are not
 two.</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/check_positivity.html">check_positivity</a></span><span class="op">(</span><span class="va">coarse</span>, <span class="va">dose</span>, <span class="va">l</span>, exposure_type <span class="op">=</span> <span class="st">"binary"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00; font-weight: bold;">Error</span><span style="font-weight: bold;"> in `check_positivity()`:</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">!</span> `check_positivity()` needs exactly two distinct values in `.exposure`</span></span>

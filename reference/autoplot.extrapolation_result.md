@@ -7,6 +7,8 @@ as histograms faceted by exposure group, the share of the opposite group
 that lies nearby each observation. `type = "hull"` shows convex-hull
 membership as stacked bars per exposure group, and is available only
 when the hull test ran.
+[`pull_plot_data()`](https://r-causal.github.io/positively/reference/pull_plot_data.md)
+returns the tibble either of these views draws.
 
 ## Arguments
 

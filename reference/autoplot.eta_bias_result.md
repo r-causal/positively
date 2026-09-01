@@ -8,6 +8,8 @@ level, each facet marking the `truth` its term is aimed at.
 `type = "sweep"` shows ETA.Bias with a two-Monte-Carlo-standard-error
 band across the truncation sweep, the bias-variance tradeoff of weight
 truncation, with one line per estimand term.
+[`pull_plot_data()`](https://r-causal.github.io/positively/reference/pull_plot_data.md)
+returns the tibble either of these views draws.
 
 ## Arguments
 

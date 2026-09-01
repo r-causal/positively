@@ -3,6 +3,8 @@
 Draws the non-overlap ratio \\\hat{\tau}(a)\\ against the target
 exposure value `a`, with a reference line at zero. For a sequential
 result the curves are colored by time point.
+[`pull_plot_data()`](https://r-causal.github.io/positively/reference/pull_plot_data.md)
+returns the tibble this view draws.
 
 ## Arguments
 

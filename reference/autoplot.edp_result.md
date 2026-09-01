@@ -2,11 +2,23 @@
 
 Draws one view of a
 [`check_edp()`](https://r-causal.github.io/positively/reference/check_edp.md)
-result. `type = "histogram"` shows the distribution of EDP faceted by
-intervention value, and `type = "ecdf"` shows its empirical cumulative
-distribution colored by intervention value. For the estimator variant,
+result. `type = "boxplot"`, the default, boxes EDP by intervention. Its
+whiskers reach the fifth and the ninety-fifth percentile, following Ring
+and Schomaker (2026) rather than Tukey's fences, and the values outside
+them are drawn as points. For the estimator variant it draws the
+outcome-model and the treatment-model measure side by side in a facet
+per intervention. `type = "histogram"` shows the distribution of EDP
+faceted by intervention, `type = "ecdf"` shows its empirical cumulative
+distribution colored by intervention, and `type = "density"` draws one
+density ridgeline per intervention, which needs the ggridges package.
+Each of those three draws one measure: `edp` for the data variant and
+`edp_outcome` for the estimator variant, the measure carrying the
+exposure dimension and so the one an intervention moves.
 `type = "scatter"` plots `edp_outcome` against `edp_treatment` colored
-by `ideal_weight`; it aborts for the data variant.
+by `ideal_weight`; it needs the estimator variant and aborts for the
+data variant.
+[`pull_plot_data()`](https://r-causal.github.io/positively/reference/pull_plot_data.md)
+returns the tibble any of these views draws.
 
 ## Arguments
 
@@ -17,7 +29,8 @@ by `ideal_weight`; it aborts for the data variant.
 
 - type:
 
-  One of `"histogram"`, `"ecdf"`, or `"scatter"`.
+  One of `"boxplot"`, `"histogram"`, `"ecdf"`, `"density"`, or
+  `"scatter"`.
 
 - ...:
 
@@ -37,6 +50,8 @@ x1 <- rnorm(n)
 dose <- rnorm(n, mean = x1)
 df <- data.frame(dose = dose, x1 = x1)
 result <- check_edp(df, dose, x1, values = c(0, 1), exposure_type = "continuous")
+
+autoplot(result)
 
 autoplot(result, type = "histogram")
 

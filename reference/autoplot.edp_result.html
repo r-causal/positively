@@ -5,15 +5,35 @@
       fontURL: "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/output/chtml/fonts/woff-v2"
     }
   };
-</script><script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"><link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet"><script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet"><link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet"><script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Plot an effective-data-points diagnostic — autoplot.edp_result"><meta name="description" content='Draws one view of a check_edp() result. type = "histogram" shows the
-distribution of EDP faceted by intervention value, and type = "ecdf" shows
-its empirical cumulative distribution colored by intervention value. For the
-estimator variant, type = "scatter" plots edp_outcome against
-edp_treatment colored by ideal_weight; it aborts for the data variant.'><meta property="og:description" content='Draws one view of a check_edp() result. type = "histogram" shows the
-distribution of EDP faceted by intervention value, and type = "ecdf" shows
-its empirical cumulative distribution colored by intervention value. For the
-estimator variant, type = "scatter" plots edp_outcome against
-edp_treatment colored by ideal_weight; it aborts for the data variant.'></head><body>
+</script><script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"><link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet"><script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet"><link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet"><script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Plot an effective-data-points diagnostic — autoplot.edp_result"><meta name="description" content="Draws one view of a check_edp() result. type = &quot;boxplot&quot;, the default,
+boxes EDP by intervention. Its whiskers reach the fifth and the ninety-fifth
+percentile, following Ring and Schomaker (2026) rather than Tukey's fences,
+and the values outside them are drawn as points. For the estimator variant
+it draws the outcome-model and the treatment-model measure side by side in a
+facet per intervention. type = &quot;histogram&quot; shows the distribution of EDP
+faceted by intervention, type = &quot;ecdf&quot; shows its empirical cumulative
+distribution colored by intervention, and type = &quot;density&quot; draws one
+density ridgeline per intervention, which needs the ggridges package.
+Each of those three draws one measure: edp for the data variant and
+edp_outcome for the estimator variant, the measure carrying the exposure
+dimension and so the one an intervention moves. type = &quot;scatter&quot; plots
+edp_outcome against edp_treatment colored by ideal_weight; it needs
+the estimator variant and aborts for the data variant.
+pull_plot_data() returns the tibble any of these views draws."><meta property="og:description" content="Draws one view of a check_edp() result. type = &quot;boxplot&quot;, the default,
+boxes EDP by intervention. Its whiskers reach the fifth and the ninety-fifth
+percentile, following Ring and Schomaker (2026) rather than Tukey's fences,
+and the values outside them are drawn as points. For the estimator variant
+it draws the outcome-model and the treatment-model measure side by side in a
+facet per intervention. type = &quot;histogram&quot; shows the distribution of EDP
+faceted by intervention, type = &quot;ecdf&quot; shows its empirical cumulative
+distribution colored by intervention, and type = &quot;density&quot; draws one
+density ridgeline per intervention, which needs the ggridges package.
+Each of those three draws one measure: edp for the data variant and
+edp_outcome for the estimator variant, the measure carrying the exposure
+dimension and so the one an intervention moves. type = &quot;scatter&quot; plots
+edp_outcome against edp_treatment colored by ideal_weight; it needs
+the estimator variant and aborts for the data variant.
+pull_plot_data() returns the tibble any of these views draws."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -55,11 +75,21 @@ edp_treatment colored by ideal_weight; it aborts for the data variant.'></head><
     </div>
 
     <div class="ref-description section level2">
-    <p>Draws one view of a <code><a href="check_edp.html">check_edp()</a></code> result. <code>type = "histogram"</code> shows the
-distribution of EDP faceted by intervention value, and <code>type = "ecdf"</code> shows
-its empirical cumulative distribution colored by intervention value. For the
-estimator variant, <code>type = "scatter"</code> plots <code>edp_outcome</code> against
-<code>edp_treatment</code> colored by <code>ideal_weight</code>; it aborts for the data variant.</p>
+    <p>Draws one view of a <code><a href="check_edp.html">check_edp()</a></code> result. <code>type = "boxplot"</code>, the default,
+boxes EDP by intervention. Its whiskers reach the fifth and the ninety-fifth
+percentile, following Ring and Schomaker (2026) rather than Tukey's fences,
+and the values outside them are drawn as points. For the estimator variant
+it draws the outcome-model and the treatment-model measure side by side in a
+facet per intervention. <code>type = "histogram"</code> shows the distribution of EDP
+faceted by intervention, <code>type = "ecdf"</code> shows its empirical cumulative
+distribution colored by intervention, and <code>type = "density"</code> draws one
+density ridgeline per intervention, which needs the <span class="pkg">ggridges</span> package.
+Each of those three draws one measure: <code>edp</code> for the data variant and
+<code>edp_outcome</code> for the estimator variant, the measure carrying the exposure
+dimension and so the one an intervention moves. <code>type = "scatter"</code> plots
+<code>edp_outcome</code> against <code>edp_treatment</code> colored by <code>ideal_weight</code>; it needs
+the estimator variant and aborts for the data variant.
+<code><a href="pull_plot_data.html">pull_plot_data()</a></code> returns the tibble any of these views draws.</p>
     </div>
 
 
@@ -72,7 +102,8 @@ estimator variant, <code>type = "scatter"</code> plots <code>edp_outcome</code> 
 
 
 <dt id="arg-type">type<a class="anchor" aria-label="anchor" href="#arg-type"></a></dt>
-<dd><p>One of <code>"histogram"</code>, <code>"ecdf"</code>, or <code>"scatter"</code>.</p></dd>
+<dd><p>One of <code>"boxplot"</code>, <code>"histogram"</code>, <code>"ecdf"</code>, <code>"density"</code>, or
+<code>"scatter"</code>.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -93,10 +124,12 @@ estimator variant, <code>type = "scatter"</code> plots <code>edp_outcome</code> 
 <span class="r-in"><span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>dose <span class="op">=</span> <span class="va">dose</span>, x1 <span class="op">=</span> <span class="va">x1</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="check_edp.html">check_edp</a></span><span class="op">(</span><span class="va">df</span>, <span class="va">dose</span>, <span class="va">x1</span>, values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span>, exposure_type <span class="op">=</span> <span class="st">"continuous"</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">result</span>, type <span class="op">=</span> <span class="st">"histogram"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span></span>
 <span class="r-plt img"><img src="autoplot.edp_result-1.png" alt="" width="700" height="433"></span>
-<span class="r-in"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">result</span>, type <span class="op">=</span> <span class="st">"ecdf"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">result</span>, type <span class="op">=</span> <span class="st">"histogram"</span><span class="op">)</span></span></span>
 <span class="r-plt img"><img src="autoplot.edp_result-2.png" alt="" width="700" height="433"></span>
+<span class="r-in"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/autoplot.html" class="external-link">autoplot</a></span><span class="op">(</span><span class="va">result</span>, type <span class="op">=</span> <span class="st">"ecdf"</span><span class="op">)</span></span></span>
+<span class="r-plt img"><img src="autoplot.edp_result-3.png" alt="" width="700" height="433"></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>
