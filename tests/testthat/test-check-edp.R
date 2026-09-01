@@ -9,8 +9,11 @@
 # similarity kernel; only continuous exposures use the half-distance kernel.
 # Numeric covariates are continuous dimensions, factor and character covariates
 # are categorical dimensions. The fixed data-variant results columns are
-# .id / value / edp; the estimator variant replaces edp with edp_outcome /
-# edp_treatment / ideal_weight. EDP is meaningful relative across observations
+# .id / intervention / value / edp; the estimator variant replaces edp with
+# edp_outcome / edp_treatment / ideal_weight. An intervention is either a static
+# value, where every row's `value` is that constant, or a function of the
+# observed exposure, where each row's `value` is its own intervened exposure
+# d(a_i). EDP is meaningful relative across observations
 # for a fixed covariate set, never against a universal threshold, so magnitude
 # claims are anchored to hand computations or to stratum-versus-stratum ratios.
 
@@ -392,7 +395,7 @@ test_that("the data variant carries the fixed results columns and variant proper
   )
 
   expect_s3_class(res@results, "tbl_df")
-  expect_setequal(names(res@results), c(".id", "value", "edp"))
+  expect_setequal(names(res@results), c(".id", "intervention", "value", "edp"))
   expect_type(res@results$edp, "double")
   expect_identical(nrow(res@results), 2L * 150L)
   expect_identical(res@variant, "data")
@@ -453,7 +456,14 @@ test_that("the estimator variant swaps in the outcome and treatment columns", {
 
   expect_setequal(
     names(res@results),
-    c(".id", "value", "edp_outcome", "edp_treatment", "ideal_weight")
+    c(
+      ".id",
+      "intervention",
+      "value",
+      "edp_outcome",
+      "edp_treatment",
+      "ideal_weight"
+    )
   )
   expect_false("edp" %in% names(res@results))
   expect_identical(res@variant, "estimator")
@@ -936,6 +946,464 @@ test_that("ideal_weight is infinite where outcome support is zero", {
   expect_true(all(is.infinite(res@results$ideal_weight[subgroup])))
 })
 
+# ---- Function-valued interventions ----------------------------------------
+
+# Three observations five units apart on one constant categorical covariate, so
+# the covariate similarity is 1 for every pair and EDP is the exposure kernel
+# alone. At a half-distance of 5 every kernel weight is a negative power of two.
+edp_shift_data <- function() {
+  tibble::tibble(exposure = c(0, 5, 10), s = c("a", "a", "a"))
+}
+
+test_that("a shift intervention matches the hand-computed EDP", {
+  # d(a) = a - 5 moves the three targets to -5, 0, and 5. Against the observed
+  # exposures 0, 5, and 10 the weights 0.5 ^ ((delta / 5) ^ 2) sum to
+  # 0.5 + 0.5 ^ 4 + 0.5 ^ 9, then 1 + 0.5 + 0.5 ^ 4, then 0.5 + 1 + 0.5.
+  res <- check_edp(
+    edp_shift_data(),
+    exposure,
+    s,
+    bw_exposure = 5,
+    values = list(down = function(.x) .x - 5),
+    exposure_type = "continuous"
+  )
+
+  ordered <- res@results[order(res@results$.id), , drop = FALSE]
+  expect_equal(ordered$value, c(-5, 0, 5), tolerance = 1e-8)
+  expect_equal(
+    ordered$edp,
+    c(0.564453125, 1.5625, 2),
+    tolerance = 1e-8
+  )
+})
+
+test_that("a shift intervention matches the hand-computed two-dimension product", {
+  # covariate x1 with h = 1, exposure with h = 0.5, obs (x1, a) =
+  # (0, 0), (0, 1), (1, 0), shifted by d(a) = a + 0.5. Rows 1 and 3 are targeted
+  # at 0.5, the static value of the two-dimension test above, and reproduce its
+  # 1.25 and 1.0. Row 2 is targeted at 1.5, giving
+  # 0.5 ^ 9 + 0.5 + 0.5 * 0.5 ^ 9 = 0.5029296875.
+  data <- tibble::tibble(exposure = c(0, 1, 0), x1 = c(0, 0, 1))
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    bw_exposure = 0.5,
+    bw_covariates = 1,
+    values = list(up = function(.x) .x + 0.5),
+    exposure_type = "continuous"
+  )
+
+  ordered <- res@results[order(res@results$.id), , drop = FALSE]
+  expect_equal(ordered$value, c(0.5, 1.5, 0.5), tolerance = 1e-8)
+  expect_equal(
+    ordered$edp,
+    c(1.25, 0.5029296875, 1),
+    tolerance = 1e-8
+  )
+})
+
+test_that("both variants carry .id, intervention, value, then the measures", {
+  data <- sim_edp_gaussian(40)
+  n <- nrow(data)
+  down <- function(.x) .x - 1
+
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(down = down, 0),
+    exposure_type = "continuous"
+  )
+  expect_identical(names(res@results), c(".id", "intervention", "value", "edp"))
+  expect_type(res@results$intervention, "character")
+  expect_identical(res@results$intervention, rep(c("down", "0"), each = n))
+  expect_identical(res@results$.id, rep(seq_len(n), times = 2))
+  # A function intervention gives every observation its own target; a static one
+  # sends them all to the same place.
+  expect_identical(res@results$value[seq_len(n)], data$exposure - 1)
+  expect_identical(res@results$value[n + seq_len(n)], rep(0, n))
+
+  estimator <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(down = down, 0),
+    variant = "estimator",
+    exposure_type = "continuous"
+  )
+  expect_identical(
+    names(estimator@results),
+    c(
+      ".id",
+      "intervention",
+      "value",
+      "edp_outcome",
+      "edp_treatment",
+      "ideal_weight"
+    )
+  )
+  expect_type(estimator@results$intervention, "character")
+  expect_identical(
+    estimator@results$intervention,
+    rep(c("down", "0"), each = n)
+  )
+})
+
+test_that("the static path keeps its exact numbers under the new schema", {
+  # Every kernel factor here is a negative power of two, so the sums are exact
+  # in double precision and the released numbers pin bit for bit.
+  res <- check_edp(
+    edp_hand_data(),
+    exposure,
+    x1,
+    bw_exposure = 1,
+    bw_covariates = 1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+
+  expect_identical(
+    res@results,
+    tibble::tibble(
+      .id = rep(1:3, times = 2),
+      intervention = rep(c("0", "1"), each = 3),
+      value = rep(c(0, 1), each = 3),
+      edp = rep(c(1.5625, 2), each = 3)
+    )
+  )
+})
+
+test_that("a list of scalars matches the equivalent vector", {
+  data <- sim_edp_gaussian(60)
+  from_list <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(1, 5),
+    exposure_type = "continuous"
+  )
+  from_vector <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(1, 5),
+    exposure_type = "continuous"
+  )
+
+  expect_identical(from_list@results, from_vector@results)
+  expect_identical(unique(from_list@results$intervention), c("1", "5"))
+  # Both spellings of the same grid have to leave the same record behind, or
+  # glance() and print() would report on the spelling rather than the grid.
+  expect_identical(
+    from_vector@params$values,
+    stats::setNames(list(1, 5), c("1", "5"))
+  )
+  expect_identical(from_list@params$values, from_vector@params$values)
+})
+
+test_that("a named scalar takes its name as the intervention label", {
+  data <- sim_edp_gaussian(60)
+  n <- nrow(data)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(low = 1),
+    exposure_type = "continuous"
+  )
+
+  # A name labels a scalar as readily as it labels a function, and the label is
+  # all that changes: the target is still the number given.
+  expect_identical(res@results$intervention, rep("low", n))
+  expect_identical(res@results$value, rep(1, n))
+  expect_identical(names(res@params$values), "low")
+})
+
+test_that("a function returning a constant matches the equivalent static value", {
+  data <- sim_edp_gaussian(60)
+  from_function <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(static = function(.x) rep(3, length(.x))),
+    exposure_type = "continuous"
+  )
+  from_static <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = 3,
+    exposure_type = "continuous"
+  )
+
+  expect_identical(from_function@results$.id, from_static@results$.id)
+  expect_equal(from_function@results$value, from_static@results$value)
+  expect_equal(
+    from_function@results$edp,
+    from_static@results$edp,
+    tolerance = 1e-12
+  )
+  expect_identical(
+    from_function@results$intervention,
+    rep("static", nrow(data))
+  )
+})
+
+test_that("a function returning one value is recycled over the observations", {
+  # Length-1 output is the one output length that does not already say which
+  # observation each target belongs to, so it has to be recycled rather than
+  # rejected for being shorter than the sample.
+  data <- sim_edp_gaussian(60)
+  n <- nrow(data)
+  from_function <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(flat = function(.x) 3),
+    exposure_type = "continuous"
+  )
+  from_static <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = 3,
+    exposure_type = "continuous"
+  )
+
+  expect_identical(from_function@results$intervention, rep("flat", n))
+  expect_identical(from_function@results$value, rep(3, n))
+  expect_identical(from_function@results$value, from_static@results$value)
+  expect_equal(
+    from_function@results$edp,
+    from_static@results$edp,
+    tolerance = 1e-12
+  )
+})
+
+test_that("an intervention function is called once on the whole exposure", {
+  data <- sim_edp_gaussian(40)
+  calls <- 0L
+  received <- NULL
+  shift <- function(.x) {
+    calls <<- calls + 1L
+    received <<- .x
+    .x - 5
+  }
+
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(down = shift),
+    exposure_type = "continuous"
+  )
+
+  # Checking the output and computing with it must share one invocation:
+  # applying the function a second time would double any side effect the user
+  # wrote and any cost they paid for.
+  expect_identical(calls, 1L)
+  # The argument is the observed exposure in full, not one observation at a time
+  # and not a subset.
+  expect_identical(received, data$exposure)
+  expect_identical(nrow(res@results), nrow(data))
+})
+
+test_that("a function intervention leaves edp_treatment alone", {
+  # Exact matching (bw_exposure = 0) on four evenly spaced exposures sharing one
+  # constant covariate: d(a) = a + 1 places rows 1 to 3 on an observed exposure
+  # and row 4 one unit past the largest, where the outcome model has no support.
+  data <- tibble::tibble(exposure = c(0, 1, 2, 3), s = rep("a", 4))
+  res <- check_edp(
+    data,
+    exposure,
+    s,
+    variant = "estimator",
+    bw_exposure = 0,
+    values = list(up = function(.x) .x + 1, 2),
+    exposure_type = "continuous"
+  )
+
+  expect_identical(res@results$intervention, rep(c("up", "2"), each = 4))
+  # The treatment model carries no exposure dimension, so no intervention moves
+  # it.
+  expect_length(unique(res@results$edp_treatment), 1)
+  expect_equal(unique(res@results$edp_treatment), 4)
+  expect_equal(res@results$edp_outcome, c(1, 1, 1, 0, 1, 1, 1, 1))
+  expect_equal(res@results$ideal_weight, c(4, 4, 4, Inf, 4, 4, 4, 4))
+})
+
+test_that("glance() counts a list of interventions and keeps the normalized list", {
+  data <- sim_edp_gaussian(60)
+  down <- function(.x) .x - 1
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(down = down, 0),
+    exposure_type = "continuous"
+  )
+
+  expect_identical(generics::glance(res)$n_values, 2L)
+  expect_type(res@params$values, "list")
+  expect_identical(names(res@params$values), c("down", "0"))
+  expect_identical(res@params$values$down, down)
+  expect_identical(res@params$values[["0"]], 0)
+})
+
+test_that("check_edp() rejects a function intervention it cannot label or apply", {
+  local_quiet()
+  data <- sim_edp_gaussian(60)
+  shift <- function(.x) .x - 1
+
+  # A label becomes axis text, so an unnamed function leaves nothing to draw.
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(shift),
+      exposure_type = "continuous"
+    ),
+    class = "positively_unnamed_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = stats::setNames(list(shift, shift), c("down", "down")),
+      exposure_type = "continuous"
+    ),
+    class = "positively_duplicate_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = stats::setNames(list(1, 2), c("a", "a")),
+      exposure_type = "continuous"
+    ),
+    class = "positively_duplicate_error"
+  )
+
+  # A function maps observed exposure to intervened exposure, which only a
+  # continuous exposure has.
+  binary <- dgp_good_positivity(n = 60, seed = 1)
+  expect_error(
+    check_edp(binary, exposure, c(x1, x2), values = list(down = shift)),
+    class = "positively_type_error"
+  )
+  categorical <- sim_edp_categorical(60)
+  expect_error(
+    check_edp(
+      categorical,
+      exposure,
+      z2,
+      values = list(down = shift),
+      exposure_type = "categorical"
+    ),
+    class = "positively_type_error"
+  )
+})
+
+test_that("check_edp() rejects a function whose output cannot be an exposure", {
+  data <- sim_edp_gaussian(60)
+
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(bad = function(.x) rep("a", length(.x))),
+      exposure_type = "continuous"
+    ),
+    class = "positively_type_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(bad = function(.x) .x[1:2]),
+      exposure_type = "continuous"
+    ),
+    class = "positively_size_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(bad = function(.x) replace(.x, 1, NA_real_)),
+      exposure_type = "continuous"
+    ),
+    class = "positively_missing_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(bad = function(.x) replace(.x, 1, Inf)),
+      exposure_type = "continuous"
+    ),
+    class = "positively_range_error"
+  )
+})
+
+test_that("check_edp() rejects a list element that is neither a scalar nor a function", {
+  data <- sim_edp_gaussian(60)
+
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(bad = NULL),
+      exposure_type = "continuous"
+    ),
+    class = "positively_type_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(bad = c(1, 2)),
+      exposure_type = "continuous"
+    ),
+    class = "positively_type_error"
+  )
+  expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(),
+      exposure_type = "continuous"
+    ),
+    class = "positively_empty_error"
+  )
+})
+
+test_that("an error raised inside a user function propagates unchanged", {
+  data <- sim_edp_gaussian(60)
+  # The user's own failure is the one worth reading, so nothing may relabel it.
+  err <- expect_error(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(boom = function(.x) stop("kaboom")),
+      exposure_type = "continuous"
+    ),
+    "kaboom"
+  )
+  expect_false(inherits(err, "positively_error"))
+})
+
 # ---- Autoplot contract ----------------------------------------------------
 
 test_that("autoplot() returns a ggplot for each data-variant type", {
@@ -948,8 +1416,12 @@ test_that("autoplot() returns a ggplot for each data-variant type", {
     exposure_type = "continuous"
   )
 
+  expect_s3_class(ggplot2::autoplot(res, type = "boxplot"), "ggplot")
   expect_s3_class(ggplot2::autoplot(res, type = "histogram"), "ggplot")
   expect_s3_class(ggplot2::autoplot(res, type = "ecdf"), "ggplot")
+
+  skip_if_not_installed("ggridges")
+  expect_s3_class(ggplot2::autoplot(res, type = "density"), "ggplot")
 })
 
 test_that("autoplot() rejects an unknown type as a classed error", {
@@ -981,6 +1453,132 @@ test_that("plot() draws the view and returns the result invisibly", {
     exposure_type = "continuous"
   )
   expect_identical(plot(res), res)
+})
+
+test_that("the default view boxes EDP by intervention", {
+  data <- sim_edp_gaussian(60)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(down = function(.x) .x - 1, 0),
+    exposure_type = "continuous"
+  )
+
+  plot <- ggplot2::autoplot(res)
+  frame <- pull_plot_data(res, type = "boxplot")
+  expect_identical(plot$data, frame)
+
+  # The whiskers reach the 5th and the 95th percentile rather than Tukey's
+  # fences, so the box is drawn from summaries computed ahead of it and the
+  # points beyond the whiskers are a layer of their own.
+  expect_length(plot$layers, 2L)
+  expect_s3_class(plot$layers[[1]]$geom, "GeomBoxplot")
+  expect_s3_class(plot$layers[[1]]$stat, "StatIdentity")
+  expect_s3_class(plot$layers[[2]]$geom, "GeomPoint")
+
+  built <- ggplot2::ggplot_build(plot)
+  box <- built$data[[1]]
+  expect_identical(nrow(box), nrow(frame))
+  for (stat in c("ymin", "lower", "middle", "upper", "ymax")) {
+    expect_equal(box[[stat]], frame[[stat]])
+  }
+
+  # One panel, with the interventions along x in the order they were given.
+  expect_identical(nrow(built$layout$layout), 1L)
+  expect_identical(as.numeric(box$x), c(1, 2))
+  expect_identical(
+    built$layout$panel_params[[1]]$x$get_labels(),
+    c("down", "0")
+  )
+
+  points <- built$data[[2]]
+  expect_gt(nrow(points), 0L)
+  expect_identical(nrow(points), length(unlist(frame$outliers)))
+  expect_equal(
+    unname(lapply(split(points$y, as.numeric(points$x)), sort)),
+    unname(lapply(frame$outliers, sort))
+  )
+})
+
+test_that("the boxplot draws an empty point layer when nothing lies outside", {
+  local_quiet()
+  # Two strata under exact categorical matching: one of five observations with
+  # three treated, one of three with one treated. At the treated target every
+  # EDP is the number treated in its own stratum, so the eight values tie
+  # five-deep at 3 and three-deep at 1. The type-7 5th and 95th percentiles
+  # fall inside those ties, which leaves nothing outside the whiskers.
+  data <- data.frame(
+    exposure = c(0L, 0L, 1L, 1L, 1L, 0L, 0L, 1L),
+    s = factor(rep(c("a", "b"), c(5L, 3L)))
+  )
+  res <- check_edp(
+    data,
+    exposure,
+    s,
+    values = 1,
+    categorical_similarity = 0
+  )
+  frame <- pull_plot_data(res, type = "boxplot")
+  expect_identical(frame$outliers[[1]], double(0))
+
+  plot <- ggplot2::autoplot(res)
+  expect_no_condition(ggplot2::ggplot_build(plot))
+
+  built <- ggplot2::ggplot_build(plot)
+  expect_length(built$data, 2L)
+  expect_identical(nrow(built$data[[2]]), 0L)
+})
+
+test_that("the estimator boxplot draws both EDP measures by intervention", {
+  data <- sim_edp_gaussian(60)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    variant = "estimator",
+    values = list(down = function(.x) .x - 1, 0),
+    exposure_type = "continuous"
+  )
+
+  plot <- ggplot2::autoplot(res)
+  frame <- pull_plot_data(res, type = "boxplot")
+  expect_identical(plot$data, frame)
+  expect_s3_class(plot$layers[[1]]$geom, "GeomBoxplot")
+  expect_s3_class(plot$layers[[1]]$stat, "StatIdentity")
+
+  built <- ggplot2::ggplot_build(plot)
+  # One facet per intervention, in the order the interventions were given, with
+  # the two measures along x. The scale's data values pin the drawn order; the
+  # display text the axis shows is the figure's business.
+  expect_identical(
+    as.character(built$layout$layout$intervention),
+    c("down", "0")
+  )
+  measures <- built$layout$panel_params[[1]]$x$limits
+  expect_identical(measures, c("edp_outcome", "edp_treatment"))
+
+  # The ideal weight shares no scale with the two EDP measures, so this view
+  # does not draw it.
+  expect_false("ideal_weight" %in% measures)
+  expect_false("ideal_weight" %in% names(plot$data))
+  expect_false(any(vapply(
+    built$data,
+    function(layer) "ideal_weight" %in% names(layer),
+    logical(1)
+  )))
+
+  box <- built$data[[1]]
+  expect_identical(nrow(box), nrow(frame))
+  drawn <- paste(
+    levels(frame$intervention)[as.integer(box$PANEL)],
+    levels(frame$measure)[as.numeric(box$x)]
+  )
+  position <- match(paste(frame$intervention, frame$measure), drawn)
+  expect_false(anyNA(position))
+  for (stat in c("ymin", "lower", "middle", "upper", "ymax")) {
+    expect_equal(box[[stat]][position], frame[[stat]])
+  }
 })
 
 test_that("the estimator scatter view is a ggplot and aborts for the data variant", {
@@ -1063,6 +1661,10 @@ test_that("the scatter view separates infinite ideal weights into their own laye
   # The infinite rows carry a single fixed shape distinct from the finite layer.
   expect_length(unique(infinite_layer$shape), 1)
   expect_false(unique(infinite_layer$shape) %in% unique(finite_layer$shape))
+  # The crosses sit off the gradient the finite rows are read on, so their
+  # colour is fixed and is not a value that gradient can take.
+  expect_identical(unique(infinite_layer$colour), "#B2182B")
+  expect_false(unique(infinite_layer$colour) %in% unique(finite_layer$colour))
 })
 
 test_that("the scatter view builds without a colour label when every weight is infinite", {
@@ -1092,6 +1694,117 @@ test_that("the scatter view builds without a colour label when every weight is i
   expect_length(built$data, 1)
   expect_length(unique(built$data[[1]]$shape), 1)
   expect_false(is.null(plot$labels$subtitle))
+})
+
+test_that("the histogram view facets on the intervention label", {
+  # Under a function intervention `value` differs for nearly every observation,
+  # so a facet keyed on it would draw one panel per row.
+  data <- sim_edp_gaussian(60)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(down = function(.x) .x - 1, 0),
+    exposure_type = "continuous"
+  )
+
+  layout <- ggplot2::ggplot_build(
+    ggplot2::autoplot(res, type = "histogram")
+  )$layout$layout
+
+  expect_true("intervention" %in% names(layout))
+  expect_false("value" %in% names(layout))
+  expect_identical(nrow(layout), 2L)
+  expect_setequal(as.character(layout$intervention), c("down", "0"))
+})
+
+test_that("the histogram view draws in the stock geom_histogram appearance", {
+  # The bars stand for counts and nothing else, so they carry the fill and the
+  # outline ggplot2 gives a histogram rather than a pair of their own.
+  data <- sim_edp_gaussian(60)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+
+  bars <- histogram_bars(ggplot2::autoplot(res, type = "histogram"))
+  stock <- stock_histogram_aes()
+  expect_identical(unique(bars$fill), stock$fill)
+  expect_identical(unique(bars$colour), stock$colour)
+})
+
+test_that("the ecdf view colors by the intervention label", {
+  data <- sim_edp_gaussian(60)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(down = function(.x) .x - 1, 0),
+    exposure_type = "continuous"
+  )
+
+  built <- ggplot2::ggplot_build(ggplot2::autoplot(res, type = "ecdf"))
+
+  # One curve per intervention, not one per distinct intervened exposure.
+  expect_length(unique(built$data[[1]]$group), 2)
+  expect_length(unique(built$data[[1]]$colour), 2)
+})
+
+test_that("the density view draws one ridgeline per intervention", {
+  skip_if_not_installed("ggridges")
+  data <- sim_edp_gaussian(60)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(down = function(.x) .x - 1, 0),
+    exposure_type = "continuous"
+  )
+
+  plot <- ggplot2::autoplot(res, type = "density")
+  expect_identical(plot$data, pull_plot_data(res, type = "density"))
+  expect_s3_class(plot$layers[[1]]$geom, "GeomDensityRidges")
+
+  # ggridges reports the joint bandwidth it settles on unless it is handed one,
+  # so a view that leaves it to pick talks in every transcript that draws it.
+  expect_no_message(ggplot2::ggplot_build(plot))
+
+  built <- ggplot2::ggplot_build(plot)
+  # The interventions run up y in the order they were given; EDP runs along x,
+  # the measure the histogram view draws.
+  expect_identical(
+    built$layout$panel_params[[1]]$y$get_labels(),
+    c("down", "0")
+  )
+  x_range <- built$layout$panel_params[[1]]$x.range
+  expect_lte(x_range[[1]], min(res@results$edp))
+  expect_gte(x_range[[2]], max(res@results$edp))
+})
+
+test_that("the density view says what it needs when ggridges is absent", {
+  local_quiet()
+  data <- sim_edp_gaussian(60)
+  # The result is built before the mock, because resolving the exposure type
+  # asks whether a package is installed.
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+
+  # Mocked rather than skipped, so the reader without ggridges sees a message
+  # this suite has read, rather than one that fires only on machines it never
+  # runs on.
+  local_mocked_bindings(is_installed = function(...) FALSE, .package = "rlang")
+  expect_snapshot_abort(
+    ggplot2::autoplot(res, type = "density"),
+    class = "positively_missing_package_error"
+  )
 })
 
 test_that("EDP autoplot views render as expected", {
@@ -1151,6 +1864,76 @@ test_that("EDP autoplot views render as expected", {
   expect_doppelganger(
     "EDP estimator scatter with infinite weights",
     ggplot2::autoplot(res_infinite, type = "scatter")
+  )
+})
+
+test_that("EDP boxplot views render as expected", {
+  local_quiet()
+  announce_doppelganger(
+    "EDP boxplot by intervention",
+    "EDP estimator boxplot by measure"
+  )
+  data <- sim_edp_gaussian(150)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+  # The figure has to show the outlier layer it pins.
+  expect_gt(length(unlist(pull_plot_data(res, type = "boxplot")$outliers)), 0L)
+  expect_doppelganger("EDP boxplot by intervention", ggplot2::autoplot(res))
+
+  estimator <- check_edp(
+    data,
+    exposure,
+    x1,
+    variant = "estimator",
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+  expect_doppelganger(
+    "EDP estimator boxplot by measure",
+    ggplot2::autoplot(estimator)
+  )
+})
+
+test_that("the EDP density view renders as expected", {
+  local_quiet()
+  announce_doppelganger("EDP density by intervention")
+  skip_if_not_installed("ggridges")
+  # R 4.4.0 corrected density()'s coordinate grid, so the ridgeline curve
+  # differs on earlier R at SVG precision; the figure is pinned on R >= 4.4.
+  skip_if(getRversion() < "4.4.0")
+  data <- sim_edp_gaussian(150)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = c(0, 1),
+    exposure_type = "continuous"
+  )
+  expect_doppelganger(
+    "EDP density by intervention",
+    ggplot2::autoplot(res, type = "density")
+  )
+})
+
+test_that("a function intervention renders in the histogram view", {
+  local_quiet()
+  announce_doppelganger("EDP histogram shift intervention")
+  data <- sim_edp_gaussian(150)
+  res <- check_edp(
+    data,
+    exposure,
+    x1,
+    values = list(down = function(.x) .x - 1, 0),
+    exposure_type = "continuous"
+  )
+  expect_doppelganger(
+    "EDP histogram shift intervention",
+    ggplot2::autoplot(res, type = "histogram")
   )
 })
 
@@ -1451,6 +2234,111 @@ test_that("the value and estimator-selection error messages are stable", {
   ))
 })
 
+test_that("the function-intervention error messages are stable", {
+  local_quiet()
+  data <- sim_edp_gaussian(60)
+  shift <- function(.x) .x - 1
+
+  expect_snapshot_abort(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(shift),
+      exposure_type = "continuous"
+    ),
+    class = "positively_unnamed_error"
+  )
+  expect_snapshot_abort(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = stats::setNames(list(shift, shift), c("down", "down")),
+      exposure_type = "continuous"
+    ),
+    class = "positively_duplicate_error"
+  )
+  # An unnamed scalar is labelled by its own value, so it can collide with a
+  # name the user wrote out even though the two elements look nothing alike.
+  expect_snapshot_abort(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = stats::setNames(list(5, 1), c("", "5")),
+      exposure_type = "continuous"
+    ),
+    class = "positively_duplicate_error"
+  )
+  expect_snapshot_abort(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(bad = function(.x) rep("a", length(.x))),
+      exposure_type = "continuous"
+    ),
+    class = "positively_type_error"
+  )
+  expect_snapshot_abort(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(bad = function(.x) .x[1:2]),
+      exposure_type = "continuous"
+    ),
+    class = "positively_size_error"
+  )
+  expect_snapshot_abort(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(bad = function(.x) replace(.x, 1, NA_real_)),
+      exposure_type = "continuous"
+    ),
+    class = "positively_missing_error"
+  )
+  expect_snapshot_abort(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(bad = function(.x) replace(.x, 1, Inf)),
+      exposure_type = "continuous"
+    ),
+    class = "positively_range_error"
+  )
+  expect_snapshot_abort(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(bad = NULL),
+      exposure_type = "continuous"
+    ),
+    class = "positively_type_error"
+  )
+  expect_snapshot_abort(
+    check_edp(
+      data,
+      exposure,
+      x1,
+      values = list(),
+      exposure_type = "continuous"
+    ),
+    class = "positively_empty_error"
+  )
+
+  binary <- dgp_good_positivity(n = 60, seed = 1)
+  expect_snapshot_abort(
+    check_edp(binary, exposure, c(x1, x2), values = list(down = shift)),
+    class = "positively_type_error"
+  )
+})
+
 test_that("the unused-bandwidth warnings are stable", {
   local_quiet()
   withr::local_options(warn = 0)
@@ -1511,6 +2399,19 @@ test_that("the print method is stable", {
     exposure_type = "continuous"
   )
   expect_snapshot(print(estimator))
+})
+
+test_that("the print method is stable for a function intervention", {
+  local_quiet()
+
+  res <- check_edp(
+    sim_edp_gaussian(150),
+    exposure,
+    x1,
+    values = list(down = function(.x) .x - 1, 0),
+    exposure_type = "continuous"
+  )
+  expect_snapshot(print(res))
 })
 
 # ---- Display methods -------------------------------------------------------

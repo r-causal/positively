@@ -4,7 +4,8 @@
 #'
 #' Draws the non-overlap ratio \eqn{\hat{\tau}(a)} against the target exposure
 #' value `a`, with a reference line at zero. For a sequential result the curves
-#' are colored by time point.
+#' are colored by time point. [pull_plot_data()] returns the tibble this view
+#' draws.
 #'
 #' @param object An `hdr_result` from [check_hdr()] or [check_hdr_seq()].
 #' @param ... Not used.
@@ -26,24 +27,25 @@
 NULL
 
 method(autoplot, hdr_result) <- function(object, ...) {
-  results <- object@results
-  if ("time" %in% names(results)) {
-    autoplot_hdr_sequential(results)
+  plot_data <- pull_plot_data(object)
+  if ("time" %in% names(plot_data)) {
+    autoplot_hdr_sequential(plot_data)
   } else {
-    autoplot_hdr_point(results)
+    autoplot_hdr_point(plot_data)
   }
 }
 
 #' The point view of an HDR non-overlap diagnostic
 #'
-#' @param results The `@results` tibble of a point `hdr_result`.
+#' @param plot_data The frame [pull_plot_data()] returns for a point
+#'   `hdr_result`.
 #'
 #' @return A [ggplot2::ggplot] object.
 #' @keywords internal
 #' @noRd
-autoplot_hdr_point <- function(results) {
+autoplot_hdr_point <- function(plot_data) {
   ggplot2::ggplot(
-    results,
+    plot_data,
     ggplot2::aes(x = .data$value, y = .data$nonoverlap)
   ) +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
@@ -58,14 +60,13 @@ autoplot_hdr_point <- function(results) {
 
 #' The sequential view of an HDR non-overlap diagnostic
 #'
-#' @param results The `@results` tibble of a sequential `hdr_result`.
+#' @param plot_data The frame [pull_plot_data()] returns for a sequential
+#'   `hdr_result`.
 #'
 #' @return A [ggplot2::ggplot] object.
 #' @keywords internal
 #' @noRd
-autoplot_hdr_sequential <- function(results) {
-  plot_data <- results
-  plot_data$time <- factor(plot_data$time)
+autoplot_hdr_sequential <- function(plot_data) {
   ggplot2::ggplot(
     plot_data,
     ggplot2::aes(

@@ -8,6 +8,7 @@
 #' is aimed at. `type = "sweep"` shows ETA.Bias with a
 #' two-Monte-Carlo-standard-error band across the truncation sweep, the
 #' bias-variance tradeoff of weight truncation, with one line per estimand term.
+#' [pull_plot_data()] returns the tibble either of these views draws.
 #'
 #' An estimand of one term, read at one truncation level, draws a single facet.
 #' A discrete exposure truncates a fitted probability, so its sweep is drawn
@@ -132,45 +133,27 @@ eta_bias_level_index <- function(n_levels, n_terms) {
 #' @keywords internal
 #' @noRd
 autoplot_eta_bias_bootstrap <- function(object) {
-  results <- object@results
-  term_levels <- unique(results$term)
+  boot_data <- pull_plot_data(object, type = "bootstrap")
   n_terms <- length(object@truth)
-  n_levels <- eta_bias_n_levels(results, n_terms)
-  sweep_levels <- eta_bias_levels(object)
-  level_index <- eta_bias_level_index(n_levels, n_terms)
 
-  boot_data <- do.call(
-    rbind,
-    lapply(seq_len(nrow(results)), function(cell) {
-      tibble::tibble(
-        term = results$term[[cell]],
-        level = level_index[[cell]],
-        estimate = object@boot_estimates[[cell]]
-      )
-    })
-  )
-  # Both keys are factors so the panels follow the sweep and the order the terms
-  # were built in. Left as they are, the level index would sort lexically and
-  # put a tenth level ahead of a second one.
-  boot_data$term <- factor(boot_data$term, levels = term_levels)
-  boot_data$level <- factor(boot_data$level, levels = seq_len(n_levels))
-
-  # The truth is a property of the term alone, so a term's facets carry the one
-  # line the estimator in them was aimed at.
+  # The truth rides with every draw, but a line per draw is a line drawn
+  # thousands of times over, so the lines are drawn from one row per term. The
+  # truth is a property of the term alone, so a term's facets carry the one line
+  # the estimator in them was aimed at.
   truth_data <- tibble::tibble(
-    term = factor(names(object@truth), levels = term_levels),
+    term = factor(names(object@truth), levels = levels(boot_data$term)),
     truth = unname(object@truth)
   )
 
   ggplot2::ggplot(boot_data, ggplot2::aes(x = .data$estimate)) +
-    ggplot2::geom_histogram(bins = 30, fill = "grey70", color = "white") +
+    ggplot2::geom_histogram(bins = 30) +
     ggplot2::geom_vline(
       ggplot2::aes(xintercept = .data$truth),
       data = truth_data,
       linetype = "dashed",
       inherit.aes = FALSE
     ) +
-    eta_bias_bootstrap_facets(n_terms, sweep_levels$labels) +
+    eta_bias_bootstrap_facets(n_terms, nlevels(boot_data$label)) +
     ggplot2::labs(
       x = "Bootstrap estimate",
       y = "Bootstrap draws",
@@ -190,26 +173,23 @@ autoplot_eta_bias_bootstrap <- function(object) {
 #' keeps a level's terms in separate panels: pooling them would put the bootstrap
 #' distributions of two different estimands in one histogram.
 #'
+#' The levels are faceted on the `label` the frame carries, in the order the
+#' sweep ran, so the strips read a column a reader can see rather than a lookup
+#' behind the figure.
+#'
 #' @param n_terms The number of estimand terms.
-#' @param labels The strip label for each truncation level.
+#' @param n_levels The number of truncation levels.
 #'
 #' @return A [ggplot2::ggplot] facet specification.
 #' @keywords internal
 #' @noRd
-eta_bias_bootstrap_facets <- function(n_terms, labels) {
-  strip_labeller <- ggplot2::labeller(
-    level = ggplot2::as_labeller(function(value) labels[as.integer(value)])
-  )
-  if (n_terms == 1 && length(labels) == 1) {
-    return(ggplot2::facet_wrap(
-      ggplot2::vars(.data$level),
-      labeller = strip_labeller
-    ))
+eta_bias_bootstrap_facets <- function(n_terms, n_levels) {
+  if (n_terms == 1 && n_levels == 1) {
+    return(ggplot2::facet_wrap(ggplot2::vars(.data$label)))
   }
   ggplot2::facet_grid(
     rows = ggplot2::vars(.data$term),
-    cols = ggplot2::vars(.data$level),
-    labeller = strip_labeller
+    cols = ggplot2::vars(.data$label)
   )
 }
 
@@ -222,35 +202,10 @@ eta_bias_bootstrap_facets <- function(n_terms, labels) {
 #' @keywords internal
 #' @noRd
 autoplot_eta_bias_sweep <- function(object, call = rlang::caller_env()) {
-  results <- object@results
+  eta_bias_require_sweep(object, call = call)
   n_terms <- length(object@truth)
-  n_levels <- eta_bias_n_levels(results, n_terms)
-  if (n_levels == 1) {
-    # An estimand of several terms fills several rows at one truncation level,
-    # so the row count reads as a sweep that never ran and the level count is
-    # what decides there is nothing to draw.
-    entry <- if (object@exposure_type == "continuous") {
-      "quantile levels"
-    } else {
-      "lower bounds"
-    }
-    abort(
-      c(
-        "The sweep view needs a truncation sweep of more than one level.",
-        i = "Rerun {.fn check_eta_bias} with a {.arg truncation_grid} of multiple {entry}."
-      ),
-      error_class = "positively_sweep_absent_error",
-      call = call
-    )
-  }
   sweep_levels <- eta_bias_levels(object)
-  sweep_data <- tibble::tibble(
-    term = factor(results$term, levels = unique(results$term)),
-    truncation = sweep_levels$values[eta_bias_level_index(n_levels, n_terms)],
-    bias = results$bias,
-    lower = results$bias - 2 * results$mc_se,
-    upper = results$bias + 2 * results$mc_se
-  )
+  sweep_data <- pull_plot_data(object, type = "sweep")
   # One term needs no key to tell terms apart, so it keeps the neutral grey band
   # and the plain line. The colour and fill labels belong to those mappings;
   # naming an aesthetic the plot never maps draws an unknown-label message.

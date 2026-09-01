@@ -21,6 +21,7 @@ estimand term and truncation level, each facet marking the \code{truth} its term
 is aimed at. \code{type = "sweep"} shows ETA.Bias with a
 two-Monte-Carlo-standard-error band across the truncation sweep, the
 bias-variance tradeoff of weight truncation, with one line per estimand term.
+\code{\link[=pull_plot_data]{pull_plot_data()}} returns the tibble either of these views draws.
 }
 \details{
 An estimand of one term, read at one truncation level, draws a single facet.

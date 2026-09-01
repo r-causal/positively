@@ -15,7 +15,8 @@ A \link[ggplot2:ggplot]{ggplot2::ggplot} object.
 \description{
 Draws the non-overlap ratio \eqn{\hat{\tau}(a)} against the target exposure
 value \code{a}, with a reference line at zero. For a sequential result the curves
-are colored by time point.
+are colored by time point. \code{\link[=pull_plot_data]{pull_plot_data()}} returns the tibble this view
+draws.
 }
 \examples{
 set.seed(1)

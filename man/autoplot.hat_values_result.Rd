@@ -20,6 +20,7 @@ shows the null distribution of \eqn{\hat{\phi}} as a histogram with the
 observed \eqn{\hat{\phi}} and the \code{conf_level} null quantile marked.
 \code{type = "profile"} shows the proportion of high-leverage candidates at each
 exposure percentile, the leverage profile across the exposure range.
+\code{\link[=pull_plot_data]{pull_plot_data()}} returns the tibble either of these views draws.
 }
 \examples{
 set.seed(1)

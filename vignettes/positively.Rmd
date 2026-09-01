@@ -147,7 +147,7 @@ gives it, so a panel reads well for diagnostics whose default view is compact.
 PoRT reports a couple of hundred subgroups here, and its default chart is worth
 a figure of its own, so the panel below holds the other two.
 
-```{r container-plot, eval = requireNamespace("patchwork", quietly = TRUE), message = FALSE, fig.width = 9, fig.height = 3.5, fig.alt = "Effective data points faceted by candidate exposure value, each a broad distribution running from zero to the sample maximum, beside the fraction of nearby opposite-group units faceted by exposure group, each rising from near zero to a peak around four tenths."}
+```{r container-plot, eval = requireNamespace("patchwork", quietly = TRUE), message = FALSE, fig.width = 9, fig.height = 3.5, fig.alt = "Boxplots of effective data points at the two candidate exposure values, both spanning most of the range from zero to the largest observed value with points beyond their whiskers, beside histograms of the fraction of nearby opposite-group units faceted by exposure group, each rising from near zero to a peak around four tenths."}
 compact <- check_positivity(
   pos_violations,
   exposure,
@@ -223,9 +223,12 @@ Effective data points are a relative measure. They are meaningful when compared
 across units or across candidate values for a fixed covariate set, not against a
 universal threshold. Units in a thinly supported region carry a low value at the
 exposure level they rarely receive, because few observed neighbors surround the
-intervened-on point. The `autoplot()` method shows the distribution of effective
-data points, faceted by candidate exposure value; the left tail near zero is the
-set of units with little observed support under that intervention.
+intervened-on point. The `autoplot()` method reads effective data points by
+candidate value. The default view boxes them, with whiskers at the fifth and the
+ninety-fifth percentile following Ring and Schomaker (2026) and the values
+outside them drawn as points. `type = "histogram"` opens the same numbers up as
+a distribution faceted by candidate value; the left tail near zero is the set of
+units with little observed support under that intervention.
 
 ```{r edp-plot, fig.alt = "Histograms of effective data points faceted by candidate exposure value, each with a left tail of low-support observations near zero."}
 autoplot(edp, type = "histogram")

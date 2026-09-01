@@ -112,6 +112,47 @@ Effective data points detect the `a2` gap directly, because the kernel measures
 local support in the joint exposure-covariate space without assuming a form for
 the conditional density.
 
+### Shifting each observation away from the dose it received
+
+A candidate value asks what the support looks like when every observation is
+moved to the same dose. An intervention can instead be a rule applied to the
+dose each observation already received. Passing `values` a list that mixes
+single values with functions of the observed exposure asks both questions in one
+run. Each function needs a name, which labels its intervention; a single value
+labels itself.
+
+```{r edp-shift}
+shift <- check_edp(
+  pos_violations_long,
+  a2,
+  c(l0, l1),
+  values = list(1, 5, shifted = function(.x) .x - 1)
+)
+
+tidy(shift) |>
+  group_by(intervention) |>
+  summarize(edp = round(mean(edp), 1))
+```
+
+Under `shifted`, each observation is moved to its own `a2 - 1` rather than to a
+common target, so effective data points are read per natural observation: a row
+reports the support surrounding the dose that observation would have received
+under the shift. The `value` column holds that intervened dose, which now varies
+from row to row, and `intervention` is what tells the three apart. The mean under
+the shift falls well below either single value because subtracting one carries
+observations into two thinly supported places: the 126 drawn between four and
+five land in the `(2, 4)` gap, and the 121 drawn below one fall beneath the
+observed range, where support is thinner still.
+
+The default `autoplot()` view boxes effective data points by intervention. Its
+whiskers reach the fifth and the ninety-fifth percentile, following Ring and
+Schomaker (2026) rather than Tukey's fences, and the values outside them are
+drawn as points.
+
+```{r edp-shift-plot, fig.alt = "Boxplots of effective data points for the interventions one, five, and shifted. The boxes for one and five sit near sixty-five effective data points, while the shifted box is centered near thirty-six and reaches lower, with points beyond the whiskers at both ends of every box."}
+autoplot(shift)
+```
+
 ## Hat values: leverage-based extrapolation risk
 
 `check_hat_values()` computes the hat-value diagnostic of Moodie and Schulz
