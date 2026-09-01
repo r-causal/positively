@@ -1903,6 +1903,9 @@ test_that("the EDP density view renders as expected", {
   local_quiet()
   announce_doppelganger("EDP density by intervention")
   skip_if_not_installed("ggridges")
+  # R 4.4.0 corrected density()'s coordinate grid, so the ridgeline curve
+  # differs on earlier R at SVG precision; the figure is pinned on R >= 4.4.
+  skip_if(getRversion() < "4.4.0")
   data <- sim_edp_gaussian(150)
   res <- check_edp(
     data,
