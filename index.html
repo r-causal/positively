@@ -6,6 +6,11 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Diagnose Positivity Violations and Extrapolation in Causal Inference • positively</title>
+<!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
+<link rel="icon" type="”image/svg+xml”" href="favicon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" sizes="any" href="favicon.ico">
+<link rel="manifest" href="site.webmanifest">
 <!-- mathjax math --><script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js" integrity="sha256-MASABpB4tYktI2Oitl4t+78w/lyA+D7b/s9GEP0JOGI=" crossorigin="anonymous"></script><script>
   window.MathJax = {
     chtml: {
@@ -19,6 +24,7 @@
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Diagnose Positivity Violations and Extrapolation in Causal Inference">
 <meta name="description" content="Provides diagnostics for positivity violations and extrapolation in causal inference. Includes methods based on effective data points, positivity regression trees, hat values, highest density regions, density ratios, and parametric bootstrap bias estimates, covering binary, categorical, and continuous exposures as well as time-varying treatments. Each diagnostic returns a tidy result object and an optional plot.">
 <meta property="og:description" content="Provides diagnostics for positivity violations and extrapolation in causal inference. Includes methods based on effective data points, positivity regression trees, hat values, highest density regions, density ratios, and parametric bootstrap bias estimates, covering binary, categorical, and continuous exposures as well as time-varying treatments. Each diagnostic returns a tidy result object and an optional plot.">
+<meta property="og:image" content="https://r-causal.github.io/positively/logo.png">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -62,8 +68,11 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9"><div class="section level1">
-<div class="page-header"><h1 id="positively">positively<a class="anchor" aria-label="anchor" href="#positively"></a>
-</h1></div>
+<div class="page-header">
+<img src="logo.png" class="logo" alt=""><h1 id="positively-">positively 
+<a class="anchor" aria-label="anchor" href="#positively-"></a>
+</h1>
+</div>
 <!-- badges: start -->
 
 <p>positively provides diagnostics for positivity violations and extrapolation in causal inference. Causal effect estimates rest on the positivity assumption: every unit must have a non-zero probability of receiving each level of the exposure within every stratum of the covariates. Where that probability is zero, or close to it, you face one of two problems: 1) for an exposure-based model, like Inverse Probability Weighting, you get a biased and unstable estimate or 2) for an outcome-based model, like a regression model, an estimate comes from the model extrapolating rather than from observed comparisons.</p>
