@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1.74in" height="2in" viewBox="0 0 1740 2000">
+<title>positively package logo</title>
+<defs><clipPath id="hex"><polygon points="870,0 1740,500 1740,1500 870,2000 0,1500 0,500"/></clipPath></defs>
+<g clip-path="url(#hex)"><rect width="1740" height="2000" fill="#f5ecd8"/>
+<image x="115" y="0" width="1510" height="2013.3333333333333" xlink:href="artwork.png"/>
+<text x="870" y="1660" text-anchor="middle" font-family="Gill Sans" font-size="235" font-weight="400" fill="#214c50">positively</text><polygon id="sticker-border" points="870,0 1740,500 1740,1500 870,2000 0,1500 0,500" fill="none" stroke="#214c50" stroke-width="44" stroke-linejoin="miter"/></g></svg>
